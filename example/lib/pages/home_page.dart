@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
+import 'package:xue_hua_qr_code/xue_hua_qr_code.dart';
 
 import '../widgets/barcode_result_tile.dart';
 import '../widgets/scan_result_dialog.dart';
@@ -19,18 +20,19 @@ class ExampleHomePage extends StatefulWidget {
 class _ExampleHomePageState extends State<ExampleHomePage> {
   late final TextEditingController _barcodeInputController;
 
-  BarcodeEccLevel _selectedEcc = BarcodeEccLevel.medium;
-  int _selectedMargin = 2;
-  Uint8List? _generatedPngBytes;
+  QrErrorLevel _selectedEcc = QrErrorLevel.medium;
+  QrModuleShape _selectedShape = QrModuleShape.square;
+  String _currentQrValue =
+      'https://github.com/Matkurban/xue_hua_barcode_scanner';
   List<BarcodeResult> _latestResults = const <BarcodeResult>[];
-  String _statusLog = '准备就绪：点击下方按钮打开扫码页，或直接生成并验证条码/二维码。';
+  String _statusLog = '准备就绪：点击下方按钮打开扫码页，或直接生成并验证二维码。';
   bool _isWorking = false;
 
   @override
   void initState() {
     super.initState();
     _barcodeInputController = TextEditingController(
-      text: 'https://github.com/Matkurban/xue_hua_barcode_scanner',
+      text: _currentQrValue,
     );
     _generateAndDecodeSample();
   }
@@ -90,7 +92,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           const SizedBox(height: 16),
           ExampleSectionCard(
             icon: Icons.qr_code_2_rounded,
-            title: '2. 静态图片解码与条码生成实验室 (zxing-cpp)',
+            title: '2. 二维码生成 (xue_hua_qr_code) 与静态解码实验室 (zxing-cpp)',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
@@ -111,23 +113,23 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 Row(
                   children: <Widget>[
                     Expanded(
-                      child: DropdownButtonFormField<BarcodeEccLevel>(
+                      child: DropdownButtonFormField<QrErrorLevel>(
                         initialValue: _selectedEcc,
                         decoration: const InputDecoration(
                           labelText: '纠错等级 (ECC)',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        items: BarcodeEccLevel.values
+                        items: QrErrorLevel.values
                             .map(
-                              (BarcodeEccLevel level) =>
-                                  DropdownMenuItem<BarcodeEccLevel>(
+                              (QrErrorLevel level) =>
+                                  DropdownMenuItem<QrErrorLevel>(
                                 value: level,
                                 child: Text(level.name.toUpperCase()),
                               ),
                             )
                             .toList(),
-                        onChanged: (BarcodeEccLevel? value) {
+                        onChanged: (QrErrorLevel? value) {
                           if (value != null) {
                             setState(() => _selectedEcc = value);
                           }
@@ -136,24 +138,25 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: _selectedMargin,
+                      child: DropdownButtonFormField<QrModuleShape>(
+                        initialValue: _selectedShape,
                         decoration: const InputDecoration(
-                          labelText: '边距 (Margin)',
+                          labelText: '码点样式 (Shape)',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        items: const <int>[1, 2, 4, 6]
+                        items: QrModuleShape.values
                             .map(
-                              (int m) => DropdownMenuItem<int>(
-                                value: m,
-                                child: Text('$m modules'),
+                              (QrModuleShape shape) =>
+                                  DropdownMenuItem<QrModuleShape>(
+                                value: shape,
+                                child: Text(shape.name),
                               ),
                             )
                             .toList(),
-                        onChanged: (int? value) {
+                        onChanged: (QrModuleShape? value) {
                           if (value != null) {
-                            setState(() => _selectedMargin = value);
+                            setState(() => _selectedShape = value);
                           }
                         },
                       ),
@@ -168,7 +171,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     FilledButton.tonalIcon(
                       onPressed: _isWorking ? null : _generateAndDecodeSample,
                       icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('生成条码并立即解码验证'),
+                      label: const Text('生成二维码并立即解码验证'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _isWorking ? null : _pickAndDecodeFromGallery,
@@ -182,7 +185,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     ),
                   ],
                 ),
-                if (_generatedPngBytes != null) ...<Widget>[
+                if (_currentQrValue.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 16),
                   Center(
                     child: Container(
@@ -191,11 +194,14 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Image.memory(
-                        _generatedPngBytes!,
-                        width: 200,
-                        height: 200,
-                        fit: BoxFit.contain,
+                      child: XueHuaQrCode(
+                        value: _currentQrValue,
+                        size: 200,
+                        errorCorrectionLevel: _selectedEcc,
+                        style: QrStyle(
+                          shape: _selectedShape,
+                          padding: const EdgeInsets.all(12),
+                        ),
                       ),
                     ),
                   ),
@@ -234,33 +240,35 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     );
   }
 
-  /// 生成条码 PNG 并立即通过 `decodeImageMemory` 解码校验。
+  /// 使用 `xue_hua_qr_code` 生成二维码 PNG 并立即通过 `decodeImageMemory` 解码校验。
   Future<void> _generateAndDecodeSample() async {
     final String content = _barcodeInputController.text.trim();
     if (content.isEmpty) return;
 
     setState(() {
       _isWorking = true;
+      _currentQrValue = content;
     });
 
     try {
-      final Uint8List pngBytes = await XueHuaBarcodeScanner.encodeBarcode(
+      final Uint8List pngBytes = await XueHuaQrCode.toPngBytes(
         content,
-        width: 420,
-        height: 420,
-        margin: _selectedMargin,
-        eccLevel: _selectedEcc,
+        size: 420,
+        errorCorrectionLevel: _selectedEcc,
+        style: QrStyle(
+          shape: _selectedShape,
+          padding: const EdgeInsets.all(12),
+        ),
       );
       final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(pngBytes);
 
       if (!mounted) return;
       setState(() {
-        _generatedPngBytes = pngBytes;
         _latestResults = decoded;
         _statusLog = decoded.isNotEmpty
-            ? '编码并解码验证成功: "${decoded.first.text}" (${decoded.first.format.displayName})'
-            : '条码图片已生成 (${pngBytes.lengthInBytes} bytes)';
+            ? 'xue_hua_qr_code 生成并解码验证成功: "${decoded.first.text}" (${decoded.first.format.displayName})'
+            : '二维码图片已生成 (${pngBytes.lengthInBytes} bytes)';
       });
     } catch (e) {
       if (!mounted) return;
@@ -278,16 +286,24 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
   /// 验证带 `rowStride` 对齐步长的 Y 平面解码流程。
   Future<void> _testRowStrideYPlaneDecode() async {
-    setState(() => _isWorking = true);
+    final String content = _barcodeInputController.text.trim();
+    if (content.isEmpty) return;
+
+    setState(() {
+      _isWorking = true;
+      _currentQrValue = content;
+    });
     try {
       const int width = 264;
-      const int height = 264;
       const int rowStride = 288;
-      final Uint8List png = await XueHuaBarcodeScanner.encodeBarcode(
-        _barcodeInputController.text.trim(),
-        width: width,
-        height: height,
-        margin: _selectedMargin,
+      final Uint8List png = await XueHuaQrCode.toPngBytes(
+        content,
+        size: width.toDouble(),
+        errorCorrectionLevel: _selectedEcc,
+        style: QrStyle(
+          shape: _selectedShape,
+          padding: const EdgeInsets.all(12),
+        ),
       );
       final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(png);
