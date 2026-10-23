@@ -13,10 +13,13 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.params.OutputConfiguration;
+import android.hardware.camera2.params.SessionConfiguration;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -390,8 +393,7 @@ public final class XueHuaBarcodeScannerPlugin implements
           CaptureRequest.CONTROL_AE_MODE,
           CaptureRequest.CONTROL_AE_MODE_ON);
 
-      device.createCaptureSession(
-          Arrays.asList(previewSurface, imageReader.getSurface()),
+      CameraCaptureSession.StateCallback stateCallback =
           new CameraCaptureSession.StateCallback() {
             @Override
             public void onConfigured(CameraCaptureSession session) {
@@ -415,11 +417,38 @@ public final class XueHuaBarcodeScannerPlugin implements
             public void onConfigureFailed(CameraCaptureSession session) {
               onFailedCallback.run();
             }
-          },
-          backgroundHandler);
+          };
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        OutputConfiguration previewOutput = new OutputConfiguration(previewSurface);
+        OutputConfiguration imageOutput = new OutputConfiguration(imageReader.getSurface());
+        SessionConfiguration sessionConfig = new SessionConfiguration(
+            SessionConfiguration.SESSION_REGULAR,
+            Arrays.asList(previewOutput, imageOutput),
+            command -> {
+              Handler handler = backgroundHandler;
+              if (handler != null) {
+                handler.post(command);
+              }
+            },
+            stateCallback);
+        device.createCaptureSession(sessionConfig);
+      } else {
+        createLegacyCaptureSession(device, stateCallback);
+      }
     } catch (CameraAccessException e) {
       onFailedCallback.run();
     }
+  }
+
+  @SuppressWarnings("deprecation")
+  private void createLegacyCaptureSession(
+      CameraDevice device,
+      CameraCaptureSession.StateCallback stateCallback) throws CameraAccessException {
+    device.createCaptureSession(
+        Arrays.asList(previewSurface, imageReader.getSurface()),
+        stateCallback,
+        backgroundHandler);
   }
 
   private void onImageAvailable(ImageReader reader) {
