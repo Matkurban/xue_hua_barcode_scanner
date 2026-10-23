@@ -26,6 +26,7 @@ if(XH_FETCH_ZXING_CPP)
   set(ZXING_USE_BUNDLED_ZINT OFF CACHE BOOL "Do not require zint submodule" FORCE)
   set(ZXING_READERS ON CACHE BOOL "Enable zxing-cpp barcode readers" FORCE)
   set(ZXING_EXPERIMENTAL_API ON CACHE BOOL "Enable experimental API (tryDenoise)" FORCE)
+  set(ZXING_DISABLE_PCH ON CACHE BOOL "Disable precompiled headers for cross-toolchain compatibility" FORCE)
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build ZXing as a static library linked into FFI plugin" FORCE)
 
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
@@ -36,7 +37,7 @@ if(XH_FETCH_ZXING_CPP)
     zxing_cpp
     URL      https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v3.1.1.tar.gz
     URL_HASH SHA256=7286b1e6ade66fe82b7c8208b4595deeb55d6486b410834fdc65702f46650542
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR core
   )
   FetchContent_MakeAvailable(zxing_cpp)
 endif()
