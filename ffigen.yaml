@@ -1,0 +1,15 @@
+# Run with `dart run ffigen --config ffigen.yaml`.
+name: XueHuaBarcodeScannerBindings
+description: |
+  Bindings for `src/xue_hua_barcode_scanner.h`.
+
+  Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
+output: 'lib/xue_hua_barcode_scanner_bindings_generated.dart'
+headers:
+  entry-points:
+    - 'src/xue_hua_barcode_scanner.h'
+  include-directives:
+    - 'src/xue_hua_barcode_scanner.h'
+comments:
+  style: any
+  length: full
