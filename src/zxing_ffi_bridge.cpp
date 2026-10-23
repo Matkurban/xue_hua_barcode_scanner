@@ -6,24 +6,15 @@
 #include <cstring>
 #include <exception>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#if __has_include("ReadBarcode.h")
+#if __has_include("ZXingCpp.h")
 #define XH_HAS_ZXING_CPP 1
-#include "BarcodeFormat.h"
-#include "BitMatrix.h"
-#include "ImageView.h"
-#include "MultiFormatWriter.h"
-#include "ReadBarcode.h"
-#include "ReaderOptions.h"
-#elif __has_include(<ZXing/ReadBarcode.h>)
+#include "ZXingCpp.h"
+#elif __has_include(<ZXing/ZXingCpp.h>)
 #define XH_HAS_ZXING_CPP 1
-#include <ZXing/BarcodeFormat.h>
-#include <ZXing/BitMatrix.h>
-#include <ZXing/ImageView.h>
-#include <ZXing/MultiFormatWriter.h>
-#include <ZXing/ReadBarcode.h>
-#include <ZXing/ReaderOptions.h>
+#include <ZXing/ZXingCpp.h>
 #else
 #define XH_HAS_ZXING_CPP 0
 #endif
@@ -63,6 +54,8 @@ ZXing::ImageFormat MapPixelFormat(int32_t format, int32_t* out_bytes_per_pixel) 
 int32_t MapBarcodeFormat(ZXing::BarcodeFormat format) {
   switch (format) {
     case ZXing::BarcodeFormat::QRCode:
+    case ZXing::BarcodeFormat::QRCodeModel1:
+    case ZXing::BarcodeFormat::QRCodeModel2:
       return C_BARCODE_FORMAT_QR_CODE;
     case ZXing::BarcodeFormat::MicroQRCode:
       return C_BARCODE_FORMAT_MICRO_QR_CODE;
@@ -71,14 +64,27 @@ int32_t MapBarcodeFormat(ZXing::BarcodeFormat format) {
     case ZXing::BarcodeFormat::DataMatrix:
       return C_BARCODE_FORMAT_DATA_MATRIX;
     case ZXing::BarcodeFormat::Aztec:
+    case ZXing::BarcodeFormat::AztecCode:
+    case ZXing::BarcodeFormat::AztecRune:
       return C_BARCODE_FORMAT_AZTEC;
     case ZXing::BarcodeFormat::PDF417:
       return C_BARCODE_FORMAT_PDF417;
+    case ZXing::BarcodeFormat::CompactPDF417:
+      return C_BARCODE_FORMAT_COMPACT_PDF417;
+    case ZXing::BarcodeFormat::MicroPDF417:
+      return C_BARCODE_FORMAT_MICRO_PDF417;
     case ZXing::BarcodeFormat::Code128:
       return C_BARCODE_FORMAT_CODE_128;
     case ZXing::BarcodeFormat::Code39:
+    case ZXing::BarcodeFormat::Code39Std:
+    case ZXing::BarcodeFormat::Code39Ext:
+    case ZXing::BarcodeFormat::Code32:
+    case ZXing::BarcodeFormat::PZN:
       return C_BARCODE_FORMAT_CODE_39;
+    case ZXing::BarcodeFormat::Code93:
+      return C_BARCODE_FORMAT_CODE_93;
     case ZXing::BarcodeFormat::EAN13:
+    case ZXing::BarcodeFormat::ISBN:
       return C_BARCODE_FORMAT_EAN_13;
     case ZXing::BarcodeFormat::EAN8:
       return C_BARCODE_FORMAT_EAN_8;
@@ -87,27 +93,61 @@ int32_t MapBarcodeFormat(ZXing::BarcodeFormat format) {
     case ZXing::BarcodeFormat::UPCE:
       return C_BARCODE_FORMAT_UPC_E;
     case ZXing::BarcodeFormat::ITF:
+    case ZXing::BarcodeFormat::ITF14:
       return C_BARCODE_FORMAT_ITF;
     case ZXing::BarcodeFormat::Codabar:
       return C_BARCODE_FORMAT_CODABAR;
+    case ZXing::BarcodeFormat::DataBar:
+    case ZXing::BarcodeFormat::DataBarOmni:
+    case ZXing::BarcodeFormat::DataBarStk:
+    case ZXing::BarcodeFormat::DataBarStkOmni:
+      return C_BARCODE_FORMAT_DATA_BAR;
+    case ZXing::BarcodeFormat::DataBarExp:
+    case ZXing::BarcodeFormat::DataBarExpStk:
+      return C_BARCODE_FORMAT_DATA_BAR_EXPANDED;
+    case ZXing::BarcodeFormat::DataBarLtd:
+      return C_BARCODE_FORMAT_DATA_BAR_LIMITED;
+    case ZXing::BarcodeFormat::MaxiCode:
+      return C_BARCODE_FORMAT_MAXI_CODE;
+    case ZXing::BarcodeFormat::Telepen:
+    case ZXing::BarcodeFormat::TelepenAlpha:
+    case ZXing::BarcodeFormat::TelepenNumeric:
+      return C_BARCODE_FORMAT_TELEPEN;
+    case ZXing::BarcodeFormat::DXFilmEdge:
+      return C_BARCODE_FORMAT_DX_FILM_EDGE;
     default:
       return C_BARCODE_FORMAT_UNKNOWN;
   }
 }
 
-int MapEccLevel(int32_t ecc_level) {
+std::string MapEccLevelOption(int32_t ecc_level) {
+#ifdef ZXING_USE_ZINT
   switch (ecc_level) {
     case C_BARCODE_ECC_LOW:
-      return 1;
+      return "ecLevel=L";
     case C_BARCODE_ECC_MEDIUM:
-      return 3;
+      return "ecLevel=M";
     case C_BARCODE_ECC_QUARTILE:
-      return 5;
+      return "ecLevel=Q";
     case C_BARCODE_ECC_HIGH:
-      return 7;
+      return "ecLevel=H";
     default:
-      return 3;
+      return "ecLevel=M";
   }
+#else
+  switch (ecc_level) {
+    case C_BARCODE_ECC_LOW:
+      return "ecLevel=1";
+    case C_BARCODE_ECC_MEDIUM:
+      return "ecLevel=3";
+    case C_BARCODE_ECC_QUARTILE:
+      return "ecLevel=5";
+    case C_BARCODE_ECC_HIGH:
+      return "ecLevel=7";
+    default:
+      return "ecLevel=3";
+  }
+#endif
 }
 #else
 void RenderFallbackBarcodeMatrix(
@@ -277,9 +317,9 @@ extern "C" {
 
 XH_FFI_EXPORT const char* zxing_engine_version(void) {
 #if XH_HAS_ZXING_CPP
-  return "zxing-cpp 2.2.1 (C++20 FFI)";
+  return "zxing-cpp 3.1.1 (C++20 FFI)";
 #else
-  return "zxing-cpp 2.2.1-bridge";
+  return "zxing-cpp 3.1.1-bridge";
 #endif
 }
 
@@ -309,7 +349,7 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
     const int32_t effective_row_stride =
         (row_stride > 0) ? row_stride : (width * bytes_per_pixel);
 
-    ZXing::ImageView image_view(
+    const ZXing::ImageView image_view(
         pixels,
         width,
         height,
@@ -317,20 +357,14 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
         effective_row_stride,
         bytes_per_pixel);
 
-    ZXing::ReaderOptions options;
-    options.setFormats(
-        ZXing::BarcodeFormat::QRCode |
-        ZXing::BarcodeFormat::MicroQRCode |
-        ZXing::BarcodeFormat::RMQRCode |
-        ZXing::BarcodeFormat::DataMatrix |
-        ZXing::BarcodeFormat::Aztec |
-        ZXing::BarcodeFormat::PDF417 |
-        ZXing::BarcodeFormat::LinearCodes);
-    options.setTryHarder(try_harder != 0);
-    options.setTryRotate(try_rotate != 0);
-    options.setTryInvert(try_invert != 0);
-    options.setBinarizer(ZXing::Binarizer::LocalAverage);
-    options.setReturnErrors(false);
+    const auto options = ZXing::ReaderOptions()
+                             .formats(ZXing::BarcodeFormat::AllReadable)
+                             .tryHarder(try_harder != 0)
+                             .tryRotate(try_rotate != 0)
+                             .tryInvert(try_invert != 0)
+                             .tryDownscale(true)
+                             .binarizer(ZXing::Binarizer::LocalAverage)
+                             .returnErrors(false);
 
     const ZXing::Barcodes barcodes = ZXing::ReadBarcodes(image_view, options);
     if (barcodes.empty()) {
@@ -468,21 +502,49 @@ XH_FFI_EXPORT CEncodedBarcodeImage* zxing_encode_barcode(
 
 #if XH_HAS_ZXING_CPP
   try {
-    ZXing::MultiFormatWriter writer(ZXing::BarcodeFormat::QRCode);
-    writer.setMargin(safe_margin);
-    writer.setEccLevel(MapEccLevel(ecc_level));
-    writer.setEncoding(ZXing::CharacterSet::UTF8);
+    const ZXing::CreatorOptions creator_options(
+        ZXing::BarcodeFormat::QRCode,
+        MapEccLevelOption(ecc_level));
+    const ZXing::Barcode barcode =
+        ZXing::CreateBarcodeFromText(std::string_view(content), creator_options);
+    const ZXing::ImageView symbol = barcode.symbol();
+    if (symbol.data() == nullptr || symbol.width() <= 0 || symbol.height() <= 0) {
+      std::free(rgba);
+      result->error_message = DuplicateCString("ZXing::CreateBarcodeFromText returned an empty symbol matrix.");
+      return result;
+    }
 
-    const ZXing::BitMatrix matrix = writer.encode(std::string(content), safe_width, safe_height);
-    for (int32_t y = 0; y < safe_height; ++y) {
-      for (int32_t x = 0; x < safe_width; ++x) {
-        const bool is_black = matrix.get(x, y);
-        const uint8_t channel = is_black ? 0 : 255;
-        const int32_t offset = (y * safe_width + x) * 4;
-        rgba[offset + 0] = channel;
-        rgba[offset + 1] = channel;
-        rgba[offset + 2] = channel;
-        rgba[offset + 3] = 255;
+    std::fill(rgba, rgba + byte_length, 255);
+    const int32_t sym_w = symbol.width();
+    const int32_t sym_h = symbol.height();
+    const int32_t total_modules_x = sym_w + (safe_margin * 2);
+    const int32_t total_modules_y = sym_h + (safe_margin * 2);
+    const double module_w = static_cast<double>(safe_width) / total_modules_x;
+    const double module_h = static_cast<double>(safe_height) / total_modules_y;
+
+    for (int32_t my = 0; my < sym_h; ++my) {
+      for (int32_t mx = 0; mx < sym_w; ++mx) {
+        const bool is_black = (*symbol.data(mx, my) != 0);
+        if (!is_black) {
+          continue;
+        }
+        const int32_t x0 = static_cast<int32_t>(std::floor((mx + safe_margin) * module_w));
+        const int32_t y0 = static_cast<int32_t>(std::floor((my + safe_margin) * module_h));
+        const int32_t x1 = std::min<int32_t>(
+            safe_width,
+            static_cast<int32_t>(std::ceil((mx + safe_margin + 1) * module_w)));
+        const int32_t y1 = std::min<int32_t>(
+            safe_height,
+            static_cast<int32_t>(std::ceil((my + safe_margin + 1) * module_h)));
+        for (int32_t py = y0; py < y1; ++py) {
+          for (int32_t px = x0; px < x1; ++px) {
+            const int32_t offset = (py * safe_width + px) * 4;
+            rgba[offset + 0] = 0;
+            rgba[offset + 1] = 0;
+            rgba[offset + 2] = 0;
+            rgba[offset + 3] = 255;
+          }
+        }
       }
     }
 
@@ -498,7 +560,7 @@ XH_FFI_EXPORT CEncodedBarcodeImage* zxing_encode_barcode(
   } catch (...) {
     std::free(rgba);
     result->error_message =
-        DuplicateCString("Unknown C++ exception during ZXing::MultiFormatWriter::encode.");
+        DuplicateCString("Unknown C++ exception during ZXing::CreateBarcodeFromText.");
     return result;
   }
 #else

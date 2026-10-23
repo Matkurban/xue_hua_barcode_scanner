@@ -12,14 +12,18 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(FetchContent)
 
-# Option to automatically fetch official zxing-cpp v2.2.1 via CMake FetchContent
-option(XH_FETCH_ZXING_CPP "Fetch official zxing-cpp v2.2.1 via FetchContent" ON)
+# Option to automatically fetch official zxing-cpp v3.1.1 via CMake FetchContent
+option(XH_FETCH_ZXING_CPP "Fetch official zxing-cpp v3.1.1 via FetchContent" ON)
 
 if(XH_FETCH_ZXING_CPP)
   set(ZXING_EXAMPLES OFF CACHE BOOL "Disable zxing-cpp examples" FORCE)
+  set(ZXING_EXAMPLES_QT OFF CACHE BOOL "Disable zxing-cpp Qt examples" FORCE)
   set(ZXING_UNIT_TESTS OFF CACHE BOOL "Disable zxing-cpp unit tests" FORCE)
   set(ZXING_BLACKBOX_TESTS OFF CACHE BOOL "Disable zxing-cpp blackbox tests" FORCE)
-  set(ZXING_WRITERS ON CACHE BOOL "Enable zxing-cpp barcode writers" FORCE)
+  set(ZXING_C_API OFF CACHE BOOL "Disable zxing-cpp C wrapper" FORCE)
+  set(ZXING_PYTHON_MODULE OFF CACHE BOOL "Disable zxing-cpp Python module" FORCE)
+  set(ZXING_WRITERS "NEW" CACHE STRING "Enable zxing-cpp 3.1.1 writer backend" FORCE)
+  set(ZXING_USE_BUNDLED_ZINT ON CACHE BOOL "Use bundled libzint for barcode creation" FORCE)
   set(ZXING_READERS ON CACHE BOOL "Enable zxing-cpp barcode readers" FORCE)
   set(ZXING_EXPERIMENTAL_API OFF CACHE BOOL "Disable experimental API" FORCE)
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build ZXing as a static library linked into FFI plugin" FORCE)
@@ -27,7 +31,7 @@ if(XH_FETCH_ZXING_CPP)
   FetchContent_Declare(
     zxing_cpp
     GIT_REPOSITORY https://github.com/zxing-cpp/zxing-cpp.git
-    GIT_TAG        v2.2.1
+    GIT_TAG        v3.1.1
     GIT_SHALLOW    TRUE
   )
   FetchContent_MakeAvailable(zxing_cpp)

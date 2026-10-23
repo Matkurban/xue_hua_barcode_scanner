@@ -24,9 +24,24 @@ A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time 
 
   if Dir.exist?(File.join(__dir__, 'zxing-cpp/core/src'))
     s.subspec 'ZXingCore' do |zx|
-      zx.source_files = 'zxing-cpp/core/src/**/*.{h,cpp}'
-      zx.header_dir   = 'ZXing'
-      zx.private_header_files = 'zxing-cpp/core/src/**/*.h'
+      zx.source_files = [
+        'zxing-cpp/core/src/**/*.{h,c,cpp}',
+        'zxing-cpp/wrappers/ios/Sources/Wrapper/Version.h'
+      ]
+      zx.exclude_files = [
+        'zxing-cpp/core/src/libzint/**/*',
+        'zxing-cpp/core/src/ZXingC.{h,cpp}',
+        'zxing-cpp/core/src/ZXingQt.h'
+      ]
+      zx.header_dir = 'ZXing'
+      zx.private_header_files = [
+        'zxing-cpp/core/src/**/*.h',
+        'zxing-cpp/wrappers/ios/Sources/Wrapper/Version.h'
+      ]
+      zx.pod_target_xcconfig = {
+        'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) ZXING_INTERNAL=1',
+        'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/zxing-cpp/core/src" "$(PODS_TARGET_SRCROOT)/zxing-cpp/wrappers/ios/Sources/Wrapper"'
+      }
     end
   end
 

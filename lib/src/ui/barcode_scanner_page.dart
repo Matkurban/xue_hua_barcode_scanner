@@ -490,7 +490,10 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   Widget _buildTopSection(BuildContext context, ScannerState state) {
-    final VoidCallback onBack = () => Navigator.of(context).maybePop();
+    void onBack() {
+      Navigator.of(context).maybePop();
+    }
+
     if (widget.topBarBuilder != null) {
       return widget.topBarBuilder!(
         context,

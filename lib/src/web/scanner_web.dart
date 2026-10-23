@@ -53,7 +53,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   @override
   String get engineVersion {
     if (_jsWindow.has('ZXingWasm')) {
-      return 'zxing-wasm 2.2.1 (dart:js_interop)';
+      return 'zxing-wasm 3.1.1 (dart:js_interop)';
     }
     if (_jsWindow.has('BarcodeDetector')) {
       return 'Web BarcodeDetector + zxing-wasm fallback';
@@ -130,7 +130,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           response.callMethod<JSPromise<JSArrayBuffer>>('arrayBuffer'.toJS);
       final JSArrayBuffer arrayBuffer = await bufferPromise.toDart;
       final Uint8List encodedBytes = arrayBuffer.toDart.asUint8List();
-      return decodeImageMemory(
+      return await decodeImageMemory(
         encodedBytes,
         tryHarder: tryHarder,
         tryRotate: tryRotate,
@@ -348,7 +348,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
         final JSUint8ClampedArray? clamped =
             imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
         if (clamped != null) {
-          final Uint8List rgba = clamped.toDart;
+          final Uint8List rgba = Uint8List.sublistView(clamped.toDart);
           final List<BarcodeResult> results = await decodeImageBytes(
             rgba,
             width: videoWidth,

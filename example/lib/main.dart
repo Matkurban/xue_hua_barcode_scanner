@@ -174,10 +174,16 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('XueHua Barcode Scanner (v1.0.0)'),
-        subtitle: Text(
-          'Engine: ${XueHuaBarcodeScanner.engineVersion}',
-          style: const TextStyle(fontSize: 12, color: Colors.white70),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text('XueHua Barcode Scanner (v1.0.0)'),
+            Text(
+              'Engine: ${XueHuaBarcodeScanner.engineVersion}',
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
+            ),
+          ],
         ),
       ),
       body: ListView(

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:ui' show Offset, Size;
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
@@ -254,7 +253,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         }
       } catch (_) {}
     }
-    return 'zxing-cpp 2.2.1 (FFI Isolate Worker)';
+    return 'zxing-cpp 3.1.1 (FFI Isolate Worker)';
   }
 
   @override
@@ -506,7 +505,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       if (filePath != null && filePath.isNotEmpty) {
         final File file = File(filePath);
         if (await file.exists()) {
-          return file.readAsBytes();
+          return await file.readAsBytes();
         }
       }
     } on MissingPluginException {

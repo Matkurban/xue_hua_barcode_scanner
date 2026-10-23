@@ -38,7 +38,7 @@ dependencies:
 ## Key Features
 
 1. **Unified `zxing-cpp` Decoding & Generation Core**:
-   - **5 Native Platforms**: Compiles `zxing-cpp` (`v2.2.1`) via CMake `FetchContent` and CocoaPods C++20, bridged through an `extern "C"` wrapper (`src/zxing_ffi_bridge.h`) and executed inside background `Isolate.run` workers with deterministic native heap deallocation (`free_barcode_results`, `free_encoded_barcode_image`).
+   - **5 Native Platforms**: Compiles `zxing-cpp` (`v3.1.1`) via CMake `FetchContent` and CocoaPods C++20, bridged through an `extern "C"` wrapper (`src/zxing_ffi_bridge.h`) and executed inside background `Isolate.run` workers with deterministic native heap deallocation (`free_barcode_results`, `free_encoded_barcode_image`).
    - **Web Platform**: Isolates `dart:ffi` via conditional imports and uses modern `dart:js_interop` to bridge `zxing-wasm` and the browser's `BarcodeDetector` API with 100% identical Dart APIs.
 2. **Zero-Copy Y-Plane & `rowStride` Alignment**:
    - Directly decodes single-channel grayscale (`PixelFormat.lum` for Android `YUV_420_888` / `NV21` Y-plane), `PixelFormat.rgba8888`, `PixelFormat.bgra8888`, and `PixelFormat.rgb888` while normalizing hardware row alignment padding (`rowStride`) to prevent diagonal image skew.
@@ -77,7 +77,7 @@ Add `NSCameraUsageDescription` to `macos/Runner/Info.plist`, and enable camera a
 ### 5. Web (`web/index.html`)
 Camera streaming (`navigator.mediaDevices.getUserMedia`) and mobile browser torch control require `https://` or `http://localhost`. Add `zxing-wasm` to `web/index.html` for full WebAssembly decoding across all browsers:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.1/dist/iife/full/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.1/dist/iife/full/index.js"></script>
 ```
 
 ## Quick Start

@@ -22,7 +22,7 @@ class XueHuaBarcodeScanner {
   /// Underlying platform engine (FFI on 5 native platforms, JS/Wasm on Web).
   static XueHuaScannerPlatformEngine get engine => _engine;
 
-  /// Returns the active engine version string (e.g. `"zxing-cpp 2.2.1 (C++20 FFI)"`).
+  /// Returns the active engine version string (e.g. `"zxing-cpp 3.1.1 (C++20 FFI)"`).
   static String get engineVersion => _engine.engineVersion;
 
   /// Decodes one or more barcodes from raw pixel bytes.
@@ -90,7 +90,7 @@ class XueHuaBarcodeScanner {
   }
 
   /// Generates a PNG-encoded barcode image (`Uint8List`) for [content] using
-  /// `zxing-cpp`'s `MultiFormatWriter` & `BitMatrix`.
+  /// `zxing-cpp` 3.1.1 (`CreatorOptions` & `CreateBarcodeFromText`).
   static Future<Uint8List> encodeBarcode(
     String content, {
     int width = 512,

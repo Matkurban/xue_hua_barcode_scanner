@@ -38,7 +38,7 @@ dependencies:
 ## 核心架构特性
 
 1. **统一的 `zxing-cpp` 解码与生成内核**：
-   - **5 个原生端（Android / iOS / macOS / Windows / Linux）**：通过 CMake `FetchContent` 及 CocoaPods 编译 `zxing-cpp`（`v2.2.1`，开启 C++20），经由精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h`）暴露符号，并在 Dart 层通过 `Isolate.run` 异步调用与节流，在 `finally` 块中显式调用 `free_barcode_results` 与 `free_encoded_barcode_image`，严防 FFI 内存泄漏。
+   - **5 个原生端（Android / iOS / macOS / Windows / Linux）**：通过 CMake `FetchContent` 及 CocoaPods 编译 `zxing-cpp`（`v3.1.1`，开启 C++20），经由精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h`）暴露符号，并在 Dart 层通过 `Isolate.run` 异步调用与节流，在 `finally` 块中显式调用 `free_barcode_results` 与 `free_encoded_barcode_image`，严防 FFI 内存泄漏。
    - **Web 端**：使用条件导入（Conditional Imports）彻底隔离 `dart:ffi`，基于现代 `dart:js_interop` 桥接 `zxing-wasm` 与浏览器原生 `BarcodeDetector`，对外提供 100% 一致的 Dart API。
 2. **零拷贝单通道 Y 平面与 `rowStride` 字节对齐处理**：
    - `decodeImageBytes` 原生支持直接传入 Android YUV420/NV21 的 `PixelFormat.lum`（Y 平面）或 iOS/macOS 的 `PixelFormat.bgra8888` / `PixelFormat.rgba8888`，自动处理硬件 `rowStride` 行对齐步长，彻底消除因图像行填充导致的斜纹与识别失败。
@@ -77,7 +77,7 @@ dependencies:
 ### 5. Web (`web/index.html`)
 Web 端调用 `navigator.mediaDevices.getUserMedia` 及移动端手电筒 `MediaStreamTrack.applyConstraints` 需运行在安全上下文（`https://` 或 `http://localhost`）。建议在 `web/index.html` 中引入 `zxing-wasm` 以在所有浏览器中获得完整解码支持：
 ```html
-<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@2.2.1/dist/iife/full/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.1/dist/iife/full/index.js"></script>
 ```
 
 ## 快速上手

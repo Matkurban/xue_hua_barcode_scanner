@@ -13,7 +13,7 @@
 `xue_hua_barcode_scanner` 基于 **`zxing-cpp`** 构建了支持 **6 端全平台（Android, iOS, macOS, Windows, Linux, Web）** 的条形码/二维码识别、生成与实时相机扫描架构：
 
 1. **5 个原生端（Android, iOS, macOS, Windows, Linux）**：
-   - 将 `zxing-cpp`（`v2.2.1`，C++20）编译为原生动态库，通过精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h` / `src/zxing_ffi_bridge.cpp`）暴露符号。
+   - 将 `zxing-cpp`（`v3.1.1`，C++20）编译为原生动态库，通过精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h` / `src/zxing_ffi_bridge.cpp`）暴露符号。
    - 在 Dart 层使用 `dart:ffi` 结合 `Isolate.run` 后台线程执行 `zxing_decode_image_bytes` 与 `zxing_encode_barcode`，并在 `finally` 块中调用 `free_barcode_results` 与 `free_encoded_barcode_image` 释放原生堆内存，避免 UI 卡顿与内存泄漏。
 2. **Web 端**：
    - 通过条件导出（`lib/src/core/scanner_engine_selector.dart`）彻底隔离 `dart:ffi`。
@@ -35,7 +35,7 @@
 
 ## 3. 6 端编译配置与相机流适配细节
 
-- **CMake 构建（Android, Windows, Linux）**：在 `CMakeLists.txt` 与 `src/CMakeLists.txt` 中统一设置 `VERSION 1.0.0`、`CMAKE_CXX_STANDARD 20`，通过 `FetchContent` 自动拉取 `zxing-cpp` `v2.2.1`（关闭 `ZXING_EXAMPLES` 与 `ZXING_UNIT_TESTS`，并配置 Android 15+ 的 16KB 页大小对齐）。
+- **CMake 构建（Android, Windows, Linux）**：在 `CMakeLists.txt` 与 `src/CMakeLists.txt` 中统一设置 `VERSION 1.0.0`、`CMAKE_CXX_STANDARD 20`，通过 `FetchContent` 自动拉取 `zxing-cpp` `v3.1.1`（关闭 `ZXING_EXAMPLES` 与 `ZXING_UNIT_TESTS`，并配置 Android 15+ 的 16KB 页大小对齐）。
 - **CocoaPods 构建（iOS, macOS）**：在 `ios/xue_hua_barcode_scanner.podspec` 与 `macos/xue_hua_barcode_scanner.podspec` 中统一设置 `s.version = '1.0.0'`、`CLANG_CXX_LANGUAGE_STANDARD = 'c++20'`，并通过 `-Wl,-exported_symbol` 防止 Xcode Release 归档剥离 FFI 符号。
 - **`rowStride` 字节对齐与传感器角度映射**：`normalizeRowStrideBuffer` 自动处理 Android `YUV_420_888`（`PixelFormat.lum`）与 iOS/macOS `BGRA8888` 的行字节对齐步长；`BarcodeResult.mapCornersToViewport` 自动处理相机传感器 `0°/90°/180°/270°` 旋转角度及前置摄像头镜像坐标映射。
 - **桌面端与 Web 端优雅降级**：桌面端无闪光灯硬件时自动将手电筒状态置为 `TorchState.unavailable`；Web 端支持通过 `MediaStreamTrack.applyConstraints({advanced: [{torch: true}]})` 控制移动端浏览器手电筒。

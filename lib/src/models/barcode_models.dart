@@ -27,7 +27,7 @@ enum PixelFormat {
   final int bytesPerPixel;
 }
 
-/// Supported 2D and 1D barcode formats recognized by `zxing-cpp`.
+/// Supported 2D and 1D barcode formats recognized by `zxing-cpp` 3.1.1.
 enum BarcodeFormat {
   unknown(0, 'UNKNOWN'),
   qrCode(1, 'QR_CODE'),
@@ -43,7 +43,16 @@ enum BarcodeFormat {
   upcA(11, 'UPC_A'),
   upcE(12, 'UPC_E'),
   itf(13, 'ITF'),
-  codabar(14, 'CODABAR');
+  codabar(14, 'CODABAR'),
+  code93(15, 'CODE_93'),
+  dataBar(16, 'DATA_BAR'),
+  dataBarExpanded(17, 'DATA_BAR_EXPANDED'),
+  dataBarLimited(18, 'DATA_BAR_LIMITED'),
+  maxiCode(19, 'MAXI_CODE'),
+  microPdf417(20, 'MICRO_PDF_417'),
+  compactPdf417(21, 'COMPACT_PDF_417'),
+  telepen(22, 'TELEPEN'),
+  dxFilmEdge(23, 'DX_FILM_EDGE');
 
   const BarcodeFormat(this.cValue, this.displayName);
 
@@ -65,9 +74,12 @@ enum BarcodeFormat {
 
   /// Resolves a [BarcodeFormat] from a Web `BarcodeDetector` or `zxing-wasm` string.
   static BarcodeFormat fromString(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]'), '');
+    final normalized =
+        raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_\-/]'), '');
     switch (normalized) {
       case 'qrcode':
+      case 'qrcodemodel1':
+      case 'qrcodemodel2':
         return BarcodeFormat.qrCode;
       case 'microqrcode':
         return BarcodeFormat.microQrCode;
@@ -76,14 +88,29 @@ enum BarcodeFormat {
       case 'datamatrix':
         return BarcodeFormat.dataMatrix;
       case 'aztec':
+      case 'azteccode':
+      case 'aztecrune':
         return BarcodeFormat.aztec;
       case 'pdf417':
         return BarcodeFormat.pdf417;
+      case 'compactpdf417':
+        return BarcodeFormat.compactPdf417;
+      case 'micropdf417':
+        return BarcodeFormat.microPdf417;
       case 'code128':
         return BarcodeFormat.code128;
       case 'code39':
+      case 'code39std':
+      case 'code39standard':
+      case 'code39ext':
+      case 'code39extended':
+      case 'code32':
+      case 'pzn':
         return BarcodeFormat.code39;
+      case 'code93':
+        return BarcodeFormat.code93;
       case 'ean13':
+      case 'isbn':
         return BarcodeFormat.ean13;
       case 'ean8':
         return BarcodeFormat.ean8;
@@ -92,9 +119,32 @@ enum BarcodeFormat {
       case 'upce':
         return BarcodeFormat.upcE;
       case 'itf':
+      case 'itf14':
         return BarcodeFormat.itf;
       case 'codabar':
         return BarcodeFormat.codabar;
+      case 'databar':
+      case 'databaromni':
+      case 'databarstk':
+      case 'databarstacked':
+      case 'databarstkomni':
+        return BarcodeFormat.dataBar;
+      case 'databarexp':
+      case 'databarexpanded':
+      case 'databarexpstk':
+      case 'databarexpandedstacked':
+        return BarcodeFormat.dataBarExpanded;
+      case 'databarltd':
+      case 'databarlimited':
+        return BarcodeFormat.dataBarLimited;
+      case 'maxicode':
+        return BarcodeFormat.maxiCode;
+      case 'telepen':
+      case 'telepenalpha':
+      case 'telepennumeric':
+        return BarcodeFormat.telepen;
+      case 'dxfilmedge':
+        return BarcodeFormat.dxFilmEdge;
       default:
         return BarcodeFormat.unknown;
     }

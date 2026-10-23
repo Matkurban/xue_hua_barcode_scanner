@@ -2,11 +2,11 @@
 # installed that includes CMake 3.14 or later. You should not increase this
 # version, as doing so will cause the plugin to fail to compile for some
 # customers of the plugin.
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.16)
 
 # Project-level configuration.
 set(PROJECT_NAME "xue_hua_barcode_scanner")
-project(${PROJECT_NAME} LANGUAGES CXX)
+project(${PROJECT_NAME} LANGUAGES C CXX)
 
 # Invoke the build for native code shared with the other target platforms.
 # This can be changed to accommodate different builds.

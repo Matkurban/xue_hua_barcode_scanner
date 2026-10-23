@@ -43,6 +43,15 @@ typedef enum CBarcodeFormat {
   C_BARCODE_FORMAT_UPC_E = 12,
   C_BARCODE_FORMAT_ITF = 13,
   C_BARCODE_FORMAT_CODABAR = 14,
+  C_BARCODE_FORMAT_CODE_93 = 15,
+  C_BARCODE_FORMAT_DATA_BAR = 16,
+  C_BARCODE_FORMAT_DATA_BAR_EXPANDED = 17,
+  C_BARCODE_FORMAT_DATA_BAR_LIMITED = 18,
+  C_BARCODE_FORMAT_MAXI_CODE = 19,
+  C_BARCODE_FORMAT_MICRO_PDF417 = 20,
+  C_BARCODE_FORMAT_COMPACT_PDF417 = 21,
+  C_BARCODE_FORMAT_TELEPEN = 22,
+  C_BARCODE_FORMAT_DX_FILM_EDGE = 23,
 } CBarcodeFormat;
 
 /// Error correction level for barcode generation (`0..3` -> L, M, Q, H).
@@ -105,7 +114,7 @@ typedef struct CEncodedBarcodeImage {
   char* error_message;
 } CEncodedBarcodeImage;
 
-/// Returns the underlying engine version string (e.g. "zxing-cpp 2.2.1").
+/// Returns the underlying engine version string (e.g. "zxing-cpp 3.1.1 (C++20 FFI)").
 XH_FFI_EXPORT const char* zxing_engine_version(void);
 
 /// Decodes one or more barcodes from raw pixel bytes.
@@ -124,8 +133,8 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
 /// Frees a `CBarcodeResultList` and all nested `text`, `raw_bytes`, and `error_message` buffers.
 XH_FFI_EXPORT void free_barcode_results(CBarcodeResultList* list);
 
-/// Encodes a UTF-8 string into an RGBA8888 barcode pixel buffer using `zxing-cpp`
-/// (`ZXing::MultiFormatWriter` & `ZXing::BitMatrix`).
+/// Encodes a UTF-8 string into an RGBA8888 barcode pixel buffer using `zxing-cpp` 3.1.1
+/// (`ZXing::CreatorOptions` & `ZXing::CreateBarcodeFromText`).
 ///
 /// The caller MUST release the returned pointer using `free_encoded_barcode_image`.
 XH_FFI_EXPORT CEncodedBarcodeImage* zxing_encode_barcode(

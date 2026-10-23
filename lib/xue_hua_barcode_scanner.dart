@@ -4,7 +4,7 @@
 ///
 /// Author: Matkurban <3496354336@qq.com>
 /// Repository: https://github.com/Matkurban/xue_hua_barcode_scanner
-library xue_hua_barcode_scanner;
+library;
 
 export 'src/controller/scanner_controller.dart';
 export 'src/core/scanner_engine_interface.dart';
