@@ -29,33 +29,48 @@ Future<List<BarcodeResult>> tryDecodeWithZxingWasm(
       return const <BarcodeResult>[];
     }
 
-    final JSObject canvas = createDomElement('canvas');
-    canvas.setProperty('width'.toJS, width.toJS);
-    canvas.setProperty('height'.toJS, height.toJS);
-    final JSObject? ctx =
-        canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
-    if (ctx == null) return const <BarcodeResult>[];
+    Future<List<BarcodeResult>> runPass(Uint8List buffer) async {
+      final JSObject canvas = createDomElement('canvas');
+      canvas.setProperty('width'.toJS, width.toJS);
+      canvas.setProperty('height'.toJS, height.toJS);
+      final JSObject? ctx =
+          canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
+      if (ctx == null) return const <BarcodeResult>[];
 
-    final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
-      'createImageData'.toJS,
-      <JSAny?>[width.toJS, height.toJS],
+      final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
+        'createImageData'.toJS,
+        <JSAny?>[width.toJS, height.toJS],
+      );
+      final JSUint8ClampedArray? dstData =
+          imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
+      dstData?.toDart.setAll(0, buffer);
+
+      final JSObject readerOptions = JSObject();
+      readerOptions.setProperty('tryHarder'.toJS, tryHarder.toJS);
+      readerOptions.setProperty('tryRotate'.toJS, tryRotate.toJS);
+      readerOptions.setProperty('tryInvert'.toJS, tryInvert.toJS);
+      readerOptions.setProperty('tryDenoise'.toJS, true.toJS);
+
+      final JSPromise<JSArray<JSObject>> promise =
+          zxingWasm.callMethodVarArgs<JSPromise<JSArray<JSObject>>>(
+        'readBarcodesFromImageData'.toJS,
+        <JSAny?>[imageData, readerOptions],
+      );
+      final List<JSObject> items = (await promise.toDart).toDart;
+      return parseJsBarcodeResults(items, width: width, height: height);
+    }
+
+    final List<BarcodeResult> direct = await runPass(rgbaBytes);
+    if (direct.isNotEmpty || !tryHarder || width < 48 || height < 48) {
+      return direct;
+    }
+
+    final Uint8List dilated = dilateDarkDotsRgba3x3(
+      rgbaBytes,
+      width: width,
+      height: height,
     );
-    final JSUint8ClampedArray? dstData =
-        imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
-    dstData?.toDart.setAll(0, rgbaBytes);
-
-    final JSObject readerOptions = JSObject();
-    readerOptions.setProperty('tryHarder'.toJS, tryHarder.toJS);
-    readerOptions.setProperty('tryRotate'.toJS, tryRotate.toJS);
-    readerOptions.setProperty('tryInvert'.toJS, tryInvert.toJS);
-
-    final JSPromise<JSArray<JSObject>> promise =
-        zxingWasm.callMethodVarArgs<JSPromise<JSArray<JSObject>>>(
-      'readBarcodesFromImageData'.toJS,
-      <JSAny?>[imageData, readerOptions],
-    );
-    final List<JSObject> items = (await promise.toDart).toDart;
-    return parseJsBarcodeResults(items, width: width, height: height);
+    return await runPass(dilated);
   } catch (_) {
     return const <BarcodeResult>[];
   }
@@ -71,33 +86,47 @@ Future<List<BarcodeResult>> tryDecodeWithBrowserBarcodeDetector(
     return const <BarcodeResult>[];
   }
   try {
-    final JSObject canvas = createDomElement('canvas');
-    canvas.setProperty('width'.toJS, width.toJS);
-    canvas.setProperty('height'.toJS, height.toJS);
-    final JSObject? ctx =
-        canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
-    if (ctx == null) return const <BarcodeResult>[];
+    Future<List<BarcodeResult>> runDetectorPass(Uint8List buffer) async {
+      final JSObject canvas = createDomElement('canvas');
+      canvas.setProperty('width'.toJS, width.toJS);
+      canvas.setProperty('height'.toJS, height.toJS);
+      final JSObject? ctx =
+          canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
+      if (ctx == null) return const <BarcodeResult>[];
 
-    final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
-      'createImageData'.toJS,
-      <JSAny?>[width.toJS, height.toJS],
-    );
-    final JSUint8ClampedArray? dstData =
-        imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
-    dstData?.toDart.setAll(0, rgbaBytes);
-    ctx.callMethodVarArgs<JSAny?>(
-      'putImageData'.toJS,
-      <JSAny?>[imageData, 0.toJS, 0.toJS],
-    );
+      final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
+        'createImageData'.toJS,
+        <JSAny?>[width.toJS, height.toJS],
+      );
+      final JSUint8ClampedArray? dstData =
+          imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
+      dstData?.toDart.setAll(0, buffer);
+      ctx.callMethodVarArgs<JSAny?>(
+        'putImageData'.toJS,
+        <JSAny?>[imageData, 0.toJS, 0.toJS],
+      );
 
-    final JSObject detector = jsWindow.callMethod<JSObject>(
-      'eval'.toJS,
-      'new BarcodeDetector()'.toJS,
+      final JSObject detector = jsWindow.callMethod<JSObject>(
+        'eval'.toJS,
+        'new BarcodeDetector()'.toJS,
+      );
+      final JSPromise<JSArray<JSObject>> detectPromise = detector
+          .callMethod<JSPromise<JSArray<JSObject>>>('detect'.toJS, canvas);
+      final List<JSObject> detected = (await detectPromise.toDart).toDart;
+      return parseJsBarcodeResults(detected, width: width, height: height);
+    }
+
+    final List<BarcodeResult> direct = await runDetectorPass(rgbaBytes);
+    if (direct.isNotEmpty || width < 48 || height < 48) {
+      return direct;
+    }
+
+    final Uint8List dilated = dilateDarkDotsRgba3x3(
+      rgbaBytes,
+      width: width,
+      height: height,
     );
-    final JSPromise<JSArray<JSObject>> detectPromise =
-        detector.callMethod<JSPromise<JSArray<JSObject>>>('detect'.toJS, canvas);
-    final List<JSObject> detected = (await detectPromise.toDart).toDart;
-    return parseJsBarcodeResults(detected, width: width, height: height);
+    return await runDetectorPass(dilated);
   } catch (_) {
     return const <BarcodeResult>[];
   }
