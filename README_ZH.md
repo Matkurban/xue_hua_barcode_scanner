@@ -29,8 +29,8 @@ dependencies:
 | 平台 | 底层解码架构 | 相机视频流与取景 | 手电筒 / 闪光灯控制 | 前后摄像头切换 | 本地相册图片识别 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Android** | `dart:ffi` + `zxing-cpp` (CMake C++20) | YUV420 `yPlane` (`rowStride` 对齐) | 支持硬件开启/关闭与状态监听 | 支持前/后置无缝切换 | 支持 |
-| **iOS** | `dart:ffi` + `zxing-cpp` (Podspec C++20) | CoreVideo `BGRA8888` (`rowStride` 对齐) | 支持硬件开启/关闭与状态监听 | 支持前/后置无缝切换 | 支持 |
-| **macOS** | `dart:ffi` + `zxing-cpp` (Podspec C++20) | AVFoundation / 外接 USB 摄像头 | 无闪光灯硬件时优雅降级 (`unavailable`) | 支持内置/外接摄像头切换 | 支持 |
+| **iOS** | `dart:ffi` + `zxing-cpp` (SwiftPM / Podspec C++20) | CoreVideo `BGRA8888` (`rowStride` 对齐) | 支持硬件开启/关闭与状态监听 | 支持前/后置无缝切换 | 支持 |
+| **macOS** | `dart:ffi` + `zxing-cpp` (SwiftPM / Podspec C++20) | AVFoundation / 外接 USB 摄像头 | 无闪光灯硬件时优雅降级 (`unavailable`) | 支持内置/外接摄像头切换 | 支持 |
 | **Windows** | `dart:ffi` + `zxing-cpp` (CMake C++20) | MediaFoundation / UVC 摄像头 | 无闪光灯硬件时优雅降级 (`unavailable`) | 支持多 USB 摄像头切换 | 支持 |
 | **Linux** | `dart:ffi` + `zxing-cpp` (CMake C++20) | V4L2 / PipeWire | 无闪光灯硬件时优雅降级 (`unavailable`) | 支持多 USB 摄像头切换 | 支持 |
 | **Web** | `dart:js_interop` + `zxing-wasm` / `BarcodeDetector` | `getUserMedia` + `HtmlElementView` | 支持移动端浏览器 `applyConstraints({torch})` | `facingMode: user / environment` | 支持 `<input type="file">` 选图 |
@@ -38,7 +38,7 @@ dependencies:
 ## 核心架构特性
 
 1. **统一的 `zxing-cpp` 解码与生成内核**：
-   - **5 个原生端（Android / iOS / macOS / Windows / Linux）**：通过 CMake `FetchContent` 及 CocoaPods 编译 `zxing-cpp`（`v3.1.1`，开启 C++20），经由精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h`）暴露符号，并在 Dart 层通过 `Isolate.run` 异步调用与节流，在 `finally` 块中显式调用 `free_barcode_results` 与 `free_encoded_barcode_image`，严防 FFI 内存泄漏。
+   - **5 个原生端（Android / iOS / macOS / Windows / Linux）**：通过 CMake `FetchContent`、Swift Package Manager (`Package.swift`) 及 CocoaPods 编译 `zxing-cpp`（`v3.1.1`，开启 C++20），经由精简的 `extern "C"` 桥接层（`src/zxing_ffi_bridge.h`）暴露符号，并在 Dart 层通过 `Isolate.run` 异步调用与节流，在 `finally` 块中显式调用 `free_barcode_results` 与 `free_encoded_barcode_image`，严防 FFI 内存泄漏。
    - **Web 端**：使用条件导入（Conditional Imports）彻底隔离 `dart:ffi`，基于现代 `dart:js_interop` 桥接 `zxing-wasm` 与浏览器原生 `BarcodeDetector`，对外提供 100% 一致的 Dart API。
 2. **零拷贝单通道 Y 平面与 `rowStride` 字节对齐处理**：
    - `decodeImageBytes` 原生支持直接传入 Android YUV420/NV21 的 `PixelFormat.lum`（Y 平面）或 iOS/macOS 的 `PixelFormat.bgra8888` / `PixelFormat.rgba8888`，自动处理硬件 `rowStride` 行对齐步长，彻底消除因图像行填充导致的斜纹与识别失败。

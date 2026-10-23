@@ -36,6 +36,6 @@
 ## 3. 6 端编译配置与相机流适配细节
 
 - **CMake 构建（Android, Windows, Linux）**：在 `CMakeLists.txt` 与 `src/CMakeLists.txt` 中统一设置 `VERSION 1.0.0`、`CMAKE_CXX_STANDARD 20`，通过 `FetchContent` 自动拉取 `zxing-cpp` `v3.1.1`（关闭 `ZXING_EXAMPLES` 与 `ZXING_UNIT_TESTS`，并配置 Android 15+ 的 16KB 页大小对齐）。
-- **CocoaPods 构建（iOS, macOS）**：在 `ios/xue_hua_barcode_scanner.podspec` 与 `macos/xue_hua_barcode_scanner.podspec` 中统一设置 `s.version = '1.0.0'`、`CLANG_CXX_LANGUAGE_STANDARD = 'c++20'`，并通过 `-Wl,-exported_symbol` 防止 Xcode Release 归档剥离 FFI 符号。
+- **Swift Package Manager 与 CocoaPods 双构建（iOS, macOS）**：在 `ios/xue_hua_barcode_scanner/Package.swift`、`macos/xue_hua_barcode_scanner/Package.swift`、`ios/xue_hua_barcode_scanner.podspec` 与 `macos/xue_hua_barcode_scanner.podspec` 中统一配置 C++20（`cxxLanguageStandard: .cxx20` / `CLANG_CXX_LANGUAGE_STANDARD = 'c++20'`），并通过 `-Wl,-exported_symbol` 防止 Xcode Release 归档剥离 FFI 符号。
 - **`rowStride` 字节对齐与传感器角度映射**：`normalizeRowStrideBuffer` 自动处理 Android `YUV_420_888`（`PixelFormat.lum`）与 iOS/macOS `BGRA8888` 的行字节对齐步长；`BarcodeResult.mapCornersToViewport` 自动处理相机传感器 `0°/90°/180°/270°` 旋转角度及前置摄像头镜像坐标映射。
 - **桌面端与 Web 端优雅降级**：桌面端无闪光灯硬件时自动将手电筒状态置为 `TorchState.unavailable`；Web 端支持通过 `MediaStreamTrack.applyConstraints({advanced: [{torch: true}]})` 控制移动端浏览器手电筒。

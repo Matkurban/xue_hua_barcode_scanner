@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - xue_hua_barcode_scanner (1.0.0):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - xue_hua_barcode_scanner (from `.symlinks/plugins/xue_hua_barcode_scanner/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  xue_hua_barcode_scanner:
+    :path: ".symlinks/plugins/xue_hua_barcode_scanner/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  xue_hua_barcode_scanner: cf476696e66fa8314cb0691d6bf9a747a4b0aaa5
+
+PODFILE CHECKSUM: 3ba3a73b1b12adcf321a227a745625fe0888cc82
+
+COCOAPODS: 1.17.0

@@ -15,8 +15,13 @@ A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time 
   s.author           = { 'Matkurban' => '3496354336@qq.com' }
 
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*.{h,m,mm,cpp,swift}'
-  s.public_header_files = 'Classes/**/*.h'
+  s.source_files     = 'xue_hua_barcode_scanner/Sources/xue_hua_barcode_scanner/**/*.{h,m,mm,cpp,swift}'
+  s.public_header_files = 'xue_hua_barcode_scanner/Sources/xue_hua_barcode_scanner/include/**/*.h'
+  s.resource_bundles = {
+    'xue_hua_barcode_scanner_privacy' => [
+      'xue_hua_barcode_scanner/Sources/xue_hua_barcode_scanner/PrivacyInfo.xcprivacy'
+    ]
+  }
   s.dependency 'Flutter'
   s.platform         = :ios, '13.0'
   s.frameworks       = 'AVFoundation', 'CoreVideo', 'CoreMedia', 'CoreImage', 'ImageIO'
