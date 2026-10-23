@@ -5,6 +5,7 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 import '../widgets/barcode_result_tile.dart';
 import '../widgets/section_card.dart';
 import 'custom_scanner_page.dart';
+import 'default_scanner_page.dart';
 
 /// 示例应用主页。
 class ExampleHomePage extends StatefulWidget {
@@ -303,10 +304,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     final List<BarcodeResult>? results =
         await Navigator.of(context).push<List<BarcodeResult>>(
       MaterialPageRoute<List<BarcodeResult>>(
-        builder: (BuildContext context) => const XueHuaBarcodeScannerPage(
-          autoPopOnDetect: true,
-          hintText: '将二维码放入框内',
-        ),
+        builder: (BuildContext context) => const DefaultScannerDemoPage(),
       ),
     );
     if (results != null && results.isNotEmpty && mounted) {

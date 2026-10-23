@@ -172,7 +172,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       final ScannerState newState = await _engine.startCamera(
         facing: value.cameraFacing,
         onFrame: processCameraFrame,
-        onWebBarcodes: _handleDetectedResults,
+        onWebBarcodes: _handleWebBarcodes,
       );
       if (!_isDisposed) {
         value = newState;
@@ -240,7 +240,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     final ScannerState switchedState = await _engine.switchCamera(
       targetFacing: nextFacing,
       onFrame: processCameraFrame,
-      onWebBarcodes: _handleDetectedResults,
+      onWebBarcodes: _handleWebBarcodes,
     );
     if (!_isDisposed) {
       value = switchedState;
@@ -337,6 +337,13 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       _handleDetectedResults(decoded);
     }
     return decoded;
+  }
+
+  void _handleWebBarcodes(List<BarcodeResult> results) {
+    if (_isDisposed || !value.isRunning || value.isPaused || results.isEmpty) {
+      return;
+    }
+    _handleDetectedResults(results);
   }
 
   void _handleDetectedResults(List<BarcodeResult> results) {

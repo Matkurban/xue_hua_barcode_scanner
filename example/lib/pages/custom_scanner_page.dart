@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
+import '../widgets/scan_result_dialog.dart';
+
 /// 演示使用自定义 UI Builder 与外部 [XueHuaScannerController] 构建的扫码页面。
 class CustomStyledScannerDemoPage extends StatefulWidget {
   const CustomStyledScannerDemoPage({super.key});
@@ -13,12 +15,14 @@ class CustomStyledScannerDemoPage extends StatefulWidget {
 class _CustomStyledScannerDemoPageState
     extends State<CustomStyledScannerDemoPage> {
   late final XueHuaScannerController _controller;
+  bool _isShowingDialog = false;
 
   @override
   void initState() {
     super.initState();
     _controller = XueHuaScannerController(
       initialFacing: CameraFacing.back,
+      autoPauseOnDetect: true,
     );
   }
 
@@ -26,8 +30,9 @@ class _CustomStyledScannerDemoPageState
   Widget build(BuildContext context) {
     return XueHuaBarcodeScannerPage(
       controller: _controller,
-      autoPopOnDetect: true,
+      autoPopOnDetect: false,
       cutoutSize: 270,
+      onDetect: _handleBarcodeDetected,
       overlayBuilder: (
         BuildContext context,
         Rect scanWindow,
@@ -104,6 +109,33 @@ class _CustomStyledScannerDemoPageState
         );
       },
     );
+  }
+
+  /// 处理扫码识别结果并弹出详情对话框。
+  Future<void> _handleBarcodeDetected(List<BarcodeResult> results) async {
+    if (_isShowingDialog || results.isEmpty || !mounted) {
+      return;
+    }
+    _isShowingDialog = true;
+    await _controller.pause();
+    if (!mounted) {
+      _isShowingDialog = false;
+      return;
+    }
+
+    final bool? shouldReturn = await ScanResultDialog.show(
+      context,
+      title: '自定义扫码页 · 识别结果',
+      results: results,
+    );
+    _isShowingDialog = false;
+
+    if (!mounted) return;
+    if (shouldReturn == true) {
+      Navigator.of(context).maybePop(results);
+    } else {
+      await _controller.resume();
+    }
   }
 
   @override
