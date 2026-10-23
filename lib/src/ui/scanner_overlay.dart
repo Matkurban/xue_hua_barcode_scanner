@@ -1,8 +1,5 @@
 import 'dart:math' as math;
-
 import 'package:material_ui/material_ui.dart';
-
-import '../models/barcode_models.dart';
 
 /// Calculates the centered square scan window [Rect] inside [viewportSize].
 Rect calculateScanWindowRect(
@@ -12,12 +9,11 @@ Rect calculateScanWindowRect(
 }) {
   final double shortestSide = math.min(viewportSize.width, viewportSize.height);
   final double defaultSize = (shortestSide * 0.68).clamp(200.0, 320.0);
-  final double boxSize = (customCutoutSize ?? defaultSize).clamp(
-    140.0,
-    shortestSide * 0.9,
-  );
+  final double boxSize =
+      (customCutoutSize ?? defaultSize).clamp(140.0, shortestSide * 0.9);
   final double left = (viewportSize.width - boxSize) / 2.0;
-  final double top = ((viewportSize.height - boxSize) / 2.0) + verticalOffset;
+  final double top =
+      ((viewportSize.height - boxSize) / 2.0) + verticalOffset;
   return Rect.fromLTWH(left, top, boxSize, boxSize);
 }
 
@@ -148,19 +144,31 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
     final Path cornersPath = Path()
       ..moveTo(left, top + l)
       ..lineTo(left, top + r)
-      ..arcToPoint(Offset(left + r, top), radius: Radius.circular(r))
+      ..arcToPoint(
+        Offset(left + r, top),
+        radius: Radius.circular(r),
+      )
       ..lineTo(left + l, top)
       ..moveTo(right - l, top)
       ..lineTo(right - r, top)
-      ..arcToPoint(Offset(right, top + r), radius: Radius.circular(r))
+      ..arcToPoint(
+        Offset(right, top + r),
+        radius: Radius.circular(r),
+      )
       ..lineTo(right, top + l)
       ..moveTo(right, bottom - l)
       ..lineTo(right, bottom - r)
-      ..arcToPoint(Offset(right - r, bottom), radius: Radius.circular(r))
+      ..arcToPoint(
+        Offset(right - r, bottom),
+        radius: Radius.circular(r),
+      )
       ..lineTo(right - l, bottom)
       ..moveTo(left + l, bottom)
       ..lineTo(left + r, bottom)
-      ..arcToPoint(Offset(left, bottom - r), radius: Radius.circular(r))
+      ..arcToPoint(
+        Offset(left, bottom - r),
+        radius: Radius.circular(r),
+      )
       ..lineTo(left, bottom - l);
 
     canvas.drawPath(cornersPath, cornerPaint);
@@ -176,280 +184,5 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
         oldDelegate.cornerLength != cornerLength ||
         oldDelegate.cornerStrokeWidth != cornerStrokeWidth ||
         oldDelegate.borderStrokeWidth != borderStrokeWidth;
-  }
-}
-
-/// Smooth vertical back-and-forth green laser scan line with gradient glow
-/// rendered inside [scanWindow].
-class XueHuaScanLineAnimation extends StatelessWidget {
-  /// Creates a [XueHuaScanLineAnimation].
-  const XueHuaScanLineAnimation({
-    super.key,
-    required this.animation,
-    required this.scanWindow,
-    this.lineColor = const Color(0xFF00E676),
-    this.lineHeight = 3.0,
-    this.glowHeight = 36.0,
-    this.horizontalPadding = 12.0,
-  });
-
-  /// Driving animation (`0.0` -> `1.0`).
-  final Animation<double> animation;
-
-  /// Bounds of the central scan cutout.
-  final Rect scanWindow;
-
-  /// Primary laser color (defaults to vibrant emerald green `#00E676`).
-  final Color lineColor;
-
-  /// Core thickness of the laser line.
-  final double lineHeight;
-
-  /// Height of the trailing gradient glow halo.
-  final double glowHeight;
-
-  /// Horizontal inset from the left and right edges of [scanWindow].
-  final double horizontalPadding;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: animation,
-        builder: (BuildContext context, Widget? _) {
-          const double verticalMargin = 12.0;
-          final double travelRange = math.max(
-            0.0,
-            scanWindow.height - (verticalMargin * 2) - lineHeight,
-          );
-          final double currentY =
-              scanWindow.top + verticalMargin + (travelRange * animation.value);
-
-          return Stack(
-            children: <Widget>[
-              Positioned(
-                left: scanWindow.left + horizontalPadding,
-                width: math.max(0.0, scanWindow.width - horizontalPadding * 2),
-                top: currentY - (glowHeight / 2),
-                height: glowHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: <Color>[
-                        lineColor.withValues(alpha: 0.0),
-                        lineColor.withValues(alpha: 0.28),
-                        lineColor.withValues(alpha: 0.0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: scanWindow.left + horizontalPadding,
-                width: math.max(0.0, scanWindow.width - horizontalPadding * 2),
-                top: currentY,
-                height: lineHeight,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(lineHeight),
-                    gradient: LinearGradient(
-                      colors: <Color>[
-                        lineColor.withValues(alpha: 0.05),
-                        lineColor,
-                        const Color(0xFFB9F6CA),
-                        lineColor,
-                        lineColor.withValues(alpha: 0.05),
-                      ],
-                      stops: const <double>[0.0, 0.2, 0.5, 0.8, 1.0],
-                    ),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: lineColor.withValues(alpha: 0.75),
-                        blurRadius: 10,
-                        spreadRadius: 1.5,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Draws pulsing green anchor points and corner polygons over detected barcodes.
-class XueHuaCornerAnchorHighlight extends StatefulWidget {
-  /// Creates a [XueHuaCornerAnchorHighlight].
-  const XueHuaCornerAnchorHighlight({
-    super.key,
-    required this.results,
-    required this.viewportSize,
-    required this.sensorOrientation,
-    required this.isFrontCamera,
-    this.anchorColor = const Color(0xFF00E676),
-  });
-
-  /// Detected barcode results with `cornerPoints`.
-  final List<BarcodeResult> results;
-
-  /// Current viewport dimensions.
-  final Size viewportSize;
-
-  /// Active camera sensor orientation in degrees.
-  final int sensorOrientation;
-
-  /// Whether the active camera is front-facing (mirrored horizontally).
-  final bool isFrontCamera;
-
-  /// Fill color of the target anchor badge.
-  final Color anchorColor;
-
-  @override
-  State<XueHuaCornerAnchorHighlight> createState() =>
-      _XueHuaCornerAnchorHighlightState();
-}
-
-class _XueHuaCornerAnchorHighlightState
-    extends State<XueHuaCornerAnchorHighlight>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 650),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.results.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (BuildContext context, Widget? _) {
-          return CustomPaint(
-            size: widget.viewportSize,
-            painter: _CornerAnchorPainter(
-              results: widget.results,
-              viewportSize: widget.viewportSize,
-              sensorOrientation: widget.sensorOrientation,
-              isFrontCamera: widget.isFrontCamera,
-              anchorColor: widget.anchorColor,
-              pulseValue: _pulseController.value,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-}
-
-class _CornerAnchorPainter extends CustomPainter {
-  const _CornerAnchorPainter({
-    required this.results,
-    required this.viewportSize,
-    required this.sensorOrientation,
-    required this.isFrontCamera,
-    required this.anchorColor,
-    required this.pulseValue,
-  });
-
-  final List<BarcodeResult> results;
-  final Size viewportSize;
-  final int sensorOrientation;
-  final bool isFrontCamera;
-  final Color anchorColor;
-  final double pulseValue;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final BarcodeResult result in results) {
-      final List<Offset> mapped = result.mapCornersToViewport(
-        viewportSize: viewportSize,
-        sensorOrientation: sensorOrientation,
-        isFrontCamera: isFrontCamera,
-      );
-      if (mapped.isEmpty) continue;
-
-      if (mapped.length >= 4) {
-        final Path poly = Path()..moveTo(mapped[0].dx, mapped[0].dy);
-        for (int i = 1; i < mapped.length; i++) {
-          poly.lineTo(mapped[i].dx, mapped[i].dy);
-        }
-        poly.close();
-
-        canvas.drawPath(
-          poly,
-          Paint()
-            ..color = anchorColor.withValues(alpha: 0.18)
-            ..style = PaintingStyle.fill,
-        );
-        canvas.drawPath(
-          poly,
-          Paint()
-            ..color = anchorColor
-            ..strokeWidth = 2.5
-            ..style = PaintingStyle.stroke,
-        );
-      }
-
-      double sumX = 0;
-      double sumY = 0;
-      for (final Offset pt in mapped) {
-        sumX += pt.dx;
-        sumY += pt.dy;
-      }
-      final Offset center = Offset(sumX / mapped.length, sumY / mapped.length);
-
-      final double outerRadius = 18.0 + (pulseValue * 8.0);
-      canvas.drawCircle(
-        center,
-        outerRadius,
-        Paint()
-          ..color = anchorColor.withValues(
-            alpha: 0.35 * (1.0 - pulseValue * 0.5),
-          )
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawCircle(
-        center,
-        11.0,
-        Paint()
-          ..color = anchorColor
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawCircle(
-        center,
-        11.0,
-        Paint()
-          ..color = Colors.white
-          ..strokeWidth = 2.5
-          ..style = PaintingStyle.stroke,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CornerAnchorPainter oldDelegate) {
-    return oldDelegate.results != results ||
-        oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.viewportSize != viewportSize ||
-        oldDelegate.anchorColor != anchorColor;
   }
 }
