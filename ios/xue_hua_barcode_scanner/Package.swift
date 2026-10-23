@@ -15,14 +15,17 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(name: "FlutterFramework", path: "../FlutterFramework"),
-        .package(url: "https://github.com/zxing-cpp/zxing-cpp.git", exact: "3.1.1")
+        .package(name: "FlutterFramework", path: "../FlutterFramework")
     ],
     targets: [
+        .binaryTarget(
+            name: "ZXingCpp",
+            path: "Frameworks/ZXingCpp.xcframework"
+        ),
         .target(
             name: "xue_hua_barcode_scanner_ffi",
             dependencies: [
-                .product(name: "ZXingCpp", package: "zxing-cpp")
+                "ZXingCpp"
             ],
             path: "Sources/xue_hua_barcode_scanner_ffi",
             cSettings: [
@@ -31,6 +34,8 @@ let package = Package(
             ],
             cxxSettings: [
                 .headerSearchPath("include/xue_hua_barcode_scanner_ffi"),
+                .headerSearchPath("../../Frameworks/ZXingCpp.xcframework/ios-arm64/Headers"),
+                .headerSearchPath("../../Frameworks/ZXingCpp.xcframework/ios-arm64_x86_64-simulator/Headers"),
                 .define("DART_SHARED_LIB", to: "1")
             ],
             linkerSettings: [
@@ -41,7 +46,6 @@ let package = Package(
             name: "xue_hua_barcode_scanner",
             dependencies: [
                 "xue_hua_barcode_scanner_ffi",
-                .product(name: "ZXingCpp", package: "zxing-cpp"),
                 .product(name: "FlutterFramework", package: "FlutterFramework")
             ],
             path: "Sources/xue_hua_barcode_scanner",

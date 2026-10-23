@@ -17,50 +17,23 @@ A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time 
   s.source           = { :path => '.' }
   s.source_files     = 'xue_hua_barcode_scanner/Sources/**/*.{h,m,mm,cpp,swift}'
   s.public_header_files = 'xue_hua_barcode_scanner/Sources/xue_hua_barcode_scanner_ffi/include/**/*.h'
+  s.vendored_frameworks = 'xue_hua_barcode_scanner/Frameworks/ZXingCpp.xcframework'
   s.resource_bundles = {
     'xue_hua_barcode_scanner_privacy' => [
       'xue_hua_barcode_scanner/Sources/xue_hua_barcode_scanner/PrivacyInfo.xcprivacy'
     ]
   }
   s.dependency 'FlutterMacOS'
-  s.platform         = :osx, '13.0'
+  s.platform         = :osx, '10.15'
   s.frameworks       = 'AVFoundation', 'CoreVideo', 'CoreMedia', 'CoreImage', 'AppKit'
   s.libraries        = 'c++'
-
-  s.prepare_command = <<-CMD
-    if [ ! -d "zxing-cpp/core/src" ]; then
-      git clone --depth 1 --branch v3.1.1 https://github.com/zxing-cpp/zxing-cpp.git zxing-cpp
-    fi
-  CMD
-
-  if Dir.exist?(File.join(__dir__, 'zxing-cpp/core/src'))
-    s.subspec 'ZXingCore' do |zx|
-      zx.source_files = [
-        'zxing-cpp/core/src/**/*.{h,c,cpp}',
-        'zxing-cpp/wrappers/ios/Sources/Wrapper/Version.h'
-      ]
-      zx.exclude_files = [
-        'zxing-cpp/core/src/libzint/**/*',
-        'zxing-cpp/core/src/ZXingC.{h,cpp}',
-        'zxing-cpp/core/src/ZXingQt.h'
-      ]
-      zx.header_dir = 'ZXing'
-      zx.private_header_files = [
-        'zxing-cpp/core/src/**/*.h',
-        'zxing-cpp/wrappers/ios/Sources/Wrapper/Version.h'
-      ]
-      zx.pod_target_xcconfig = {
-        'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) ZXING_INTERNAL=1',
-        'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/zxing-cpp/core/src" "$(PODS_TARGET_SRCROOT)/zxing-cpp/wrappers/ios/Sources/Wrapper"'
-      }
-    end
-  end
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
     'CLANG_CXX_LIBRARY' => 'libc++',
     'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) DART_SHARED_LIB=1',
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/xue_hua_barcode_scanner/Frameworks/ZXingCpp.xcframework/macos-arm64_x86_64/Headers"',
     'STRIP_STYLE' => 'non-global',
     'DEAD_CODE_STRIPPING' => 'NO',
     'OTHER_LDFLAGS' => '$(inherited) -Wl,-exported_symbol,_zxing_engine_version -Wl,-exported_symbol,_zxing_decode_image_bytes -Wl,-exported_symbol,_free_barcode_results -Wl,-exported_symbol,_zxing_encode_barcode -Wl,-exported_symbol,_free_encoded_barcode_image'

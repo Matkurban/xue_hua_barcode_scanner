@@ -18,11 +18,30 @@ const String _kLibName = 'xue_hua_barcode_scanner';
 ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
   try {
     if (Platform.isMacOS || Platform.isIOS) {
-      try {
-        return ffi.DynamicLibrary.open('$_kLibName.framework/$_kLibName');
-      } catch (_) {
-        return ffi.DynamicLibrary.process();
+      final ffi.DynamicLibrary processLib = ffi.DynamicLibrary.process();
+      if (processLib.providesSymbol('zxing_decode_image_bytes')) {
+        return processLib;
       }
+      final ffi.DynamicLibrary execLib = ffi.DynamicLibrary.executable();
+      if (execLib.providesSymbol('zxing_decode_image_bytes')) {
+        return execLib;
+      }
+      final String debugDylibPath = '${Platform.resolvedExecutable}.debug.dylib';
+      if (File(debugDylibPath).existsSync()) {
+        final ffi.DynamicLibrary debugLib =
+            ffi.DynamicLibrary.open(debugDylibPath);
+        if (debugLib.providesSymbol('zxing_decode_image_bytes')) {
+          return debugLib;
+        }
+      }
+      try {
+        final ffi.DynamicLibrary frameworkLib =
+            ffi.DynamicLibrary.open('$_kLibName.framework/$_kLibName');
+        if (frameworkLib.providesSymbol('zxing_decode_image_bytes')) {
+          return frameworkLib;
+        }
+      } catch (_) {}
+      return null;
     }
     if (Platform.isAndroid || Platform.isLinux) {
       return ffi.DynamicLibrary.open('lib$_kLibName.so');
