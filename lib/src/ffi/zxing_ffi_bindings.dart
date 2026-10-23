@@ -80,10 +80,10 @@ final class CEncodedBarcodeImage extends ffi.Struct {
 class ZxingFfiBindings {
   /// Creates bindings backed by [dynamicLibrary].
   ZxingFfiBindings(ffi.DynamicLibrary dynamicLibrary)
-      : _lookup = dynamicLibrary.lookup;
+    : _lookup = dynamicLibrary.lookup;
 
   final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-      _lookup;
+  _lookup;
 
   /// Returns the underlying engine version string.
   ffi.Pointer<ffi.Char> zxing_engine_version() {
@@ -92,7 +92,8 @@ class ZxingFfiBindings {
 
   late final _zxing_engine_versionPtr =
       _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Char> Function()>>(
-          'zxing_engine_version');
+        'zxing_engine_version',
+      );
   late final _zxing_engine_version = _zxing_engine_versionPtr
       .asFunction<ffi.Pointer<ffi.Char> Function()>();
 
@@ -119,8 +120,9 @@ class ZxingFfiBindings {
     );
   }
 
-  late final _zxing_decode_image_bytesPtr = _lookup<
-      ffi.NativeFunction<
+  late final _zxing_decode_image_bytesPtr =
+      _lookup<
+        ffi.NativeFunction<
           ffi.Pointer<CBarcodeResultList> Function(
             ffi.Pointer<ffi.Uint8>,
             ffi.Int32,
@@ -130,29 +132,32 @@ class ZxingFfiBindings {
             ffi.Int32,
             ffi.Int32,
             ffi.Int32,
-          )>>('zxing_decode_image_bytes');
-  late final _zxing_decode_image_bytes =
-      _zxing_decode_image_bytesPtr.asFunction<
-          ffi.Pointer<CBarcodeResultList> Function(
-            ffi.Pointer<ffi.Uint8>,
-            int,
-            int,
-            int,
-            int,
-            int,
-            int,
-            int,
-          )>();
+          )
+        >
+      >('zxing_decode_image_bytes');
+  late final _zxing_decode_image_bytes = _zxing_decode_image_bytesPtr
+      .asFunction<
+        ffi.Pointer<CBarcodeResultList> Function(
+          ffi.Pointer<ffi.Uint8>,
+          int,
+          int,
+          int,
+          int,
+          int,
+          int,
+          int,
+        )
+      >();
 
   /// Frees a `CBarcodeResultList` and all nested heap buffers.
   void free_barcode_results(ffi.Pointer<CBarcodeResultList> list) {
     return _free_barcode_results(list);
   }
 
-  late final _free_barcode_resultsPtr = _lookup<
-      ffi.NativeFunction<
-          ffi.Void Function(
-              ffi.Pointer<CBarcodeResultList>)>>('free_barcode_results');
+  late final _free_barcode_resultsPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<CBarcodeResultList>)>
+      >('free_barcode_results');
   late final _free_barcode_results = _free_barcode_resultsPtr
       .asFunction<void Function(ffi.Pointer<CBarcodeResultList>)>();
 
@@ -167,33 +172,38 @@ class ZxingFfiBindings {
     return _zxing_encode_barcode(content, width, height, margin, ecc_level);
   }
 
-  late final _zxing_encode_barcodePtr = _lookup<
-      ffi.NativeFunction<
+  late final _zxing_encode_barcodePtr =
+      _lookup<
+        ffi.NativeFunction<
           ffi.Pointer<CEncodedBarcodeImage> Function(
             ffi.Pointer<ffi.Char>,
             ffi.Int32,
             ffi.Int32,
             ffi.Int32,
             ffi.Int32,
-          )>>('zxing_encode_barcode');
-  late final _zxing_encode_barcode = _zxing_encode_barcodePtr.asFunction<
-      ffi.Pointer<CEncodedBarcodeImage> Function(
-        ffi.Pointer<ffi.Char>,
-        int,
-        int,
-        int,
-        int,
-      )>();
+          )
+        >
+      >('zxing_encode_barcode');
+  late final _zxing_encode_barcode = _zxing_encode_barcodePtr
+      .asFunction<
+        ffi.Pointer<CEncodedBarcodeImage> Function(
+          ffi.Pointer<ffi.Char>,
+          int,
+          int,
+          int,
+          int,
+        )
+      >();
 
   /// Frees a `CEncodedBarcodeImage` and its `rgba_bytes` / `error_message` buffers.
   void free_encoded_barcode_image(ffi.Pointer<CEncodedBarcodeImage> image) {
     return _free_encoded_barcode_image(image);
   }
 
-  late final _free_encoded_barcode_imagePtr = _lookup<
-          ffi
-          .NativeFunction<ffi.Void Function(ffi.Pointer<CEncodedBarcodeImage>)>>(
-      'free_encoded_barcode_image');
+  late final _free_encoded_barcode_imagePtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<CEncodedBarcodeImage>)>
+      >('free_encoded_barcode_image');
   late final _free_encoded_barcode_image = _free_encoded_barcode_imagePtr
       .asFunction<void Function(ffi.Pointer<CEncodedBarcodeImage>)>();
 }

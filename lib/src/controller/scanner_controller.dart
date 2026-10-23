@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/scanner_engine_interface.dart';
@@ -122,8 +123,8 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     this.autoPauseOnDetect = false,
     this.onDetect,
     XueHuaScannerPlatformEngine? engine,
-  })  : _engine = engine ?? XueHuaBarcodeScanner.engine,
-        super(ScannerState(cameraFacing: initialFacing));
+  }) : _engine = engine ?? XueHuaBarcodeScanner.engine,
+       super(ScannerState(cameraFacing: initialFacing));
 
   /// Initial camera lens direction when [start] is called.
   final CameraFacing initialFacing;
@@ -248,7 +249,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
 
   /// Feeds a raw [CameraFramePacket] into the throttled worker Isolate decoder.
   Future<void> processCameraFrame(CameraFramePacket frame) async {
-    if (_isDisposed || !value.isRunning || value.isPaused || _isProcessingFrame) {
+    if (_isDisposed ||
+        !value.isRunning ||
+        value.isPaused ||
+        _isProcessingFrame) {
       return;
     }
     final DateTime now = DateTime.now();
@@ -326,8 +330,9 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       height: 360,
       margin: 2,
     );
-    final List<BarcodeResult> decoded =
-        await _engine.decodeImageMemory(pngBytes);
+    final List<BarcodeResult> decoded = await _engine.decodeImageMemory(
+      pngBytes,
+    );
     if (!_isDisposed && decoded.isNotEmpty) {
       _handleDetectedResults(decoded);
     }

@@ -17,8 +17,9 @@ class BarcodeMatrixCodec {
     required int width,
     required int height,
   }) async {
-    final ui.ImmutableBuffer buffer =
-        await ui.ImmutableBuffer.fromUint8List(rgbaBytes);
+    final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(
+      rgbaBytes,
+    );
     final ui.ImageDescriptor descriptor = ui.ImageDescriptor.raw(
       buffer,
       width: width,
@@ -27,8 +28,9 @@ class BarcodeMatrixCodec {
     );
     final ui.Codec codec = await descriptor.instantiateCodec();
     final ui.FrameInfo frameInfo = await codec.getNextFrame();
-    final ByteData? pngData =
-        await frameInfo.image.toByteData(format: ui.ImageByteFormat.png);
+    final ByteData? pngData = await frameInfo.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
     frameInfo.image.dispose();
     codec.dispose();
     descriptor.dispose();
@@ -42,23 +44,28 @@ class BarcodeMatrixCodec {
   /// Decodes a compressed image (PNG, JPEG, WebP, GIF, BMP) into raw `RGBA8888`
   /// pixels along with its dimensions.
   static Future<({Uint8List rgbaBytes, int width, int height})>
-      decodeCompressedImageToRgba(Uint8List encodedBytes) async {
-    final ui.ImmutableBuffer buffer =
-        await ui.ImmutableBuffer.fromUint8List(encodedBytes);
-    final ui.ImageDescriptor descriptor =
-        await ui.ImageDescriptor.encoded(buffer);
+  decodeCompressedImageToRgba(Uint8List encodedBytes) async {
+    final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(
+      encodedBytes,
+    );
+    final ui.ImageDescriptor descriptor = await ui.ImageDescriptor.encoded(
+      buffer,
+    );
     final ui.Codec codec = await descriptor.instantiateCodec();
     final ui.FrameInfo frameInfo = await codec.getNextFrame();
     final int width = frameInfo.image.width;
     final int height = frameInfo.image.height;
-    final ByteData? rawData =
-        await frameInfo.image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final ByteData? rawData = await frameInfo.image.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
     frameInfo.image.dispose();
     codec.dispose();
     descriptor.dispose();
     buffer.dispose();
     if (rawData == null) {
-      throw StateError('Failed to decode compressed image into RGBA8888 bytes.');
+      throw StateError(
+        'Failed to decode compressed image into RGBA8888 bytes.',
+      );
     }
     return (
       rgbaBytes: rawData.buffer.asUint8List(),
@@ -137,10 +144,14 @@ class BarcodeMatrixCodec {
         if (dark) {
           final int x0 = ((c + safeMargin) * moduleW).floor();
           final int y0 = ((r + safeMargin) * moduleH).floor();
-          final int x1 =
-              math.min(safeW, ((c + safeMargin + 1) * moduleW).ceil());
-          final int y1 =
-              math.min(safeH, ((r + safeMargin + 1) * moduleH).ceil());
+          final int x1 = math.min(
+            safeW,
+            ((c + safeMargin + 1) * moduleW).ceil(),
+          );
+          final int y1 = math.min(
+            safeH,
+            ((r + safeMargin + 1) * moduleH).ceil(),
+          );
           for (int py = y0; py < y1; py++) {
             for (int px = x0; px < x1; px++) {
               final int offset = (py * safeW + px) * 4;

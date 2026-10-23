@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../controller/scanner_controller.dart';
@@ -151,7 +152,7 @@ class XueHuaScannerView extends StatefulWidget {
 
   /// Optional custom builder for overriding the underlying camera preview layer.
   final Widget Function(BuildContext context, ScannerState state)?
-      cameraPreviewBuilder;
+  cameraPreviewBuilder;
 
   @override
   State<XueHuaScannerView> createState() => _XueHuaScannerViewState();
@@ -240,10 +241,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                 if (widget.cameraPreviewBuilder != null)
                   widget.cameraPreviewBuilder!(context, state)
                 else
-                  _ScannerCameraPreview(
-                    isWeb: _controller.isWeb,
-                    state: state,
-                  ),
+                  _ScannerCameraPreview(isWeb: _controller.isWeb, state: state),
 
                 if (widget.overlayBuilder != null)
                   widget.overlayBuilder!(context, scanWindow, state)
@@ -324,8 +322,9 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     }
 
     _detectSubscription?.cancel();
-    _detectSubscription =
-        _controller.barcodesStream.listen((List<BarcodeResult> results) {
+    _detectSubscription = _controller.barcodesStream.listen((
+      List<BarcodeResult> results,
+    ) {
       widget.onDetect?.call(results);
     });
 
@@ -355,8 +354,8 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   Future<void> _handlePickGallery() async {
-    final List<BarcodeResult> results =
-        await _controller.analyzeImageFromGallery();
+    final List<BarcodeResult> results = await _controller
+        .analyzeImageFromGallery();
     if (results.isEmpty && mounted) {
       await _showGalleryFallbackSheet();
     }
@@ -449,10 +448,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
 }
 
 class _ScannerCameraPreview extends StatelessWidget {
-  const _ScannerCameraPreview({
-    required this.isWeb,
-    required this.state,
-  });
+  const _ScannerCameraPreview({required this.isWeb, required this.state});
 
   final bool isWeb;
   final ScannerState state;
@@ -468,10 +464,12 @@ class _ScannerCameraPreview extends StatelessWidget {
     if (state.textureId != null) {
       final bool swapDimensions =
           state.sensorOrientation == 90 || state.sensorOrientation == 270;
-      final double orientedWidth =
-          swapDimensions ? state.previewSize.height : state.previewSize.width;
-      final double orientedHeight =
-          swapDimensions ? state.previewSize.width : state.previewSize.height;
+      final double orientedWidth = swapDimensions
+          ? state.previewSize.height
+          : state.previewSize.width;
+      final double orientedHeight = swapDimensions
+          ? state.previewSize.width
+          : state.previewSize.height;
       final double safeWidth = orientedWidth > 0 ? orientedWidth : 1280;
       final double safeHeight = orientedHeight > 0 ? orientedHeight : 720;
 
@@ -492,8 +490,8 @@ class _ScannerCameraPreview extends StatelessWidget {
     final String statusText = state.errorMessage != null
         ? '相机不可用: ${state.errorMessage}'
         : (state.cameraFacing == CameraFacing.front
-            ? '前置相机取景中 (${XueHuaBarcodeScanner.engineVersion})'
-            : '后置相机取景中 (${XueHuaBarcodeScanner.engineVersion})');
+              ? '前置相机取景中 (${XueHuaBarcodeScanner.engineVersion})'
+              : '后置相机取景中 (${XueHuaBarcodeScanner.engineVersion})');
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -513,10 +511,7 @@ class _ScannerCameraPreview extends StatelessWidget {
           child: Text(
             statusText,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0x99FFFFFF),
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
           ),
         ),
       ),
@@ -546,12 +541,7 @@ class _ScannerTopBar extends StatelessWidget {
     }
 
     if (topBarBuilder != null) {
-      return topBarBuilder!(
-        context,
-        state,
-        onBack,
-        onSwitchCamera,
-      );
+      return topBarBuilder!(context, state, onBack, onSwitchCamera);
     }
 
     final Widget hintWidget = hintTextBuilder != null
@@ -561,9 +551,7 @@ class _ScannerTopBar extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.45),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: Text(
               hintText,
@@ -588,9 +576,7 @@ class _ScannerTopBar extends StatelessWidget {
             tooltip: '返回',
             onPressed: onBack,
           ),
-          Expanded(
-            child: Center(child: hintWidget),
-          ),
+          Expanded(child: Center(child: hintWidget)),
           _CircleGlassIconButton(
             key: const ValueKey<String>('xh_scanner_switch_camera_button'),
             icon: Icons.cameraswitch_rounded,
@@ -633,12 +619,7 @@ class _ScannerBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bottomBarBuilder != null) {
-      return bottomBarBuilder!(
-        context,
-        state,
-        onToggleTorch,
-        onPickGallery,
-      );
+      return bottomBarBuilder!(context, state, onToggleTorch, onPickGallery);
     }
 
     final Widget torchButton = torchButtonBuilder != null
@@ -675,10 +656,7 @@ class _ScannerBottomBar extends StatelessWidget {
         mainAxisAlignment: hideTorch
             ? MainAxisAlignment.center
             : MainAxisAlignment.spaceBetween,
-        children: <Widget>[
-          if (!hideTorch) torchButton,
-          galleryButton,
-        ],
+        children: <Widget>[if (!hideTorch) torchButton, galleryButton],
       ),
     );
   }
@@ -783,7 +761,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
 
   /// Custom builder for overriding the camera preview widget.
   final Widget Function(BuildContext context, ScannerState state)?
-      cameraPreviewBuilder;
+  cameraPreviewBuilder;
 
   @override
   Widget build(BuildContext context) {

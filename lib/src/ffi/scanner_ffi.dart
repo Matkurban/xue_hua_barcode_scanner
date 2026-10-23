@@ -13,10 +13,12 @@ import '../models/barcode_models.dart';
 import 'zxing_ffi_bindings.dart';
 
 const String _kLibName = 'xue_hua_barcode_scanner';
-const MethodChannel _kCameraMethodChannel =
-    MethodChannel('com.kurban.xue_hua_barcode_scanner/methods');
-const EventChannel _kCameraFrameEventChannel =
-    EventChannel('com.kurban.xue_hua_barcode_scanner/frames');
+const MethodChannel _kCameraMethodChannel = MethodChannel(
+  'com.kurban.xue_hua_barcode_scanner/methods',
+);
+const EventChannel _kCameraFrameEventChannel = EventChannel(
+  'com.kurban.xue_hua_barcode_scanner/frames',
+);
 
 /// Opens the platform-specific dynamic library containing `zxing-cpp` C symbols.
 ffi.DynamicLibrary? _tryOpenZxingDynamicLibrary() {
@@ -100,11 +102,13 @@ List<BarcodeResult> _decodeInWorkerIsolate({
               format: format,
             )
           : rawPixelBytes;
-      final int passedStride =
-          safePixels.length == width * bpp * height ? (width * bpp) : effectiveStride;
+      final int passedStride = safePixels.length == width * bpp * height
+          ? (width * bpp)
+          : effectiveStride;
 
-      final ffi.Pointer<ffi.Uint8> nativePixels =
-          calloc<ffi.Uint8>(safePixels.length);
+      final ffi.Pointer<ffi.Uint8> nativePixels = calloc<ffi.Uint8>(
+        safePixels.length,
+      );
       ffi.Pointer<CBarcodeResultList> resultListPtr = ffi.nullptr;
 
       try {
@@ -132,8 +136,8 @@ List<BarcodeResult> _decodeInWorkerIsolate({
             final int rawLen = item.raw_bytes_length;
             final Uint8List rawBytes =
                 (item.raw_bytes != ffi.nullptr && rawLen > 0)
-                    ? Uint8List.fromList(item.raw_bytes.asTypedList(rawLen))
-                    : Uint8List.fromList(utf8.encode(text));
+                ? Uint8List.fromList(item.raw_bytes.asTypedList(rawLen))
+                : Uint8List.fromList(utf8.encode(text));
 
             final int cornerCount = item.corner_points_count.clamp(0, 4);
             final List<Offset> corners = <Offset>[];
@@ -190,7 +194,9 @@ Uint8List _encodeRgbaInWorkerIsolate({
   if (dylib != null) {
     try {
       final ZxingFfiBindings bindings = ZxingFfiBindings(dylib);
-      final ffi.Pointer<Utf8> contentPtr = content.toNativeUtf8(allocator: calloc);
+      final ffi.Pointer<Utf8> contentPtr = content.toNativeUtf8(
+        allocator: calloc,
+      );
       ffi.Pointer<CEncodedBarcodeImage> encodedPtr = ffi.nullptr;
       try {
         encodedPtr = bindings.zxing_encode_barcode(
@@ -314,8 +320,9 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     if (encodedImageBytes.isEmpty) {
       return const <BarcodeResult>[];
     }
-    final decoded =
-        await BarcodeMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
+    final decoded = await BarcodeMatrixCodec.decodeCompressedImageToRgba(
+      encodedImageBytes,
+    );
     return decodeImageBytes(
       decoded.rgbaBytes,
       width: decoded.width,
@@ -337,7 +344,11 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     BarcodeEccLevel eccLevel = BarcodeEccLevel.medium,
   }) async {
     if (content.trim().isEmpty) {
-      throw ArgumentError.value(content, 'content', 'Barcode content cannot be empty.');
+      throw ArgumentError.value(
+        content,
+        'content',
+        'Barcode content cannot be empty.',
+      );
     }
     final int safeWidth = width.clamp(64, 4096);
     final int safeHeight = height.clamp(64, 4096);
@@ -366,57 +377,58 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     await _frameSubscription?.cancel();
     _frameSubscription = null;
 
-    final CameraFacing defaultDesktopFacing =
-        facing == CameraFacing.back ? CameraFacing.front : facing;
-    final CameraFacing effectiveFacing =
-        _isDesktop ? defaultDesktopFacing : facing;
+    final CameraFacing defaultDesktopFacing = facing == CameraFacing.back
+        ? CameraFacing.front
+        : facing;
+    final CameraFacing effectiveFacing = _isDesktop
+        ? defaultDesktopFacing
+        : facing;
 
     try {
-      final Map<Object?, Object?>? reply =
-          await _kCameraMethodChannel.invokeMapMethod<Object?, Object?>(
-        'startCamera',
-        <String, Object?>{
-          'facing': effectiveFacing.name,
-        },
-      );
+      final Map<Object?, Object?>? reply = await _kCameraMethodChannel
+          .invokeMapMethod<Object?, Object?>('startCamera', <String, Object?>{
+            'facing': effectiveFacing.name,
+          });
 
-      _frameSubscription =
-          _kCameraFrameEventChannel.receiveBroadcastStream().listen((dynamic event) {
-        if (event is Map) {
-          final Uint8List? bytes = event['bytes'] as Uint8List?;
-          final int width = (event['width'] as int?) ?? 0;
-          final int height = (event['height'] as int?) ?? 0;
-          final int rowStride = (event['rowStride'] as int?) ?? 0;
-          final int formatInt = (event['format'] as int?) ?? 0;
-          final int sensorOrientation = (event['sensorOrientation'] as int?) ?? 0;
-          if (bytes != null && width > 0 && height > 0) {
-            final PixelFormat fmt = PixelFormat.values.firstWhere(
-              (f) => f.cValue == formatInt,
-              orElse: () => PixelFormat.lum,
-            );
-            onFrame(
-              CameraFramePacket(
-                bytes: bytes,
-                width: width,
-                height: height,
-                rowStride: rowStride,
-                format: fmt,
-                sensorOrientation: sensorOrientation,
-              ),
-            );
-          }
-        }
-      });
+      _frameSubscription = _kCameraFrameEventChannel
+          .receiveBroadcastStream()
+          .listen((dynamic event) {
+            if (event is Map) {
+              final Uint8List? bytes = event['bytes'] as Uint8List?;
+              final int width = (event['width'] as int?) ?? 0;
+              final int height = (event['height'] as int?) ?? 0;
+              final int rowStride = (event['rowStride'] as int?) ?? 0;
+              final int formatInt = (event['format'] as int?) ?? 0;
+              final int sensorOrientation =
+                  (event['sensorOrientation'] as int?) ?? 0;
+              if (bytes != null && width > 0 && height > 0) {
+                final PixelFormat fmt = PixelFormat.values.firstWhere(
+                  (f) => f.cValue == formatInt,
+                  orElse: () => PixelFormat.lum,
+                );
+                onFrame(
+                  CameraFramePacket(
+                    bytes: bytes,
+                    width: width,
+                    height: height,
+                    rowStride: rowStride,
+                    format: fmt,
+                    sensorOrientation: sensorOrientation,
+                  ),
+                );
+              }
+            }
+          });
 
       if (reply != null) {
         final bool hasTorch = (reply['hasTorch'] as bool?) ?? !_isDesktop;
         final int cameraCount =
             (reply['availableCameraCount'] as int?) ?? (_isDesktop ? 1 : 2);
         final int? textureId = reply['textureId'] as int?;
-        final double previewW =
-            ((reply['previewWidth'] as num?) ?? 1280).toDouble();
-        final double previewH =
-            ((reply['previewHeight'] as num?) ?? 720).toDouble();
+        final double previewW = ((reply['previewWidth'] as num?) ?? 1280)
+            .toDouble();
+        final double previewH = ((reply['previewHeight'] as num?) ?? 720)
+            .toDouble();
         final int sensorOrientation =
             (reply['sensorOrientation'] as int?) ?? (_isDesktop ? 0 : 90);
         return ScannerState(
@@ -507,13 +519,14 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   @override
   Future<Uint8List?> pickImageFromGallery() async {
     try {
-      final Uint8List? bytes =
-          await _kCameraMethodChannel.invokeMethod<Uint8List>('pickImageFromGallery');
+      final Uint8List? bytes = await _kCameraMethodChannel
+          .invokeMethod<Uint8List>('pickImageFromGallery');
       if (bytes != null && bytes.isNotEmpty) {
         return bytes;
       }
-      final String? filePath =
-          await _kCameraMethodChannel.invokeMethod<String>('pickImageFilePath');
+      final String? filePath = await _kCameraMethodChannel.invokeMethod<String>(
+        'pickImageFilePath',
+      );
       if (filePath != null && filePath.isNotEmpty) {
         final File file = File(filePath);
         if (await file.exists()) {
