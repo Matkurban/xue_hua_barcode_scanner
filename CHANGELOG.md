@@ -1,8 +1,8 @@
-## 0.1.0
+## 1.0.0
 
-* Initial release of `xue_hua_barcode_scanner` by Matkurban <3496354336@qq.com>.
-* Unified `zxing-cpp` (C++20) FFI & WebAssembly (`dart:js_interop`) barcode/QR code engine across Android, iOS, macOS, Windows, Linux, and Web.
+* Initial stable `1.0.0` release of `xue_hua_barcode_scanner` by Matkurban <3496354336@qq.com>.
+* Unified `zxing-cpp` (C++20) FFI & WebAssembly (`dart:js_interop`) barcode recognition and generation engine across Android, iOS, macOS, Windows, Linux, and Web.
 * High-performance `Isolate` worker decoding with `rowStride` alignment support for YUV420 (`yPlane`), `RGBA8888`, and `BGRA8888` streams.
-* Built-in `XueHuaQrScannerPage` and `XueHuaScannerView` with animated green laser scan line, corner borders, real-time QR corner-point anchor highlights, torch control, front/back camera switching, and gallery image recognition.
+* Built-in `XueHuaBarcodeScannerPage` and `XueHuaScannerView` with animated green laser scan line, corner borders, real-time corner-point anchor highlights, torch control, front/back camera switching, and gallery image recognition.
 * 100% customizable UI via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
 * Included Dart Package Skill (`skills/xue-hua-barcode-scanner/SKILL.md`).

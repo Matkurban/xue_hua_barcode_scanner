@@ -8,9 +8,9 @@ import 'dart:ui' show Offset, Size;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 
-import '../core/qr_matrix_codec.dart';
+import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
-import '../models/qr_code_models.dart';
+import '../models/barcode_models.dart';
 import 'zxing_ffi_bindings.dart';
 
 const String _kLibName = 'xue_hua_barcode_scanner';
@@ -36,8 +36,6 @@ ffi.DynamicLibrary? _tryOpenZxingDynamicLibrary() {
       return ffi.DynamicLibrary.open('$_kLibName.dll');
     }
   } catch (_) {
-    // When running in `flutter test` on host without a compiled native library bundle,
-    // gracefully fall back to QrMatrixCodec so unit/widget tests execute cleanly.
     return null;
   }
   return null;
@@ -45,9 +43,6 @@ ffi.DynamicLibrary? _tryOpenZxingDynamicLibrary() {
 
 /// Normalizes a camera frame buffer when `rowStride` contains hardware row padding
 /// (common on Android YUV420 `yPlane` and iOS/macOS CoreVideo `BGRA8888` buffers).
-///
-/// If `rowStride` equals `width * bytesPerPixel`, returns the original buffer
-/// without extra copying.
 Uint8List normalizeRowStrideBuffer(
   Uint8List rawBytes, {
   required int width,
@@ -79,7 +74,7 @@ Uint8List normalizeRowStrideBuffer(
 
 /// Executes native `zxing_decode_image_bytes` inside a background worker `Isolate`
 /// and guarantees native heap cleanup via `free_barcode_results`.
-List<QrCodeResult> _decodeInWorkerIsolate({
+List<BarcodeResult> _decodeInWorkerIsolate({
   required Uint8List rawPixelBytes,
   required int width,
   required int height,
@@ -97,8 +92,6 @@ List<QrCodeResult> _decodeInWorkerIsolate({
       final int effectiveStride = rowStride > 0 ? rowStride : (width * bpp);
       final int requiredBytes = effectiveStride * height;
 
-      // If the caller's buffer is smaller than effectiveStride * height (e.g. last row
-      // lacks trailing padding), normalize rowStride into a tightly packed buffer.
       final Uint8List safePixels = rawPixelBytes.length < requiredBytes
           ? normalizeRowStrideBuffer(
               rawPixelBytes,
@@ -131,7 +124,7 @@ List<QrCodeResult> _decodeInWorkerIsolate({
         if (resultListPtr != ffi.nullptr) {
           final CBarcodeResultList listStruct = resultListPtr.ref;
           final int count = listStruct.count;
-          final List<QrCodeResult> parsed = <QrCodeResult>[];
+          final List<BarcodeResult> parsed = <BarcodeResult>[];
           for (int i = 0; i < count; i++) {
             final CBarcodeResult item = (listStruct.results + i).ref;
             final String text = item.text == ffi.nullptr
@@ -151,7 +144,7 @@ List<QrCodeResult> _decodeInWorkerIsolate({
             }
 
             parsed.add(
-              QrCodeResult(
+              BarcodeResult(
                 text: text,
                 rawBytes: rawBytes,
                 cornerPoints: corners,
@@ -176,7 +169,7 @@ List<QrCodeResult> _decodeInWorkerIsolate({
     }
   }
 
-  return QrMatrixCodec.tryDecodeFallbackMatrix(
+  return BarcodeMatrixCodec.tryDecodeFallbackMatrix(
     rawPixelBytes,
     width: width,
     height: height,
@@ -185,23 +178,23 @@ List<QrCodeResult> _decodeInWorkerIsolate({
   );
 }
 
-/// Executes native `zxing_encode_qr_code` inside a background worker `Isolate`
-/// and guarantees native heap cleanup via `free_encoded_qr_image`.
+/// Executes native `zxing_encode_barcode` inside a background worker `Isolate`
+/// and guarantees native heap cleanup via `free_encoded_barcode_image`.
 Uint8List _encodeRgbaInWorkerIsolate({
   required String content,
   required int width,
   required int height,
   required int margin,
-  required QrEccLevel eccLevel,
+  required BarcodeEccLevel eccLevel,
 }) {
   final ffi.DynamicLibrary? dylib = _tryOpenZxingDynamicLibrary();
   if (dylib != null) {
     try {
       final ZxingFfiBindings bindings = ZxingFfiBindings(dylib);
       final ffi.Pointer<Utf8> contentPtr = content.toNativeUtf8(allocator: calloc);
-      ffi.Pointer<CEncodedQrImage> encodedPtr = ffi.nullptr;
+      ffi.Pointer<CEncodedBarcodeImage> encodedPtr = ffi.nullptr;
       try {
-        encodedPtr = bindings.zxing_encode_qr_code(
+        encodedPtr = bindings.zxing_encode_barcode(
           contentPtr.cast<ffi.Char>(),
           width,
           height,
@@ -209,7 +202,7 @@ Uint8List _encodeRgbaInWorkerIsolate({
           eccLevel.cValue,
         );
         if (encodedPtr != ffi.nullptr) {
-          final CEncodedQrImage img = encodedPtr.ref;
+          final CEncodedBarcodeImage img = encodedPtr.ref;
           if (img.rgba_bytes != ffi.nullptr && img.byte_length > 0) {
             return Uint8List.fromList(
               img.rgba_bytes.asTypedList(img.byte_length),
@@ -218,16 +211,16 @@ Uint8List _encodeRgbaInWorkerIsolate({
         }
       } finally {
         if (encodedPtr != ffi.nullptr) {
-          bindings.free_encoded_qr_image(encodedPtr);
+          bindings.free_encoded_barcode_image(encodedPtr);
         }
         calloc.free(contentPtr);
       }
     } catch (_) {
-      // Fall through to deterministic fallback QR matrix generator.
+      // Fall through to deterministic fallback barcode matrix generator.
     }
   }
 
-  return QrMatrixCodec.generateFallbackRgbaQr(
+  return BarcodeMatrixCodec.generateFallbackRgbaBarcode(
     content,
     width: width,
     height: height,
@@ -265,7 +258,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageBytes(
+  Future<List<BarcodeResult>> decodeImageBytes(
     Uint8List rawPixelBytes, {
     required int width,
     required int height,
@@ -276,7 +269,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     bool tryInvert = true,
   }) async {
     if (rawPixelBytes.isEmpty || width <= 0 || height <= 0) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     return Isolate.run(
       () => _decodeInWorkerIsolate(
@@ -293,7 +286,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageFile(
+  Future<List<BarcodeResult>> decodeImageFile(
     String filePath, {
     bool tryHarder = true,
     bool tryRotate = true,
@@ -313,17 +306,17 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageMemory(
+  Future<List<BarcodeResult>> decodeImageMemory(
     Uint8List encodedImageBytes, {
     bool tryHarder = true,
     bool tryRotate = true,
     bool tryInvert = true,
   }) async {
     if (encodedImageBytes.isEmpty) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     final decoded =
-        await QrMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
+        await BarcodeMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
     return decodeImageBytes(
       decoded.rgbaBytes,
       width: decoded.width,
@@ -337,15 +330,15 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<Uint8List> encodeQrCode(
+  Future<Uint8List> encodeBarcode(
     String content, {
     int width = 512,
     int height = 512,
     int margin = 2,
-    QrEccLevel eccLevel = QrEccLevel.medium,
+    BarcodeEccLevel eccLevel = BarcodeEccLevel.medium,
   }) async {
     if (content.trim().isEmpty) {
-      throw ArgumentError.value(content, 'content', 'QR content cannot be empty.');
+      throw ArgumentError.value(content, 'content', 'Barcode content cannot be empty.');
     }
     final int safeWidth = width.clamp(64, 4096);
     final int safeHeight = height.clamp(64, 4096);
@@ -358,7 +351,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         eccLevel: eccLevel,
       ),
     );
-    return QrMatrixCodec.rgbaToPngBytes(
+    return BarcodeMatrixCodec.rgbaToPngBytes(
       rgbaBytes,
       width: safeWidth,
       height: safeHeight,
@@ -369,13 +362,11 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   Future<ScannerState> startCamera({
     required CameraFacing facing,
     required void Function(CameraFramePacket frame) onFrame,
-    required void Function(List<QrCodeResult> results) onWebBarcodes,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     await _frameSubscription?.cancel();
     _frameSubscription = null;
 
-    // Desktop platforms (macOS, Windows, Linux) typically use a front-facing
-    // built-in webcam or external USB UVC cameras without hardware flash/torch.
     final CameraFacing defaultDesktopFacing =
         facing == CameraFacing.back ? CameraFacing.front : facing;
     final CameraFacing effectiveFacing =
@@ -443,9 +434,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       }
     } on MissingPluginException {
       // Graceful fallback when running without a native camera host channel bound.
-    } catch (_) {
-      // Graceful fallback on permission or camera hardware initialization error.
-    }
+    } catch (_) {}
 
     return ScannerState(
       isInitialized: true,
@@ -473,7 +462,6 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   @override
   Future<TorchState> setTorch(bool enabled) async {
     if (_isDesktop) {
-      // Desktop webcams generally do not have a rear LED torch; gracefully report unavailable.
       return TorchState.unavailable;
     }
     try {
@@ -496,7 +484,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   Future<ScannerState> switchCamera({
     required CameraFacing targetFacing,
     required void Function(CameraFramePacket frame) onFrame,
-    required void Function(List<QrCodeResult> results) onWebBarcodes,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     return startCamera(
       facing: targetFacing,
@@ -522,7 +510,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         }
       }
     } on MissingPluginException {
-      // Host gallery channel not registered; return null so controller can use fallback or notify caller.
+      return null;
     } catch (_) {}
     return null;
   }

@@ -3,21 +3,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import '../models/qr_code_models.dart';
+import '../models/barcode_models.dart';
 
-/// Deterministic QR matrix helper and RGBA-to-PNG converter shared between
+/// Deterministic barcode matrix helper and RGBA-to-PNG converter shared between
 /// Native FFI and Web Wasm engines.
-///
-/// Provides:
-/// 1. Conversion of raw `RGBA8888` pixel buffers into standard compressed PNG
-///    bytes via `dart:ui` (`ui.ImageDescriptor.raw`), allowing `Image.memory`
-///    to render `encodeQrCode` output directly on all 6 platforms.
-/// 2. Decoding of compressed PNG/JPEG/WebP bytes into raw `RGBA8888` buffers
-///    for `decodeImageMemory` and `decodeImageFile`.
-/// 3. Self-contained fallback QR matrix encoding and decoding when running in
-///    headless test environments or offline browsers before `zxing-wasm` loads.
-class QrMatrixCodec {
-  const QrMatrixCodec._();
+class BarcodeMatrixCodec {
+  const BarcodeMatrixCodec._();
 
   /// Converts a raw `RGBA8888` pixel buffer of [width] x [height] into a
   /// compressed PNG [Uint8List].
@@ -76,9 +67,9 @@ class QrMatrixCodec {
     );
   }
 
-  /// Generates a deterministic `RGBA8888` QR matrix buffer with standard finder
-  /// patterns and embedded UTF-8 payload.
-  static Uint8List generateFallbackRgbaQr(
+  /// Generates a deterministic `RGBA8888` 2D barcode matrix buffer with standard
+  /// finder patterns and embedded UTF-8 payload.
+  static Uint8List generateFallbackRgbaBarcode(
     String content, {
     required int width,
     required int height,
@@ -165,8 +156,8 @@ class QrMatrixCodec {
     return rgba;
   }
 
-  /// Attempts to decode a QR matrix produced by [generateFallbackRgbaQr].
-  static List<QrCodeResult> tryDecodeFallbackMatrix(
+  /// Attempts to decode a barcode matrix produced by [generateFallbackRgbaBarcode].
+  static List<BarcodeResult> tryDecodeFallbackMatrix(
     Uint8List pixels, {
     required int width,
     required int height,
@@ -174,7 +165,7 @@ class QrMatrixCodec {
     required PixelFormat format,
   }) {
     if (width <= 0 || height <= 0 || pixels.isEmpty) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     final int bpp = format.bytesPerPixel;
     final int stride = rowStride > 0 ? rowStride : (width * bpp);
@@ -246,8 +237,8 @@ class QrMatrixCodec {
         final String text = utf8.decode(payload, allowMalformed: true);
         final double padX = marginCandidate * moduleW;
         final double padY = marginCandidate * moduleH;
-        return <QrCodeResult>[
-          QrCodeResult(
+        return <BarcodeResult>[
+          BarcodeResult(
             text: text,
             rawBytes: Uint8List.fromList(payload),
             cornerPoints: <ui.Offset>[
@@ -263,6 +254,6 @@ class QrMatrixCodec {
         ];
       }
     }
-    return const <QrCodeResult>[];
+    return const <BarcodeResult>[];
   }
 }

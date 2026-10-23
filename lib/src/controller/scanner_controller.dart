@@ -3,12 +3,12 @@ import 'package:flutter/foundation.dart';
 
 import '../core/scanner_engine_interface.dart';
 import '../core/scanner_engine_selector.dart';
-import '../models/qr_code_models.dart';
+import '../models/barcode_models.dart';
 
 /// High-level static/singleton API for `xue_hua_barcode_scanner`.
 ///
 /// Provides unified 6-platform (Android, iOS, macOS, Windows, Linux, Web)
-/// QR Code & Barcode decoding and generation powered by `zxing-cpp` FFI and
+/// Barcode & 2D Code decoding and generation powered by `zxing-cpp` FFI and
 /// `zxing-wasm` (`dart:js_interop`).
 class XueHuaBarcodeScanner {
   XueHuaBarcodeScanner._();
@@ -25,7 +25,7 @@ class XueHuaBarcodeScanner {
   /// Returns the active engine version string (e.g. `"zxing-cpp 2.2.1 (C++20 FFI)"`).
   static String get engineVersion => _engine.engineVersion;
 
-  /// Decodes one or more QR codes / barcodes from raw pixel bytes.
+  /// Decodes one or more barcodes from raw pixel bytes.
   ///
   /// - [rawPixelBytes]: Raw pixel buffer (`PixelFormat.lum` / YUV420 Y-plane,
   ///   `PixelFormat.rgba8888`, `PixelFormat.bgra8888`, or `PixelFormat.rgb888`).
@@ -36,8 +36,8 @@ class XueHuaBarcodeScanner {
   /// - [format]: Pixel layout of [rawPixelBytes].
   /// - [tryHarder]: Spend more CPU cycles finding rotated/warped symbols.
   /// - [tryRotate]: Check 90/180/270 degree orientations.
-  /// - [tryInvert]: Check inverted (light-on-dark) QR codes.
-  static Future<List<QrCodeResult>> decodeImageBytes(
+  /// - [tryInvert]: Check inverted (light-on-dark) barcodes.
+  static Future<List<BarcodeResult>> decodeImageBytes(
     Uint8List rawPixelBytes, {
     required int width,
     required int height,
@@ -59,9 +59,8 @@ class XueHuaBarcodeScanner {
     );
   }
 
-  /// Decodes QR codes / barcodes directly from a local image file path
-  /// (or a URL on Web).
-  static Future<List<QrCodeResult>> decodeImageFile(
+  /// Decodes barcodes directly from a local image file path (or a URL on Web).
+  static Future<List<BarcodeResult>> decodeImageFile(
     String filePath, {
     bool tryHarder = true,
     bool tryRotate = true,
@@ -75,8 +74,8 @@ class XueHuaBarcodeScanner {
     );
   }
 
-  /// Decodes QR codes / barcodes from compressed image bytes (PNG, JPG, WebP, BMP).
-  static Future<List<QrCodeResult>> decodeImageMemory(
+  /// Decodes barcodes from compressed image bytes (PNG, JPG, WebP, BMP).
+  static Future<List<BarcodeResult>> decodeImageMemory(
     Uint8List encodedImageBytes, {
     bool tryHarder = true,
     bool tryRotate = true,
@@ -90,16 +89,16 @@ class XueHuaBarcodeScanner {
     );
   }
 
-  /// Generates a PNG-encoded QR Code image (`Uint8List`) for [content] using
+  /// Generates a PNG-encoded barcode image (`Uint8List`) for [content] using
   /// `zxing-cpp`'s `MultiFormatWriter` & `BitMatrix`.
-  static Future<Uint8List> encodeQrCode(
+  static Future<Uint8List> encodeBarcode(
     String content, {
     int width = 512,
     int height = 512,
     int margin = 2,
-    QrEccLevel eccLevel = QrEccLevel.medium,
+    BarcodeEccLevel eccLevel = BarcodeEccLevel.medium,
   }) {
-    return _engine.encodeQrCode(
+    return _engine.encodeBarcode(
       content,
       width: width,
       height: height,
@@ -112,9 +111,6 @@ class XueHuaBarcodeScanner {
 /// Controller for managing real-time camera scanning, hardware torch/flashlight,
 /// front/back/external camera switching, frame throttling, and gallery recognition
 /// across Android, iOS, macOS, Windows, Linux, and Web.
-///
-/// Exposes a [ValueListenable<ScannerState>] (and implements [ValueListenable<ScannerState>]
-/// directly via [ValueNotifier]) so UI widgets can reactively rebuild on state changes.
 class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Creates a [XueHuaScannerController].
   XueHuaScannerController({
@@ -141,25 +137,25 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Whether to enable `ZXing::ReaderOptions::setTryRotate(true)`.
   final bool tryRotate;
 
-  /// Whether to enable `ZXing::ReaderOptions::setTryInvert(true)` for dark-mode QR codes.
+  /// Whether to enable `ZXing::ReaderOptions::setTryInvert(true)` for dark-mode barcodes.
   final bool tryInvert;
 
-  /// Whether to automatically pause scanning as soon as a valid QR code is detected.
+  /// Whether to automatically pause scanning as soon as a valid barcode is detected.
   final bool autoPauseOnDetect;
 
-  /// Optional callback invoked whenever one or more QR codes are recognized.
-  final void Function(List<QrCodeResult> results)? onDetect;
+  /// Optional callback invoked whenever one or more barcodes are recognized.
+  final void Function(List<BarcodeResult> results)? onDetect;
 
   final XueHuaScannerPlatformEngine _engine;
-  final StreamController<List<QrCodeResult>> _barcodesStreamController =
-      StreamController<List<QrCodeResult>>.broadcast();
+  final StreamController<List<BarcodeResult>> _barcodesStreamController =
+      StreamController<List<BarcodeResult>>.broadcast();
 
   bool _isProcessingFrame = false;
   DateTime _lastDecodeTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
   bool _isDisposed = false;
 
-  /// Broadcast stream of detected [QrCodeResult] lists.
-  Stream<List<QrCodeResult>> get barcodesStream =>
+  /// Broadcast stream of detected [BarcodeResult] lists.
+  Stream<List<BarcodeResult>> get barcodesStream =>
       _barcodesStreamController.stream;
 
   /// Explicit [ValueListenable] of [ScannerState] for `ValueListenableBuilder`.
@@ -168,7 +164,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Whether the current platform is running on Web.
   bool get isWeb => _engine.isWeb;
 
-  /// Starts the camera stream and begins real-time QR code recognition.
+  /// Starts the camera stream and begins real-time barcode recognition.
   Future<void> start() async {
     if (_isDisposed) return;
     try {
@@ -215,15 +211,12 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     if (_isDisposed || !value.isRunning || !value.isPaused) return;
     value = value.copyWith(
       isPaused: false,
-      latestResults: const <QrCodeResult>[],
+      latestResults: const <BarcodeResult>[],
       clearError: true,
     );
   }
 
   /// Toggles the hardware torch / flashlight on or off.
-  ///
-  /// Automatically no-ops and retains [TorchState.unavailable] on desktop
-  /// webcams or front-facing cameras that lack hardware flash.
   Future<bool> toggleTorch() async {
     if (_isDisposed || !value.hasTorch) {
       return false;
@@ -254,9 +247,6 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   }
 
   /// Feeds a raw [CameraFramePacket] into the throttled worker Isolate decoder.
-  ///
-  /// Drops incoming frames while a previous frame is still decoding or within
-  /// [scanInterval] to guarantee 60fps/120fps UI smoothness.
   Future<void> processCameraFrame(CameraFramePacket frame) async {
     if (_isDisposed || !value.isRunning || value.isPaused || _isProcessingFrame) {
       return;
@@ -269,7 +259,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     _isProcessingFrame = true;
     _lastDecodeTimestamp = now;
     try {
-      final List<QrCodeResult> results = await _engine.decodeImageBytes(
+      final List<BarcodeResult> results = await _engine.decodeImageBytes(
         frame.bytes,
         width: frame.width,
         height: frame.height,
@@ -283,27 +273,23 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
         _handleDetectedResults(results);
       }
     } catch (_) {
-      // Ignore transient frame decode errors in real-time stream.
     } finally {
       _isProcessingFrame = false;
     }
   }
 
   /// Opens the local photo gallery (or file chooser on Desktop/Web) to pick an
-  /// image and decode any QR codes inside it.
-  ///
-  /// If [fallbackImageBytes] is provided (or in headless/simulated environments),
-  /// decodes those bytes directly and triggers [onDetect].
-  Future<List<QrCodeResult>> analyzeImageFromGallery({
+  /// image and decode any barcodes inside it.
+  Future<List<BarcodeResult>> analyzeImageFromGallery({
     Uint8List? fallbackImageBytes,
   }) async {
-    if (_isDisposed) return const <QrCodeResult>[];
+    if (_isDisposed) return const <BarcodeResult>[];
     Uint8List? imageBytes = await _engine.pickImageFromGallery();
     imageBytes ??= fallbackImageBytes;
     if (imageBytes == null || imageBytes.isEmpty) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
-    final List<QrCodeResult> results = await _engine.decodeImageMemory(
+    final List<BarcodeResult> results = await _engine.decodeImageMemory(
       imageBytes,
       tryHarder: true,
       tryRotate: true,
@@ -315,10 +301,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     return results;
   }
 
-  /// Directly analyzes an image file at [filePath] and emits any detected QR codes.
-  Future<List<QrCodeResult>> analyzeImageFile(String filePath) async {
-    if (_isDisposed) return const <QrCodeResult>[];
-    final List<QrCodeResult> results = await _engine.decodeImageFile(
+  /// Directly analyzes an image file at [filePath] and emits any detected barcodes.
+  Future<List<BarcodeResult>> analyzeImageFile(String filePath) async {
+    if (_isDisposed) return const <BarcodeResult>[];
+    final List<BarcodeResult> results = await _engine.decodeImageFile(
       filePath,
       tryHarder: true,
       tryRotate: true,
@@ -330,17 +316,17 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     return results;
   }
 
-  /// Simulates detecting a QR code with [content] (useful for desktop/simulator
-  /// testing when no physical QR card is held in front of the webcam).
-  Future<List<QrCodeResult>> simulateQrDetection(String content) async {
-    if (_isDisposed) return const <QrCodeResult>[];
-    final Uint8List pngBytes = await _engine.encodeQrCode(
+  /// Simulates detecting a barcode with [content] (useful for desktop/simulator
+  /// testing when no physical barcode card is held in front of the webcam).
+  Future<List<BarcodeResult>> simulateBarcodeDetection(String content) async {
+    if (_isDisposed) return const <BarcodeResult>[];
+    final Uint8List pngBytes = await _engine.encodeBarcode(
       content,
       width: 360,
       height: 360,
       margin: 2,
     );
-    final List<QrCodeResult> decoded =
+    final List<BarcodeResult> decoded =
         await _engine.decodeImageMemory(pngBytes);
     if (!_isDisposed && decoded.isNotEmpty) {
       _handleDetectedResults(decoded);
@@ -348,7 +334,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     return decoded;
   }
 
-  void _handleDetectedResults(List<QrCodeResult> results) {
+  void _handleDetectedResults(List<BarcodeResult> results) {
     if (_isDisposed || results.isEmpty) return;
     value = value.copyWith(
       latestResults: results,

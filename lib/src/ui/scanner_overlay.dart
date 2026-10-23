@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-import '../models/qr_code_models.dart';
+import '../models/barcode_models.dart';
 
 /// Calculates the centered square scan window [Rect] inside [viewportSize].
 Rect calculateScanWindowRect(
@@ -111,7 +111,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
     );
     final Path cutoutPath = Path()..addRRect(cutoutRRect);
 
-    // 1. Draw semi-transparent dark mask with central rounded square cutout.
     final Path maskPath = Path.combine(
       PathOperation.difference,
       fullScreenPath,
@@ -122,7 +121,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawPath(maskPath, maskPaint);
 
-    // 2. Draw subtle frame border around the cutout.
     if (borderStrokeWidth > 0) {
       final Paint borderPaint = Paint()
         ..color = borderColor
@@ -131,7 +129,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
       canvas.drawRRect(cutoutRRect, borderPaint);
     }
 
-    // 3. Draw four glowing L-shaped corner brackets around the scan window.
     final Paint cornerPaint = Paint()
       ..color = cornerColor
       ..style = PaintingStyle.stroke
@@ -147,7 +144,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
     final double bottom = scanWindow.bottom;
 
     final Path cornersPath = Path()
-      // Top-Left corner
       ..moveTo(left, top + l)
       ..lineTo(left, top + r)
       ..arcToPoint(
@@ -155,7 +151,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
         radius: Radius.circular(r),
       )
       ..lineTo(left + l, top)
-      // Top-Right corner
       ..moveTo(right - l, top)
       ..lineTo(right - r, top)
       ..arcToPoint(
@@ -163,7 +158,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
         radius: Radius.circular(r),
       )
       ..lineTo(right, top + l)
-      // Bottom-Right corner
       ..moveTo(right, bottom - l)
       ..lineTo(right, bottom - r)
       ..arcToPoint(
@@ -171,7 +165,6 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
         radius: Radius.circular(r),
       )
       ..lineTo(right - l, bottom)
-      // Bottom-Left corner
       ..moveTo(left + l, bottom)
       ..lineTo(left + r, bottom)
       ..arcToPoint(
@@ -233,7 +226,7 @@ class XueHuaScanLineAnimation extends StatelessWidget {
       child: AnimatedBuilder(
         animation: animation,
         builder: (BuildContext context, Widget? _) {
-          final double verticalMargin = 12.0;
+          const double verticalMargin = 12.0;
           final double travelRange = math.max(
             0.0,
             scanWindow.height - (verticalMargin * 2) - lineHeight,
@@ -298,7 +291,7 @@ class XueHuaScanLineAnimation extends StatelessWidget {
   }
 }
 
-/// Draws pulsing green anchor points and corner polygons over detected QR codes.
+/// Draws pulsing green anchor points and corner polygons over detected barcodes.
 class XueHuaCornerAnchorHighlight extends StatefulWidget {
   /// Creates a [XueHuaCornerAnchorHighlight].
   const XueHuaCornerAnchorHighlight({
@@ -310,8 +303,8 @@ class XueHuaCornerAnchorHighlight extends StatefulWidget {
     this.anchorColor = const Color(0xFF00E676),
   });
 
-  /// Detected QR code results with `cornerPoints`.
-  final List<QrCodeResult> results;
+  /// Detected barcode results with `cornerPoints`.
+  final List<BarcodeResult> results;
 
   /// Current viewport dimensions.
   final Size viewportSize;
@@ -380,7 +373,7 @@ class _CornerAnchorPainter extends CustomPainter {
     required this.pulseValue,
   });
 
-  final List<QrCodeResult> results;
+  final List<BarcodeResult> results;
   final Size viewportSize;
   final int sensorOrientation;
   final bool isFrontCamera;
@@ -389,7 +382,7 @@ class _CornerAnchorPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final QrCodeResult result in results) {
+    for (final BarcodeResult result in results) {
       final List<Offset> mapped = result.mapCornersToViewport(
         viewportSize: viewportSize,
         sensorOrientation: sensorOrientation,
@@ -419,7 +412,6 @@ class _CornerAnchorPainter extends CustomPainter {
         );
       }
 
-      // Compute center point of mapped corners for the green target dot.
       double sumX = 0;
       double sumY = 0;
       for (final Offset pt in mapped) {

@@ -101,8 +101,8 @@ enum BarcodeFormat {
   }
 }
 
-/// Error Correction Capability (ECC) level for QR Code generation.
-enum QrEccLevel {
+/// Error Correction Capability (ECC) level for barcode generation.
+enum BarcodeEccLevel {
   /// ~7% error recovery capability (Level L).
   low(0),
 
@@ -115,9 +115,9 @@ enum QrEccLevel {
   /// ~30% error recovery capability (Level H).
   high(3);
 
-  const QrEccLevel(this.cValue);
+  const BarcodeEccLevel(this.cValue);
 
-  /// Integer value matching `CQrEccLevel` in `src/zxing_ffi_bridge.h`.
+  /// Integer value matching `CBarcodeEccLevel` in `src/zxing_ffi_bridge.h`.
   final int cValue;
 }
 
@@ -145,10 +145,10 @@ enum TorchState {
   unavailable,
 }
 
-/// Immutable result of decoding a single QR Code or barcode.
-class QrCodeResult {
-  /// Creates a [QrCodeResult] instance.
-  const QrCodeResult({
+/// Immutable result of decoding a single barcode / 2D code.
+class BarcodeResult {
+  /// Creates a [BarcodeResult] instance.
+  const BarcodeResult({
     required this.text,
     required this.rawBytes,
     required this.cornerPoints,
@@ -262,7 +262,7 @@ class QrCodeResult {
 
   @override
   String toString() =>
-      'QrCodeResult(text: "$text", format: ${format.displayName}, '
+      'BarcodeResult(text: "$text", format: ${format.displayName}, '
       'isValid: $isValid, cornerPoints: $cornerPoints)';
 }
 
@@ -312,7 +312,7 @@ class ScannerState {
     this.sensorOrientation = 0,
     this.textureId,
     this.webViewType,
-    this.latestResults = const <QrCodeResult>[],
+    this.latestResults = const <BarcodeResult>[],
     this.errorMessage,
   });
 
@@ -349,8 +349,8 @@ class ScannerState {
   /// Registered `HtmlElementView` viewType when running on Flutter Web.
   final String? webViewType;
 
-  /// Most recently recognized QR codes / barcodes in the current frame.
-  final List<QrCodeResult> latestResults;
+  /// Most recently recognized barcodes in the current frame.
+  final List<BarcodeResult> latestResults;
 
   /// Non-null when a camera permission or hardware error occurs.
   final String? errorMessage;
@@ -377,7 +377,7 @@ class ScannerState {
     int? sensorOrientation,
     int? textureId,
     String? webViewType,
-    List<QrCodeResult>? latestResults,
+    List<BarcodeResult>? latestResults,
     String? errorMessage,
     bool clearError = false,
   }) {

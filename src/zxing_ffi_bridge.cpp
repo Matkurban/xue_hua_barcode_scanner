@@ -96,23 +96,21 @@ int32_t MapBarcodeFormat(ZXing::BarcodeFormat format) {
 }
 
 int MapEccLevel(int32_t ecc_level) {
-  // ZXing::MultiFormatWriter::setEccLevel accepts 0..8; for QR Code:
-  // 1 -> L (~7%), 3 -> M (~15%), 5 -> Q (~25%), 7 -> H (~30%).
   switch (ecc_level) {
-    case C_QR_ECC_LOW:
+    case C_BARCODE_ECC_LOW:
       return 1;
-    case C_QR_ECC_MEDIUM:
+    case C_BARCODE_ECC_MEDIUM:
       return 3;
-    case C_QR_ECC_QUARTILE:
+    case C_BARCODE_ECC_QUARTILE:
       return 5;
-    case C_QR_ECC_HIGH:
+    case C_BARCODE_ECC_HIGH:
       return 7;
     default:
       return 3;
   }
 }
 #else
-void RenderFallbackQrMatrix(
+void RenderFallbackBarcodeMatrix(
     const std::string& content,
     int32_t width,
     int32_t height,
@@ -190,7 +188,7 @@ void RenderFallbackQrMatrix(
   }
 }
 
-bool TryDecodeFallbackQrMatrix(
+bool TryDecodeFallbackBarcodeMatrix(
     const uint8_t* pixels,
     int32_t width,
     int32_t height,
@@ -390,7 +388,7 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
   (void)try_rotate;
   (void)try_invert;
   std::string decoded_text;
-  if (TryDecodeFallbackQrMatrix(pixels, width, height, row_stride, pixel_format, &decoded_text)) {
+  if (TryDecodeFallbackBarcodeMatrix(pixels, width, height, row_stride, pixel_format, &decoded_text)) {
     output->count = 1;
     output->results = static_cast<CBarcodeResult*>(std::calloc(1, sizeof(CBarcodeResult)));
     if (output->results != nullptr) {
@@ -440,20 +438,20 @@ XH_FFI_EXPORT void free_barcode_results(CBarcodeResultList* list) {
   std::free(list);
 }
 
-XH_FFI_EXPORT CEncodedQrImage* zxing_encode_qr_code(
+XH_FFI_EXPORT CEncodedBarcodeImage* zxing_encode_barcode(
     const char* content,
     int32_t width,
     int32_t height,
     int32_t margin,
     int32_t ecc_level) {
-  auto* result = static_cast<CEncodedQrImage*>(std::calloc(1, sizeof(CEncodedQrImage)));
+  auto* result = static_cast<CEncodedBarcodeImage*>(std::calloc(1, sizeof(CEncodedBarcodeImage)));
   if (result == nullptr) {
     return nullptr;
   }
 
   if (content == nullptr || std::strlen(content) == 0 || width <= 0 || height <= 0) {
     result->error_message =
-        DuplicateCString("QR content must be non-empty and dimensions must be positive.");
+        DuplicateCString("Barcode content must be non-empty and dimensions must be positive.");
     return result;
   }
 
@@ -464,7 +462,7 @@ XH_FFI_EXPORT CEncodedQrImage* zxing_encode_qr_code(
 
   auto* rgba = static_cast<uint8_t*>(std::malloc(static_cast<size_t>(byte_length)));
   if (rgba == nullptr) {
-    result->error_message = DuplicateCString("Failed to allocate RGBA buffer for QR code.");
+    result->error_message = DuplicateCString("Failed to allocate RGBA buffer for barcode.");
     return result;
   }
 
@@ -505,7 +503,7 @@ XH_FFI_EXPORT CEncodedQrImage* zxing_encode_qr_code(
   }
 #else
   (void)ecc_level;
-  RenderFallbackQrMatrix(std::string(content), safe_width, safe_height, safe_margin, rgba);
+  RenderFallbackBarcodeMatrix(std::string(content), safe_width, safe_height, safe_margin, rgba);
   result->rgba_bytes = rgba;
   result->byte_length = byte_length;
   result->width = safe_width;
@@ -514,7 +512,7 @@ XH_FFI_EXPORT CEncodedQrImage* zxing_encode_qr_code(
 #endif
 }
 
-XH_FFI_EXPORT void free_encoded_qr_image(CEncodedQrImage* image) {
+XH_FFI_EXPORT void free_encoded_barcode_image(CEncodedBarcodeImage* image) {
   if (image == nullptr) {
     return;
   }

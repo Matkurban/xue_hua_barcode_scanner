@@ -10,14 +10,9 @@ import 'dart:ui_web' as ui_web;
 
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
-import '../core/qr_matrix_codec.dart';
+import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
-import '../models/qr_code_models.dart';
-
-// ---------------------------------------------------------------------------
-// Modern `dart:js_interop` zero-dependency DOM, MediaDevices, BarcodeDetector
-// and ZXingWasm bindings (compatible with Dart 3.3+ & Flutter Web Wasm/JS).
-// ---------------------------------------------------------------------------
+import '../models/barcode_models.dart';
 
 @JS('document')
 external JSObject get _jsDocument;
@@ -39,9 +34,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   XueHuaBarcodeScannerWeb();
 
   /// Registers the Web plugin with the Flutter Web plugin registrar.
-  static void registerWith(Registrar registrar) {
-    // Registration hook required by Flutter's plugin registry on Web.
-  }
+  static void registerWith(Registrar registrar) {}
 
   static int _nextViewId = 0;
 
@@ -69,7 +62,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageBytes(
+  Future<List<BarcodeResult>> decodeImageBytes(
     Uint8List rawPixelBytes, {
     required int width,
     required int height,
@@ -80,11 +73,9 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     bool tryInvert = true,
   }) async {
     if (rawPixelBytes.isEmpty || width <= 0 || height <= 0) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
 
-    // Normalize any single-channel Y-plane (`lum`), `bgra8888`, or `rgb888` buffer
-    // into tightly packed `RGBA8888` for HTML5 Canvas `ImageData`.
     final Uint8List rgbaBytes = _convertToTightRgba(
       rawPixelBytes,
       width: width,
@@ -93,8 +84,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       format: format,
     );
 
-    // 1. Try `window.ZXingWasm.readBarcodesFromImageData` if loaded in `index.html`.
-    final List<QrCodeResult> wasmResults = await _tryDecodeWithZxingWasm(
+    final List<BarcodeResult> wasmResults = await _tryDecodeWithZxingWasm(
       rgbaBytes,
       width: width,
       height: height,
@@ -106,8 +96,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       return wasmResults;
     }
 
-    // 2. Try native browser `BarcodeDetector` API via an offscreen `<canvas>`.
-    final List<QrCodeResult> detectorResults =
+    final List<BarcodeResult> detectorResults =
         await _tryDecodeWithBrowserBarcodeDetector(
       rgbaBytes,
       width: width,
@@ -117,8 +106,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       return detectorResults;
     }
 
-    // 3. Fallback to deterministic QR matrix decoder.
-    return QrMatrixCodec.tryDecodeFallbackMatrix(
+    return BarcodeMatrixCodec.tryDecodeFallbackMatrix(
       rgbaBytes,
       width: width,
       height: height,
@@ -128,13 +116,12 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageFile(
+  Future<List<BarcodeResult>> decodeImageFile(
     String filePath, {
     bool tryHarder = true,
     bool tryRotate = true,
     bool tryInvert = true,
   }) async {
-    // On Web, `filePath` may be a `blob:` or `data:` or `https:` URL fetched via `window.fetch`.
     try {
       final JSPromise<JSObject> fetchPromise =
           _jsWindow.callMethod<JSPromise<JSObject>>('fetch'.toJS, filePath.toJS);
@@ -150,22 +137,22 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
         tryInvert: tryInvert,
       );
     } catch (_) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
   }
 
   @override
-  Future<List<QrCodeResult>> decodeImageMemory(
+  Future<List<BarcodeResult>> decodeImageMemory(
     Uint8List encodedImageBytes, {
     bool tryHarder = true,
     bool tryRotate = true,
     bool tryInvert = true,
   }) async {
     if (encodedImageBytes.isEmpty) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     final decoded =
-        await QrMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
+        await BarcodeMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
     return decodeImageBytes(
       decoded.rgbaBytes,
       width: decoded.width,
@@ -179,26 +166,26 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   }
 
   @override
-  Future<Uint8List> encodeQrCode(
+  Future<Uint8List> encodeBarcode(
     String content, {
     int width = 512,
     int height = 512,
     int margin = 2,
-    QrEccLevel eccLevel = QrEccLevel.medium,
+    BarcodeEccLevel eccLevel = BarcodeEccLevel.medium,
   }) async {
     if (content.trim().isEmpty) {
-      throw ArgumentError.value(content, 'content', 'QR content cannot be empty.');
+      throw ArgumentError.value(content, 'content', 'Barcode content cannot be empty.');
     }
     final int safeWidth = width.clamp(64, 4096);
     final int safeHeight = height.clamp(64, 4096);
 
-    final Uint8List rgba = QrMatrixCodec.generateFallbackRgbaQr(
+    final Uint8List rgba = BarcodeMatrixCodec.generateFallbackRgbaBarcode(
       content,
       width: safeWidth,
       height: safeHeight,
       margin: margin,
     );
-    return QrMatrixCodec.rgbaToPngBytes(
+    return BarcodeMatrixCodec.rgbaToPngBytes(
       rgba,
       width: safeWidth,
       height: safeHeight,
@@ -209,7 +196,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   Future<ScannerState> startCamera({
     required CameraFacing facing,
     required void Function(CameraFramePacket frame) onFrame,
-    required void Function(List<QrCodeResult> results) onWebBarcodes,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     await stopCamera();
 
@@ -243,7 +230,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 
     bool hasTorch = false;
     int cameraCount = 1;
-    Size previewSize = const Size(1280, 720);
+    const Size previewSize = Size(1280, 720);
 
     try {
       final JSObject? mediaDevices =
@@ -267,7 +254,6 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
         video.setProperty('srcObject'.toJS, stream);
         video.callMethod<JSAny?>('play'.toJS);
 
-        // Inspect video tracks for hardware torch capability (`track.getCapabilities().torch`).
         final JSArray<JSObject> tracks =
             stream.callMethod<JSArray<JSObject>>('getVideoTracks'.toJS);
         final List<JSObject> dartTracks = tracks.toDart;
@@ -284,7 +270,6 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           }
         }
 
-        // Enumerate videoinput devices to know if camera switching is available.
         if (mediaDevices.has('enumerateDevices')) {
           final JSPromise<JSArray<JSObject>> devicesPromise = mediaDevices
               .callMethod<JSPromise<JSArray<JSObject>>>('enumerateDevices'.toJS);
@@ -312,9 +297,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           (_) => _pollWebVideoFrame(onFrame: onFrame, onWebBarcodes: onWebBarcodes),
         );
       }
-    } catch (_) {
-      // Camera permission denied or unavailable in headless browser; return initialized state.
-    }
+    } catch (_) {}
 
     return ScannerState(
       isInitialized: true,
@@ -323,7 +306,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       torchState: hasTorch ? TorchState.off : TorchState.unavailable,
       cameraFacing: facing,
       availableCameraCount: cameraCount,
-      webViewType: viewType,
+      webViewType: _currentViewType,
       previewSize: previewSize,
       sensorOrientation: 0,
     );
@@ -331,7 +314,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 
   Future<void> _pollWebVideoFrame({
     required void Function(CameraFramePacket frame) onFrame,
-    required void Function(List<QrCodeResult> results) onWebBarcodes,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     if (_isDecodingWebFrame) return;
     final JSObject? video = _videoElement;
@@ -366,7 +349,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
             imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
         if (clamped != null) {
           final Uint8List rgba = clamped.toDart;
-          final List<QrCodeResult> results = await decodeImageBytes(
+          final List<BarcodeResult> results = await decodeImageBytes(
             rgba,
             width: videoWidth,
             height: videoHeight,
@@ -409,8 +392,6 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       return TorchState.unavailable;
     }
     try {
-      // Standard W3C ImageCapture / MediaStreamTrack torch constraint on mobile Web:
-      // track.applyConstraints({ advanced: [{ torch: enabled }] })
       final JSObject torchConstraint = JSObject();
       torchConstraint.setProperty('torch'.toJS, enabled.toJS);
       final JSArray<JSObject> advancedList = <JSObject>[torchConstraint].toJS;
@@ -430,7 +411,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   Future<ScannerState> switchCamera({
     required CameraFacing targetFacing,
     required void Function(CameraFramePacket frame) onFrame,
-    required void Function(List<QrCodeResult> results) onWebBarcodes,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     return startCamera(
       facing: targetFacing,
@@ -548,7 +529,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     return out;
   }
 
-  Future<List<QrCodeResult>> _tryDecodeWithZxingWasm(
+  Future<List<BarcodeResult>> _tryDecodeWithZxingWasm(
     Uint8List rgbaBytes, {
     required int width,
     required int height,
@@ -557,14 +538,14 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     required bool tryInvert,
   }) async {
     if (!_jsWindow.has('ZXingWasm')) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     try {
       final JSObject? zxingWasm =
           _jsWindow.getProperty<JSObject?>('ZXingWasm'.toJS);
       if (zxingWasm == null ||
           !zxingWasm.has('readBarcodesFromImageData')) {
-        return const <QrCodeResult>[];
+        return const <BarcodeResult>[];
       }
 
       final JSObject canvas = _createElement('canvas');
@@ -572,7 +553,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       canvas.setProperty('height'.toJS, height.toJS);
       final JSObject? ctx =
           canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
-      if (ctx == null) return const <QrCodeResult>[];
+      if (ctx == null) return const <BarcodeResult>[];
 
       final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
         'createImageData'.toJS,
@@ -599,17 +580,17 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       final List<JSObject> items = (await promise.toDart).toDart;
       return _parseJsBarcodeResults(items, width: width, height: height);
     } catch (_) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
   }
 
-  Future<List<QrCodeResult>> _tryDecodeWithBrowserBarcodeDetector(
+  Future<List<BarcodeResult>> _tryDecodeWithBrowserBarcodeDetector(
     Uint8List rgbaBytes, {
     required int width,
     required int height,
   }) async {
     if (!_jsWindow.has('BarcodeDetector')) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
     try {
       final JSObject canvas = _createElement('canvas');
@@ -617,7 +598,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       canvas.setProperty('height'.toJS, height.toJS);
       final JSObject? ctx =
           canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
-      if (ctx == null) return const <QrCodeResult>[];
+      if (ctx == null) return const <BarcodeResult>[];
 
       final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
         'createImageData'.toJS,
@@ -640,16 +621,16 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       final List<JSObject> detected = (await detectPromise.toDart).toDart;
       return _parseJsBarcodeResults(detected, width: width, height: height);
     } catch (_) {
-      return const <QrCodeResult>[];
+      return const <BarcodeResult>[];
     }
   }
 
-  List<QrCodeResult> _parseJsBarcodeResults(
+  List<BarcodeResult> _parseJsBarcodeResults(
     List<JSObject> items, {
     required int width,
     required int height,
   }) {
-    final List<QrCodeResult> results = <QrCodeResult>[];
+    final List<BarcodeResult> results = <BarcodeResult>[];
     for (final JSObject obj in items) {
       final String text =
           (obj.getProperty<JSAny?>('text'.toJS)?.dartify()?.toString()) ??
@@ -696,7 +677,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       }
 
       results.add(
-        QrCodeResult(
+        BarcodeResult(
           text: text,
           rawBytes: Uint8List.fromList(utf8.encode(text)),
           cornerPoints: corners.isNotEmpty

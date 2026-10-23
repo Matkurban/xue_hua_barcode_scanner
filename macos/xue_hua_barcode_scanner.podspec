@@ -5,10 +5,10 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'xue_hua_barcode_scanner'
-  s.version          = '0.1.0'
-  s.summary          = 'Cross-platform Flutter QR Code & Barcode scanner plugin powered by zxing-cpp FFI.'
+  s.version          = '1.0.0'
+  s.summary          = 'Cross-platform Flutter Barcode & QR Code scanner plugin powered by zxing-cpp FFI.'
   s.description      = <<-DESC
-A 6-platform Flutter QR Code and Barcode recognition, generation, and real-time camera scanner plugin powered by zxing-cpp C++20 FFI and WebAssembly.
+A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time camera scanner plugin powered by zxing-cpp C++20 FFI and WebAssembly.
                        DESC
   s.homepage         = 'https://github.com/Matkurban/xue_hua_barcode_scanner'
   s.license          = { :file => '../LICENSE' }
@@ -22,7 +22,6 @@ A 6-platform Flutter QR Code and Barcode recognition, generation, and real-time 
   s.frameworks       = 'AVFoundation', 'CoreVideo', 'CoreMedia', 'CoreImage', 'AppKit'
   s.libraries        = 'c++'
 
-  # Optional: If vendoring zxing-cpp under macos/zxing-cpp/core/src, compile it in a subspec
   if Dir.exist?(File.join(__dir__, 'zxing-cpp/core/src'))
     s.subspec 'ZXingCore' do |zx|
       zx.source_files = 'zxing-cpp/core/src/**/*.{h,cpp}'
@@ -38,7 +37,7 @@ A 6-platform Flutter QR Code and Barcode recognition, generation, and real-time 
     'GCC_PREPROCESSOR_DEFINITIONS' => '$(inherited) DART_SHARED_LIB=1',
     'STRIP_STYLE' => 'non-global',
     'DEAD_CODE_STRIPPING' => 'NO',
-    'OTHER_LDFLAGS' => '$(inherited) -Wl,-exported_symbol,_zxing_engine_version -Wl,-exported_symbol,_zxing_decode_image_bytes -Wl,-exported_symbol,_free_barcode_results -Wl,-exported_symbol,_zxing_encode_qr_code -Wl,-exported_symbol,_free_encoded_qr_image'
+    'OTHER_LDFLAGS' => '$(inherited) -Wl,-exported_symbol,_zxing_engine_version -Wl,-exported_symbol,_zxing_decode_image_bytes -Wl,-exported_symbol,_free_barcode_results -Wl,-exported_symbol,_zxing_encode_barcode -Wl,-exported_symbol,_free_encoded_barcode_image'
   }
   s.swift_version = '5.0'
 end

@@ -2,22 +2,22 @@
 # Author: Matkurban <3496354336@qq.com>
 # Repository: https://github.com/Matkurban/xue_hua_barcode_scanner
 name: xue_hua_barcode_scanner
-description: "A 6-platform (Android, iOS, macOS, Windows, Linux, Web) Flutter QR Code & Barcode recognition, generation, and real-time camera scanner plugin powered by zxing-cpp FFI & WebAssembly."
-version: 0.1.0
+description: "A 6-platform (Android, iOS, macOS, Windows, Linux, Web) Flutter Barcode & QR Code recognition, generation, and real-time camera scanner plugin powered by zxing-cpp FFI & WebAssembly."
+version: 1.0.0
 homepage: https://github.com/Matkurban/xue_hua_barcode_scanner
 repository: https://github.com/Matkurban/xue_hua_barcode_scanner
 issue_tracker: https://github.com/Matkurban/xue_hua_barcode_scanner/issues
 
 topics:
-  - qrcode
+  - barcode
   - barcode-scanner
+  - qrcode
   - zxing-cpp
   - ffi
-  - camera
 
 environment:
-  sdk: ^3.13.5
-  flutter: '>=3.3.0'
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
 
 dependencies:
   flutter:

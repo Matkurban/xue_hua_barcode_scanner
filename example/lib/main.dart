@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
@@ -10,13 +9,13 @@ void main() {
 /// Full-featured demonstration application for `xue_hua_barcode_scanner`.
 ///
 /// Showcases:
-/// 1. Standard out-of-the-box `XueHuaQrScannerPage` (green animated scan line,
+/// 1. Standard out-of-the-box `XueHuaBarcodeScannerPage` (green animated scan line,
 ///    `"将二维码放入框内"` prompt, front/back camera flip, torch, gallery picker,
 ///    and detected corner-point highlights).
 /// 2. Deeply customized scanner UI using `overlayBuilder`, `scanLineBuilder`,
 ///    `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`,
 ///    and `galleryButtonBuilder` with external `XueHuaScannerController`.
-/// 3. Static image QR Code encoding (`encodeQrCode`) and decoding (`decodeImageMemory`
+/// 3. Static image barcode encoding (`encodeBarcode`) and decoding (`decodeImageMemory`
 ///    & `decodeImageBytes` with `PixelFormat.lum` and `rowStride` verification).
 class XueHuaBarcodeScannerExampleApp extends StatelessWidget {
   const XueHuaBarcodeScannerExampleApp({super.key});
@@ -46,15 +45,15 @@ class ExampleHomeScreen extends StatefulWidget {
 }
 
 class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
-  final TextEditingController _qrInputController = TextEditingController(
+  final TextEditingController _barcodeInputController = TextEditingController(
     text: 'https://github.com/Matkurban/xue_hua_barcode_scanner',
   );
 
-  QrEccLevel _selectedEcc = QrEccLevel.medium;
+  BarcodeEccLevel _selectedEcc = BarcodeEccLevel.medium;
   int _selectedMargin = 2;
   Uint8List? _generatedPngBytes;
-  List<QrCodeResult> _latestResults = const <QrCodeResult>[];
-  String _statusLog = '准备就绪：点击下方按钮打开扫码页，或直接生成并验证二维码。';
+  List<BarcodeResult> _latestResults = const <BarcodeResult>[];
+  String _statusLog = '准备就绪：点击下方按钮打开扫码页，或直接生成并验证条码/二维码。';
   bool _isWorking = false;
 
   @override
@@ -65,12 +64,12 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
 
   @override
   void dispose() {
-    _qrInputController.dispose();
+    _barcodeInputController.dispose();
     super.dispose();
   }
 
   Future<void> _generateAndDecodeSample() async {
-    final String content = _qrInputController.text.trim();
+    final String content = _barcodeInputController.text.trim();
     if (content.isEmpty) return;
 
     setState(() {
@@ -78,14 +77,14 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
     });
 
     try {
-      final Uint8List pngBytes = await XueHuaBarcodeScanner.encodeQrCode(
+      final Uint8List pngBytes = await XueHuaBarcodeScanner.encodeBarcode(
         content,
         width: 420,
         height: 420,
         margin: _selectedMargin,
         eccLevel: _selectedEcc,
       );
-      final List<QrCodeResult> decoded =
+      final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(pngBytes);
 
       if (!mounted) return;
@@ -94,7 +93,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
         _latestResults = decoded;
         _statusLog = decoded.isNotEmpty
             ? '编码并解码验证成功: "${decoded.first.text}" (${decoded.first.format.displayName})'
-            : '二维码已生成 (${pngBytes.lengthInBytes} bytes)';
+            : '条码图片已生成 (${pngBytes.lengthInBytes} bytes)';
       });
     } catch (e) {
       if (!mounted) return;
@@ -113,18 +112,16 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
   Future<void> _testRowStrideYPlaneDecode() async {
     setState(() => _isWorking = true);
     try {
-      // Simulate an Android YUV420 Y-plane buffer with 32-byte rowStride padding
       const int width = 264;
       const int height = 264;
-      const int rowStride =
-          288; // 24 bytes of hardware alignment padding per row
-      final Uint8List png = await XueHuaBarcodeScanner.encodeQrCode(
-        _qrInputController.text.trim(),
+      const int rowStride = 288;
+      final Uint8List png = await XueHuaBarcodeScanner.encodeBarcode(
+        _barcodeInputController.text.trim(),
         width: width,
         height: height,
         margin: _selectedMargin,
       );
-      final List<QrCodeResult> decoded =
+      final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(png);
       if (!mounted) return;
       setState(() {
@@ -141,15 +138,15 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
   }
 
   Future<void> _openDefaultScannerPage() async {
-    final List<QrCodeResult>? results = await Navigator.of(context)
-        .push<List<QrCodeResult>>(
-          MaterialPageRoute<List<QrCodeResult>>(
-            builder: (BuildContext context) => const XueHuaQrScannerPage(
-              autoPopOnDetect: true,
-              hintText: '将二维码放入框内',
-            ),
-          ),
-        );
+    final List<BarcodeResult>? results =
+        await Navigator.of(context).push<List<BarcodeResult>>(
+      MaterialPageRoute<List<BarcodeResult>>(
+        builder: (BuildContext context) => const XueHuaBarcodeScannerPage(
+          autoPopOnDetect: true,
+          hintText: '将二维码放入框内',
+        ),
+      ),
+    );
     if (results != null && results.isNotEmpty && mounted) {
       setState(() {
         _latestResults = results;
@@ -159,13 +156,12 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
   }
 
   Future<void> _openCustomScannerPage() async {
-    final List<QrCodeResult>? results = await Navigator.of(context)
-        .push<List<QrCodeResult>>(
-          MaterialPageRoute<List<QrCodeResult>>(
-            builder: (BuildContext context) =>
-                const CustomStyledScannerDemoPage(),
-          ),
-        );
+    final List<BarcodeResult>? results =
+        await Navigator.of(context).push<List<BarcodeResult>>(
+      MaterialPageRoute<List<BarcodeResult>>(
+        builder: (BuildContext context) => const CustomStyledScannerDemoPage(),
+      ),
+    );
     if (results != null && results.isNotEmpty && mounted) {
       setState(() {
         _latestResults = results;
@@ -178,14 +174,10 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('XueHua Barcode Scanner'),
-            Text(
-              'Engine: ${XueHuaBarcodeScanner.engineVersion}',
-              style: const TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
+        title: const Text('XueHua Barcode Scanner (v1.0.0)'),
+        subtitle: Text(
+          'Engine: ${XueHuaBarcodeScanner.engineVersion}',
+          style: const TextStyle(fontSize: 12, color: Colors.white70),
         ),
       ),
       body: ListView(
@@ -193,7 +185,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
         children: <Widget>[
           _buildScannerLaunchCards(),
           const SizedBox(height: 16),
-          _buildQrGeneratorAndDecoderCard(),
+          _buildBarcodeGeneratorAndDecoderCard(),
           const SizedBox(height: 16),
           _buildLatestResultCard(),
         ],
@@ -211,7 +203,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             const Text(
-              '1. 实时相机二维码扫描页面 (6 端统一组件)',
+              '1. 实时相机条码/二维码扫描页面 (6 端统一组件)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
@@ -253,7 +245,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
     );
   }
 
-  Widget _buildQrGeneratorAndDecoderCard() {
+  Widget _buildBarcodeGeneratorAndDecoderCard() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -263,20 +255,20 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             const Text(
-              '2. 静态图片解码与二维码生成实验室 (zxing-cpp)',
+              '2. 静态图片解码与条码生成实验室 (zxing-cpp)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: _qrInputController,
+              controller: _barcodeInputController,
               decoration: InputDecoration(
-                labelText: '输入要编码为 QR Code 的文本或 URL',
+                labelText: '输入要编码的文本或 URL',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
-                  onPressed: _qrInputController.clear,
+                  onPressed: _barcodeInputController.clear,
                 ),
               ),
             ),
@@ -284,22 +276,23 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
             Row(
               children: <Widget>[
                 Expanded(
-                  child: DropdownButtonFormField<QrEccLevel>(
+                  child: DropdownButtonFormField<BarcodeEccLevel>(
                     initialValue: _selectedEcc,
                     decoration: const InputDecoration(
                       labelText: '纠错等级 (ECC)',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: QrEccLevel.values
+                    items: BarcodeEccLevel.values
                         .map(
-                          (QrEccLevel level) => DropdownMenuItem<QrEccLevel>(
+                          (BarcodeEccLevel level) =>
+                              DropdownMenuItem<BarcodeEccLevel>(
                             value: level,
                             child: Text(level.name.toUpperCase()),
                           ),
                         )
                         .toList(),
-                    onChanged: (QrEccLevel? value) {
+                    onChanged: (BarcodeEccLevel? value) {
                       if (value != null) {
                         setState(() => _selectedEcc = value);
                       }
@@ -340,7 +333,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
                 FilledButton.tonalIcon(
                   onPressed: _isWorking ? null : _generateAndDecodeSample,
                   icon: const Icon(Icons.qr_code_2_rounded),
-                  label: const Text('生成二维码并立即解码验证'),
+                  label: const Text('生成条码并立即解码验证'),
                 ),
                 OutlinedButton.icon(
                   onPressed: _isWorking ? null : _testRowStrideYPlaneDecode,
@@ -383,7 +376,7 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             const Text(
-              '3. 解码结果与定位角点 (QrCodeResult)',
+              '3. 解码结果与定位角点 (BarcodeResult)',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -393,9 +386,12 @@ class _ExampleHomeScreenState extends State<ExampleHomeScreen> {
             ),
             const SizedBox(height: 8),
             if (_latestResults.isEmpty)
-              const Text('暂无解码记录', style: TextStyle(color: Colors.white54))
+              const Text(
+                '暂无解码记录',
+                style: TextStyle(color: Colors.white54),
+              )
             else
-              for (final QrCodeResult r in _latestResults)
+              for (final BarcodeResult r in _latestResults)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: SelectableText(
@@ -438,31 +434,33 @@ class _CustomStyledScannerDemoPageState
 
   @override
   Widget build(BuildContext context) {
-    return XueHuaQrScannerPage(
+    return XueHuaBarcodeScannerPage(
       controller: _controller,
       autoPopOnDetect: true,
       cutoutSize: 270,
-      overlayBuilder:
-          (BuildContext context, Rect scanWindow, ScannerState state) {
-            return XueHuaScannerOverlay(
-              scanWindow: scanWindow,
-              maskColor: const Color(0xAA050B14),
-              cornerColor: Colors.cyanAccent,
-              borderColor: Colors.cyanAccent.withValues(alpha: 0.3),
-              borderRadius: 24,
-              cornerLength: 32,
-              cornerStrokeWidth: 4.5,
-            );
-          },
-      scanLineBuilder:
-          (BuildContext context, Animation<double> animation, Rect scanWindow) {
-            return XueHuaScanLineAnimation(
-              animation: animation,
-              scanWindow: scanWindow,
-              lineColor: Colors.cyanAccent,
-              glowHeight: 44,
-            );
-          },
+      overlayBuilder: (BuildContext context, Rect scanWindow, ScannerState state) {
+        return XueHuaScannerOverlay(
+          scanWindow: scanWindow,
+          maskColor: const Color(0xAA050B14),
+          cornerColor: Colors.cyanAccent,
+          borderColor: Colors.cyanAccent.withValues(alpha: 0.3),
+          borderRadius: 24,
+          cornerLength: 32,
+          cornerStrokeWidth: 4.5,
+        );
+      },
+      scanLineBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Rect scanWindow,
+      ) {
+        return XueHuaScanLineAnimation(
+          animation: animation,
+          scanWindow: scanWindow,
+          lineColor: Colors.cyanAccent,
+          glowHeight: 44,
+        );
+      },
       hintTextBuilder: (BuildContext context, ScannerState state) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -481,36 +479,31 @@ class _CustomStyledScannerDemoPageState
           ),
         );
       },
-      torchButtonBuilder:
-          (
-            BuildContext context,
-            ScannerState state,
-            VoidCallback onToggleTorch,
-          ) {
-            return FilledButton.tonalIcon(
-              onPressed: onToggleTorch,
-              icon: Icon(
-                state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
-                color: state.isTorchOn ? Colors.amberAccent : Colors.cyanAccent,
-              ),
-              label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
-            );
-          },
-      galleryButtonBuilder:
-          (
-            BuildContext context,
-            ScannerState state,
-            VoidCallback onPickGallery,
-          ) {
-            return FilledButton.tonalIcon(
-              onPressed: onPickGallery,
-              icon: const Icon(
-                Icons.photo_library_outlined,
-                color: Colors.cyanAccent,
-              ),
-              label: const Text('相册导入'),
-            );
-          },
+      torchButtonBuilder: (
+        BuildContext context,
+        ScannerState state,
+        VoidCallback onToggleTorch,
+      ) {
+        return FilledButton.tonalIcon(
+          onPressed: onToggleTorch,
+          icon: Icon(
+            state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
+            color: state.isTorchOn ? Colors.amberAccent : Colors.cyanAccent,
+          ),
+          label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
+        );
+      },
+      galleryButtonBuilder: (
+        BuildContext context,
+        ScannerState state,
+        VoidCallback onPickGallery,
+      ) {
+        return FilledButton.tonalIcon(
+          onPressed: onPickGallery,
+          icon: const Icon(Icons.photo_library_outlined, color: Colors.cyanAccent),
+          label: const Text('相册导入'),
+        );
+      },
     );
   }
 }

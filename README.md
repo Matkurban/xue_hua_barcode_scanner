@@ -2,10 +2,27 @@
 
 # xue_hua_barcode_scanner
 
-A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Flutter QR Code & Barcode recognition, generation, and real-time camera scanner plugin powered by **`zxing-cpp`** (C++20 FFI) and **`zxing-wasm`** (`dart:js_interop`).
+A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Flutter Barcode & QR Code recognition, generation, and real-time camera scanner plugin powered by **`zxing-cpp`** (C++20 FFI) and **`zxing-wasm`** (`dart:js_interop`).
 
+- **Version**: `1.0.0`
 - **Author**: Matkurban <3496354336@qq.com>
 - **Repository**: [https://github.com/Matkurban/xue_hua_barcode_scanner](https://github.com/Matkurban/xue_hua_barcode_scanner)
+- **Implementation Plan**: [Architecture & Implementation Plan (IMPLEMENTATION_PLAN.md)](IMPLEMENTATION_PLAN.md)
+
+## Installation (pub.dev)
+
+Add `xue_hua_barcode_scanner` from `pub.dev` by running:
+
+```bash
+flutter pub add xue_hua_barcode_scanner
+```
+
+Or add it directly to your `pubspec.yaml`:
+
+```yaml
+dependencies:
+  xue_hua_barcode_scanner: ^1.0.0
+```
 
 ## Platform Support Matrix
 
@@ -21,11 +38,11 @@ A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Fl
 ## Key Features
 
 1. **Unified `zxing-cpp` Decoding & Generation Core**:
-   - **5 Native Platforms**: Compiles `zxing-cpp` (`v2.2.1`) via CMake `FetchContent` and CocoaPods C++20, bridged through an `extern "C"` wrapper (`src/zxing_ffi_bridge.h`) and executed inside background `Isolate.run` workers with deterministic native heap deallocation (`free_barcode_results`, `free_encoded_qr_image`).
+   - **5 Native Platforms**: Compiles `zxing-cpp` (`v2.2.1`) via CMake `FetchContent` and CocoaPods C++20, bridged through an `extern "C"` wrapper (`src/zxing_ffi_bridge.h`) and executed inside background `Isolate.run` workers with deterministic native heap deallocation (`free_barcode_results`, `free_encoded_barcode_image`).
    - **Web Platform**: Isolates `dart:ffi` via conditional imports and uses modern `dart:js_interop` to bridge `zxing-wasm` and the browser's `BarcodeDetector` API with 100% identical Dart APIs.
 2. **Zero-Copy Y-Plane & `rowStride` Alignment**:
    - Directly decodes single-channel grayscale (`PixelFormat.lum` for Android `YUV_420_888` / `NV21` Y-plane), `PixelFormat.rgba8888`, `PixelFormat.bgra8888`, and `PixelFormat.rgb888` while normalizing hardware row alignment padding (`rowStride`) to prevent diagonal image skew.
-3. **Out-of-the-Box & 100% Customizable `XueHuaQrScannerPage`**:
+3. **Out-of-the-Box & 100% Customizable `XueHuaBarcodeScannerPage`**:
    - Full-screen aspect-ratio-preserving camera preview, semi-transparent rounded-square cutout overlay with 4 glowing corner brackets, smooth looping green laser scan line, top bar with Back button, `"将二维码放入框内"` prompt, and Front/Back camera flip button, bottom symmetric **Torch** and **Gallery** buttons, and real-time green anchor highlights on detected `cornerPoints`.
    - Every visual component can be overridden via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
 
@@ -37,14 +54,13 @@ A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Fl
 <uses-feature android:name="android.hardware.camera" android:required="false" />
 <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 ```
-*Note*: Android 15+ 16 KB page alignment (`-Wl,-z,max-page-size=16384`) and C++20 `FetchContent` for `zxing-cpp` `v2.2.1` are pre-configured in `src/CMakeLists.txt`.
 
 ### 2. iOS (`ios/Runner/Info.plist`)
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>Camera access is required to scan QR codes and barcodes.</string>
+<string>Camera access is required to scan barcodes and QR codes.</string>
 <key>NSPhotoLibraryUsageDescription</key>
-<string>Photo library access is required to recognize QR codes from saved images.</string>
+<string>Photo library access is required to recognize barcodes from saved images.</string>
 ```
 
 ### 3. macOS (`macos/Runner/Info.plist` & Entitlements)
@@ -66,15 +82,15 @@ Camera streaming (`navigator.mediaDevices.getUserMedia`) and mobile browser torc
 
 ## Quick Start
 
-### 1. Open the Standard QR Code Scanner Page
+### 1. Open the Standard Barcode Scanner Page
 ```dart
 import 'package:flutter/material.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
-Future<void> scanQrCode(BuildContext context) async {
-  final List<QrCodeResult>? results = await Navigator.of(context).push(
-    MaterialPageRoute<List<QrCodeResult>>(
-      builder: (_) => const XueHuaQrScannerPage(
+Future<void> scanBarcode(BuildContext context) async {
+  final List<BarcodeResult>? results = await Navigator.of(context).push(
+    MaterialPageRoute<List<BarcodeResult>>(
+      builder: (_) => const XueHuaBarcodeScannerPage(
         autoPopOnDetect: true,
         hintText: '将二维码放入框内',
       ),
@@ -82,7 +98,7 @@ Future<void> scanQrCode(BuildContext context) async {
   );
 
   if (results != null && results.isNotEmpty) {
-    final QrCodeResult first = results.first;
+    final BarcodeResult first = results.first;
     debugPrint('Text: ${first.text}, Corners: ${first.cornerPoints}');
   }
 }
@@ -94,7 +110,7 @@ final controller = XueHuaScannerController(
   initialFacing: CameraFacing.back,
 );
 
-XueHuaQrScannerPage(
+XueHuaBarcodeScannerPage(
   controller: controller,
   overlayBuilder: (context, scanWindow, state) => XueHuaScannerOverlay(
     scanWindow: scanWindow,
@@ -121,25 +137,25 @@ XueHuaQrScannerPage(
 );
 ```
 
-### 3. Direct Image Decoding & QR Code Generation
+### 3. Direct Image Decoding & Barcode Generation
 ```dart
-// Encode text into a PNG QR Code image
-final Uint8List qrPngBytes = await XueHuaBarcodeScanner.encodeQrCode(
+// Encode text into a PNG barcode image
+final Uint8List pngBytes = await XueHuaBarcodeScanner.encodeBarcode(
   'https://github.com/Matkurban/xue_hua_barcode_scanner',
   width: 512,
   height: 512,
   margin: 2,
-  eccLevel: QrEccLevel.high,
+  eccLevel: BarcodeEccLevel.high,
 );
 
 // Decode from PNG/JPG bytes or file path
-final List<QrCodeResult> decodedFromMemory =
-    await XueHuaBarcodeScanner.decodeImageMemory(qrPngBytes);
-final List<QrCodeResult> decodedFromFile =
-    await XueHuaBarcodeScanner.decodeImageFile('/path/to/qr.png');
+final List<BarcodeResult> decodedFromMemory =
+    await XueHuaBarcodeScanner.decodeImageMemory(pngBytes);
+final List<BarcodeResult> decodedFromFile =
+    await XueHuaBarcodeScanner.decodeImageFile('/path/to/barcode.png');
 
 // Decode raw camera Y-plane or RGBA8888 bytes with rowStride alignment
-final List<QrCodeResult> decodedFromBytes =
+final List<BarcodeResult> decodedFromBytes =
     await XueHuaBarcodeScanner.decodeImageBytes(
   rawYPlaneBytes,
   width: 1280,
@@ -161,8 +177,8 @@ final List<QrCodeResult> decodedFromBytes =
 | `Future<void> pause()` / `resume()` | Pauses or resumes real-time frame decoding and scan line animation. |
 | `Future<bool> toggleTorch()` | Toggles hardware flashlight on Android, iOS, and mobile Web; returns `false` on unsupported desktop cameras. |
 | `Future<void> switchCamera()` | Switches between rear (`CameraFacing.back`) and front (`CameraFacing.front`) cameras. |
-| `Future<List<QrCodeResult>> analyzeImageFromGallery()` | Picks an image from the local gallery/filesystem and decodes QR codes. |
+| `Future<List<BarcodeResult>> analyzeImageFromGallery()` | Picks an image from the local gallery/filesystem and decodes barcodes. |
 
 ## License
 
-MIT License © 2026 Matkurban <3496354336@qq.com>
+See [LICENSE](LICENSE) for full license terms.

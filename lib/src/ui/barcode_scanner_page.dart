@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../controller/scanner_controller.dart';
-import '../models/qr_code_models.dart';
+import '../models/barcode_models.dart';
 import 'scanner_overlay.dart';
 
 /// Builder signature for customizing the semi-transparent mask and scan cutout box.
@@ -56,18 +56,7 @@ typedef XueHuaGalleryButtonBuilder = Widget Function(
   VoidCallback onPickGallery,
 );
 
-/// Embeddable, 100% customizable QR Code & Barcode camera scanner view.
-///
-/// Features out-of-the-box:
-/// 1. Full-screen aspect-ratio-preserving (`BoxFit.cover`) camera preview across
-///    Android, iOS, macOS, Windows, Linux, and Web.
-/// 2. Central semi-transparent dark mask with a rounded square cutout and four
-///    emerald-green corner brackets (`XueHuaScannerOverlay`).
-/// 3. Smooth up-and-down looping green laser scan line (`XueHuaScanLineAnimation`).
-/// 4. Top navigation region with Back button, centered `"将二维码放入框内"` prompt,
-///    and Front/Back camera flip button.
-/// 5. Bottom action bar with symmetric **Torch (手电筒)** and **Gallery (相册)** buttons.
-/// 6. Real-time green corner-point anchor highlights when a QR code is detected.
+/// Embeddable, 100% customizable Barcode & QR Code camera scanner view.
 class XueHuaScannerView extends StatefulWidget {
   /// Creates a [XueHuaScannerView].
   const XueHuaScannerView({
@@ -100,8 +89,8 @@ class XueHuaScannerView extends StatefulWidget {
   /// controller is created and disposed automatically.
   final XueHuaScannerController? controller;
 
-  /// Callback invoked whenever one or more QR codes / barcodes are recognized.
-  final void Function(List<QrCodeResult> results)? onDetect;
+  /// Callback invoked whenever one or more barcodes are recognized.
+  final void Function(List<BarcodeResult> results)? onDetect;
 
   /// Default prompt displayed in the top region (`"将二维码放入框内"`).
   final String hintText;
@@ -133,7 +122,7 @@ class XueHuaScannerView extends StatefulWidget {
   /// Duration of one top-to-bottom sweep of the laser scan line.
   final Duration scanLineDuration;
 
-  /// Whether to render pulsing green anchor dots at `QrCodeResult.cornerPoints`.
+  /// Whether to render pulsing green anchor dots at `BarcodeResult.cornerPoints`.
   final bool showCornerHighlights;
 
   /// Whether to completely hide the torch button on desktop/devices without flash.
@@ -174,7 +163,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   bool _ownsController = false;
   late final AnimationController _scanLineController;
   late final Animation<double> _scanLineAnimation;
-  StreamSubscription<List<QrCodeResult>>? _detectSubscription;
+  StreamSubscription<List<BarcodeResult>>? _detectSubscription;
 
   @override
   void initState() {
@@ -205,7 +194,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
 
     _detectSubscription?.cancel();
     _detectSubscription =
-        _controller.barcodesStream.listen((List<QrCodeResult> results) {
+        _controller.barcodesStream.listen((List<BarcodeResult> results) {
       widget.onDetect?.call(results);
     });
 
@@ -275,11 +264,9 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   Future<void> _handlePickGallery() async {
-    final List<QrCodeResult> results =
+    final List<BarcodeResult> results =
         await _controller.analyzeImageFromGallery();
     if (results.isEmpty && mounted) {
-      // In desktop/simulator environments where no native gallery channel is bound,
-      // offer an instant built-in QR sample decode verification dialog.
       await _showGalleryFallbackSheet();
     }
   }
@@ -308,7 +295,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               const Text(
-                '相册图片二维码识别 (模拟器/桌面端快速验证)',
+                '相册图片条码/二维码识别 (模拟器/桌面端快速验证)',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -317,7 +304,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
               ),
               const SizedBox(height: 8),
               const Text(
-                '生成一张内存二维码图片并立即通过 zxing-cpp 解码识别：',
+                '生成一张内存条码图片并立即通过 zxing-cpp 解码识别：',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 12),
@@ -325,7 +312,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                 controller: textCtrl,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: '二维码内容',
+                  labelText: '条码/二维码内容',
                   labelStyle: const TextStyle(color: Colors.white70),
                   filled: true,
                   fillColor: Colors.white10,
@@ -344,7 +331,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                   final String payload = textCtrl.text.trim();
                   Navigator.of(sheetContext).pop();
                   if (payload.isNotEmpty) {
-                    await _controller.simulateQrDetection(payload);
+                    await _controller.simulateBarcodeDetection(payload);
                   }
                 },
                 icon: const Icon(Icons.qr_code_2),
@@ -383,10 +370,8 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
             return Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                // 1. Full-screen aspect-ratio-preserving camera preview
                 _buildCameraPreview(context, state, viewportSize),
 
-                // 2. Central semi-transparent mask & rounded square cutout
                 if (widget.overlayBuilder != null)
                   widget.overlayBuilder!(context, scanWindow, state)
                 else
@@ -397,7 +382,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     borderRadius: widget.cutoutBorderRadius,
                   ),
 
-                // 3. Smooth vertical green scan line animation
                 if (widget.scanLineBuilder != null)
                   widget.scanLineBuilder!(
                     context,
@@ -411,7 +395,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     lineColor: widget.scanLineColor,
                   ),
 
-                // 4. Detected QR Code corner-point green anchor highlight
                 if (widget.showCornerHighlights &&
                     state.latestResults.isNotEmpty)
                   XueHuaCornerAnchorHighlight(
@@ -422,7 +405,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     anchorColor: widget.cornerColor,
                   ),
 
-                // 5. Top bar (Back button + "将二维码放入框内" prompt + Camera switch)
                 SafeArea(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -449,14 +431,12 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       return widget.cameraPreviewBuilder!(context, state);
     }
 
-    // Web HTML5 <video> element view
     if (_controller.isWeb && state.webViewType != null) {
       return SizedBox.expand(
         child: HtmlElementView(viewType: state.webViewType!),
       );
     }
 
-    // Native Flutter Texture registry preview (Android/iOS/macOS/Windows/Linux)
     if (state.textureId != null) {
       final double previewAspect = state.previewSize.height > 0
           ? state.previewSize.width / state.previewSize.height
@@ -480,7 +460,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       );
     }
 
-    // Sleek dark camera viewfinder backdrop when running in simulator/desktop preview
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: RadialGradient(
@@ -623,11 +602,11 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 }
 
-/// Full-screen ready-to-use QR Code scanner route page (`Scaffold`) with 100%
-/// customizable UI builders and `XueHuaScannerController` support.
-class XueHuaQrScannerPage extends StatelessWidget {
-  /// Creates a [XueHuaQrScannerPage].
-  const XueHuaQrScannerPage({
+/// Full-screen ready-to-use Barcode & QR Code scanner route page (`Scaffold`)
+/// with 100% customizable UI builders and `XueHuaScannerController` support.
+class XueHuaBarcodeScannerPage extends StatelessWidget {
+  /// Creates a [XueHuaBarcodeScannerPage].
+  const XueHuaBarcodeScannerPage({
     super.key,
     this.controller,
     this.onDetect,
@@ -657,10 +636,10 @@ class XueHuaQrScannerPage extends StatelessWidget {
   /// Optional external [XueHuaScannerController].
   final XueHuaScannerController? controller;
 
-  /// Callback invoked when one or more QR codes / barcodes are detected.
-  final void Function(List<QrCodeResult> results)? onDetect;
+  /// Callback invoked when one or more barcodes are detected.
+  final void Function(List<BarcodeResult> results)? onDetect;
 
-  /// If `true`, automatically pops this route with `List<QrCodeResult>` on first detection.
+  /// If `true`, automatically pops this route with `List<BarcodeResult>` on first detection.
   final bool autoPopOnDetect;
 
   /// Prompt text displayed in the top region (defaults to `"将二维码放入框内"`).
@@ -751,7 +730,7 @@ class XueHuaQrScannerPage extends StatelessWidget {
         torchButtonBuilder: torchButtonBuilder,
         galleryButtonBuilder: galleryButtonBuilder,
         cameraPreviewBuilder: cameraPreviewBuilder,
-        onDetect: (List<QrCodeResult> results) {
+        onDetect: (List<BarcodeResult> results) {
           onDetect?.call(results);
           if (autoPopOnDetect && !hasPopped && results.isNotEmpty) {
             hasPopped = true;
