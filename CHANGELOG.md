@@ -1,3 +1,7 @@
+## 1.0.2
+
+* Shorten the package description in `pubspec.yaml` so it stays between 60 and 180 characters and pub.dev can score a valid pubspec.
+
 ## 1.0.1
 
 * Fix Windows MediaFoundation camera media type setup: use `IMFMediaType::SetGUID(MF_MT_MAJOR_TYPE/SUBTYPE)` instead of non-existent `SetMajorType`/`SetSubtype`.
