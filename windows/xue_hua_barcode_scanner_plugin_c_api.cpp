@@ -208,8 +208,8 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     IMFMediaType* media_type = nullptr;
     MFCreateMediaType(&media_type);
     if (media_type != nullptr) {
-      media_type->SetMajorType(MFMediaType_Video);
-      media_type->SetSubtype(MFVideoFormat_RGB32);
+      media_type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+      media_type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
       reader->SetCurrentMediaType(
           static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM),
           nullptr,
