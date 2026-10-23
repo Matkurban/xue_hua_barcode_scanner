@@ -29,7 +29,14 @@ class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
     return XueHuaBarcodeScannerPage(
       controller: _controller,
       autoPopOnDetect: false,
-      hintText: '将二维码放入框内',
+      texts: const XueHuaScannerTexts(
+        hintText: '将二维码放入框内',
+        invalidBarcodeText: '二维码不符合要求',
+        noBarcodeInImageText: '未在所选图片中识别到二维码或条码',
+        torchOnLabel: '轻触关闭',
+        torchOffLabel: '手电筒',
+        galleryLabel: '相册',
+      ),
       onDetect: _handleBarcodeDetected,
     );
   }

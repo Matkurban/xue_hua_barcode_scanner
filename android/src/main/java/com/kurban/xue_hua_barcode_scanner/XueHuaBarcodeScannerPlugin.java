@@ -442,6 +442,7 @@ public final class XueHuaBarcodeScannerPlugin implements
       Image.Plane yPlane = planes[0];
       ByteBuffer buffer = yPlane.getBuffer();
       int rowStride = yPlane.getRowStride();
+      int pixelStride = yPlane.getPixelStride();
       int width = image.getWidth();
       int height = image.getHeight();
       int remaining = buffer.remaining();
@@ -449,14 +450,34 @@ public final class XueHuaBarcodeScannerPlugin implements
         return;
       }
 
-      byte[] yBytes = new byte[remaining];
-      buffer.get(yBytes);
+      byte[] yBytes = new byte[width * height];
+      if (pixelStride == 1 && rowStride == width && remaining >= width * height) {
+        buffer.get(yBytes, 0, width * height);
+      } else {
+        for (int row = 0; row < height; row++) {
+          int rowStart = row * rowStride;
+          if (pixelStride == 1) {
+            int copyLen = Math.min(width, remaining - rowStart);
+            if (copyLen > 0) {
+              buffer.position(rowStart);
+              buffer.get(yBytes, row * width, copyLen);
+            }
+          } else {
+            for (int col = 0; col < width; col++) {
+              int idx = rowStart + col * pixelStride;
+              if (idx < remaining) {
+                yBytes[row * width + col] = buffer.get(idx);
+              }
+            }
+          }
+        }
+      }
 
       final Map<String, Object> packet = new HashMap<>();
       packet.put("bytes", yBytes);
       packet.put("width", width);
       packet.put("height", height);
-      packet.put("rowStride", rowStride);
+      packet.put("rowStride", width);
       packet.put("format", 0);
       packet.put("sensorOrientation", currentSensorOrientation);
 

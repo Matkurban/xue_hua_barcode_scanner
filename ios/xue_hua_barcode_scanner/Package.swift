@@ -15,11 +15,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(name: "FlutterFramework", path: "../FlutterFramework")
+        .package(name: "FlutterFramework", path: "../FlutterFramework"),
+        .package(url: "https://github.com/zxing-cpp/zxing-cpp.git", exact: "3.1.1")
     ],
     targets: [
         .target(
             name: "xue_hua_barcode_scanner_ffi",
+            dependencies: [
+                .product(name: "ZXingCpp", package: "zxing-cpp")
+            ],
             path: "Sources/xue_hua_barcode_scanner_ffi",
             cSettings: [
                 .headerSearchPath("include/xue_hua_barcode_scanner_ffi"),
@@ -37,6 +41,7 @@ let package = Package(
             name: "xue_hua_barcode_scanner",
             dependencies: [
                 "xue_hua_barcode_scanner_ffi",
+                .product(name: "ZXingCpp", package: "zxing-cpp"),
                 .product(name: "FlutterFramework", package: "FlutterFramework")
             ],
             path: "Sources/xue_hua_barcode_scanner",

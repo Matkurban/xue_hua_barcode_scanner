@@ -100,9 +100,13 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 Future<void> openDefaultScanner(BuildContext context) async {
   final List<BarcodeResult>? results = await Navigator.of(context).push(
     MaterialPageRoute<List<BarcodeResult>>(
-      builder: (_) => const XueHuaBarcodeScannerPage(
+      builder: (_) => XueHuaBarcodeScannerPage(
         autoPopOnDetect: true,
-        hintText: '将二维码放入框内',
+        texts: const XueHuaScannerTexts(
+          hintText: '将二维码放入框内',
+          invalidBarcodeText: '二维码不符合要求',
+        ),
+        validator: (result) => result.text.isNotEmpty,
       ),
     ),
   );

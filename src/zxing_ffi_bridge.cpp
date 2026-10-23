@@ -15,6 +15,14 @@
 #elif __has_include(<ZXing/ZXingCpp.h>)
 #define XH_HAS_ZXING_CPP 1
 #include <ZXing/ZXingCpp.h>
+#elif __has_include("ReadBarcode.h")
+#define XH_HAS_ZXING_CPP 1
+#include "BarcodeFormat.h"
+#include "CreateBarcode.h"
+#include "ImageView.h"
+#include "ReadBarcode.h"
+#include "ReaderOptions.h"
+#include "WriteBarcode.h"
 #else
 #define XH_HAS_ZXING_CPP 0
 #endif
@@ -148,6 +156,85 @@ std::string MapEccLevelOption(int32_t ecc_level) {
       return "ecLevel=3";
   }
 #endif
+}
+
+std::vector<uint8_t> ConvertToLuminance(
+    const uint8_t* pixels,
+    int32_t width,
+    int32_t height,
+    int32_t row_stride,
+    int32_t pixel_format,
+    int32_t bytes_per_pixel) {
+  std::vector<uint8_t> lum(static_cast<size_t>(width) * height);
+  for (int32_t y = 0; y < height; ++y) {
+    const uint8_t* row = pixels + static_cast<size_t>(y) * row_stride;
+    uint8_t* dst = lum.data() + static_cast<size_t>(y) * width;
+    if (pixel_format == C_PIXEL_FORMAT_LUM) {
+      std::memcpy(dst, row, static_cast<size_t>(width));
+    } else if (pixel_format == C_PIXEL_FORMAT_BGRA8888) {
+      for (int32_t x = 0; x < width; ++x) {
+        const uint8_t* p = row + x * bytes_per_pixel;
+        dst[x] = static_cast<uint8_t>((306 * p[2] + 601 * p[1] + 117 * p[0] + 512) >> 10);
+      }
+    } else {
+      for (int32_t x = 0; x < width; ++x) {
+        const uint8_t* p = row + x * bytes_per_pixel;
+        dst[x] = static_cast<uint8_t>((306 * p[0] + 601 * p[1] + 117 * p[2] + 512) >> 10);
+      }
+    }
+  }
+  return lum;
+}
+
+std::vector<uint8_t> DilateDarkDots3x3(
+    const std::vector<uint8_t>& lum,
+    int32_t width,
+    int32_t height) {
+  std::vector<uint8_t> temp(lum.size());
+  std::vector<uint8_t> out(lum.size());
+  for (int32_t y = 0; y < height; ++y) {
+    const uint8_t* row = lum.data() + static_cast<size_t>(y) * width;
+    uint8_t* dst = temp.data() + static_cast<size_t>(y) * width;
+    for (int32_t x = 0; x < width; ++x) {
+      uint8_t m = row[x];
+      if (x > 0 && row[x - 1] < m) m = row[x - 1];
+      if (x + 1 < width && row[x + 1] < m) m = row[x + 1];
+      dst[x] = m;
+    }
+  }
+  for (int32_t y = 0; y < height; ++y) {
+    const uint8_t* r0 = temp.data() + static_cast<size_t>(std::max(0, y - 1)) * width;
+    const uint8_t* r1 = temp.data() + static_cast<size_t>(y) * width;
+    const uint8_t* r2 = temp.data() + static_cast<size_t>(std::min(height - 1, y + 1)) * width;
+    uint8_t* dst = out.data() + static_cast<size_t>(y) * width;
+    for (int32_t x = 0; x < width; ++x) {
+      dst[x] = std::min({r0[x], r1[x], r2[x]});
+    }
+  }
+  return out;
+}
+
+std::vector<uint8_t> DownscaleLum2x(
+    const std::vector<uint8_t>& lum,
+    int32_t width,
+    int32_t height,
+    int32_t* out_w,
+    int32_t* out_h) {
+  const int32_t dw = width / 2;
+  const int32_t dh = height / 2;
+  *out_w = dw;
+  *out_h = dh;
+  std::vector<uint8_t> out(static_cast<size_t>(dw) * dh);
+  for (int32_t y = 0; y < dh; ++y) {
+    const uint8_t* r0 = lum.data() + static_cast<size_t>(y * 2) * width;
+    const uint8_t* r1 = lum.data() + static_cast<size_t>(y * 2 + 1) * width;
+    uint8_t* dst = out.data() + static_cast<size_t>(y) * dw;
+    for (int32_t x = 0; x < dw; ++x) {
+      const int sum = r0[x * 2] + r0[x * 2 + 1] + r1[x * 2] + r1[x * 2 + 1];
+      dst[x] = static_cast<uint8_t>((sum + 2) >> 2);
+    }
+  }
+  return out;
 }
 #else
 void RenderFallbackBarcodeMatrix(
@@ -357,16 +444,63 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
         effective_row_stride,
         bytes_per_pixel);
 
-    const auto options = ZXing::ReaderOptions()
-                             .formats(ZXing::BarcodeFormat::AllReadable)
-                             .tryHarder(try_harder != 0)
-                             .tryRotate(try_rotate != 0)
-                             .tryInvert(try_invert != 0)
-                             .tryDownscale(true)
-                             .binarizer(ZXing::Binarizer::LocalAverage)
-                             .returnErrors(false);
+    auto base_options = ZXing::ReaderOptions()
+                            .formats(ZXing::BarcodeFormat::AllReadable)
+                            .tryHarder(try_harder != 0)
+                            .tryRotate(try_rotate != 0)
+                            .tryInvert(try_invert != 0)
+                            .tryDownscale(true)
+                            .binarizer(ZXing::Binarizer::LocalAverage)
+                            .returnErrors(false);
+#ifdef ZXING_EXPERIMENTAL_API
+    base_options.setTryDenoise(true);
+#endif
 
-    const ZXing::Barcodes barcodes = ZXing::ReadBarcodes(image_view, options);
+    double coordinate_scale = 1.0;
+    ZXing::Barcodes barcodes = ZXing::ReadBarcodes(image_view, base_options);
+
+    if (barcodes.empty() && try_harder != 0) {
+      auto hist_options = base_options;
+      hist_options.setBinarizer(ZXing::Binarizer::GlobalHistogram);
+      barcodes = ZXing::ReadBarcodes(image_view, hist_options);
+    }
+
+    if (barcodes.empty() && try_harder != 0 && width >= 48 && height >= 48) {
+      const std::vector<uint8_t> lum = ConvertToLuminance(
+          pixels,
+          width,
+          height,
+          effective_row_stride,
+          pixel_format,
+          bytes_per_pixel);
+
+      const std::vector<uint8_t> dilated1 = DilateDarkDots3x3(lum, width, height);
+      const ZXing::ImageView dilated1_view(
+          dilated1.data(),
+          width,
+          height,
+          ZXing::ImageFormat::Lum);
+      barcodes = ZXing::ReadBarcodes(dilated1_view, base_options);
+
+      if (barcodes.empty() && width >= 120 && height >= 120) {
+        int32_t half_w = 0;
+        int32_t half_h = 0;
+        const std::vector<uint8_t> half_lum =
+            DownscaleLum2x(lum, width, height, &half_w, &half_h);
+        const std::vector<uint8_t> dilated_half =
+            DilateDarkDots3x3(half_lum, half_w, half_h);
+        const ZXing::ImageView dilated_half_view(
+            dilated_half.data(),
+            half_w,
+            half_h,
+            ZXing::ImageFormat::Lum);
+        barcodes = ZXing::ReadBarcodes(dilated_half_view, base_options);
+        if (!barcodes.empty()) {
+          coordinate_scale = 2.0;
+        }
+      }
+    }
+
     if (barcodes.empty()) {
       return output;
     }
@@ -400,14 +534,14 @@ XH_FFI_EXPORT CBarcodeResultList* zxing_decode_image_bytes(
 
       const auto& pos = b.position();
       dst.corner_points_count = 4;
-      dst.corner_points[0] = {static_cast<double>(pos.topLeft().x),
-                              static_cast<double>(pos.topLeft().y)};
-      dst.corner_points[1] = {static_cast<double>(pos.topRight().x),
-                              static_cast<double>(pos.topRight().y)};
-      dst.corner_points[2] = {static_cast<double>(pos.bottomRight().x),
-                              static_cast<double>(pos.bottomRight().y)};
-      dst.corner_points[3] = {static_cast<double>(pos.bottomLeft().x),
-                              static_cast<double>(pos.bottomLeft().y)};
+      dst.corner_points[0] = {static_cast<double>(pos.topLeft().x) * coordinate_scale,
+                              static_cast<double>(pos.topLeft().y) * coordinate_scale};
+      dst.corner_points[1] = {static_cast<double>(pos.topRight().x) * coordinate_scale,
+                              static_cast<double>(pos.topRight().y) * coordinate_scale};
+      dst.corner_points[2] = {static_cast<double>(pos.bottomRight().x) * coordinate_scale,
+                              static_cast<double>(pos.bottomRight().y) * coordinate_scale};
+      dst.corner_points[3] = {static_cast<double>(pos.bottomLeft().x) * coordinate_scale,
+                              static_cast<double>(pos.bottomLeft().y) * coordinate_scale};
 
       dst.format = MapBarcodeFormat(b.format());
       dst.is_valid = b.isValid() ? 1 : 0;

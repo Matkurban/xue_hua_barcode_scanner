@@ -1,6 +1,119 @@
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect, Size;
 
+/// Validation callback used to verify whether a decoded [BarcodeResult] meets
+/// business rules (e.g. specific URL prefix, format, or payload structure).
+///
+/// Returning `false` marks the scan state with `hasValidationError = true` and
+/// turns the scanner cutout border red.
+typedef XueHuaBarcodeValidator = bool Function(BarcodeResult result);
+
+/// Encapsulates all customizable UI text strings in `XueHuaBarcodeScannerPage`
+/// and `XueHuaScannerView` for internationalization (i18n) and localization.
+class XueHuaScannerTexts {
+  /// Creates a [XueHuaScannerTexts] configuration with localized strings.
+  const XueHuaScannerTexts({
+    this.hintText = '将二维码放入框内',
+    this.invalidBarcodeText = '二维码不符合要求',
+    this.noBarcodeInImageText = '未在所选图片中识别到二维码或条码',
+    this.torchOnLabel = '轻触关闭',
+    this.torchOffLabel = '手电筒',
+    this.galleryLabel = '相册',
+    this.backButtonTooltip = '返回',
+    this.switchCameraTooltip = '切换前后摄像头',
+    this.torchUnsupportedMessage = '当前摄像头或桌面设备不支持手电筒闪光灯',
+    this.cameraUnavailablePrefix = '相机不可用: ',
+    this.frontCameraPreviewText = '前置相机取景中',
+    this.backCameraPreviewText = '后置相机取景中',
+  });
+
+  /// Prompt displayed in the top region during normal scanning.
+  final String hintText;
+
+  /// Prompt and error feedback displayed when a scanned barcode fails validation.
+  final String invalidBarcodeText;
+
+  /// Feedback message displayed when a gallery image contains no recognizable barcode.
+  final String noBarcodeInImageText;
+
+  /// Label displayed below the torch button when the flashlight is active.
+  final String torchOnLabel;
+
+  /// Label displayed below the torch button when the flashlight is off.
+  final String torchOffLabel;
+
+  /// Label displayed below the gallery picker button.
+  final String galleryLabel;
+
+  /// Tooltip for the top-left back navigation button.
+  final String backButtonTooltip;
+
+  /// Tooltip for the top-right camera switch button.
+  final String switchCameraTooltip;
+
+  /// Message shown when the user taps the torch button on a device without flash.
+  final String torchUnsupportedMessage;
+
+  /// Prefix shown when camera initialization fails with an error.
+  final String cameraUnavailablePrefix;
+
+  /// Placeholder label shown while the front camera stream is initializing.
+  final String frontCameraPreviewText;
+
+  /// Placeholder label shown while the rear camera stream is initializing.
+  final String backCameraPreviewText;
+
+  /// Creates a copy of this [XueHuaScannerTexts] with selected fields replaced.
+  XueHuaScannerTexts copyWith({
+    String? hintText,
+    String? invalidBarcodeText,
+    String? noBarcodeInImageText,
+    String? torchOnLabel,
+    String? torchOffLabel,
+    String? galleryLabel,
+    String? backButtonTooltip,
+    String? switchCameraTooltip,
+    String? torchUnsupportedMessage,
+    String? cameraUnavailablePrefix,
+    String? frontCameraPreviewText,
+    String? backCameraPreviewText,
+  }) {
+    return XueHuaScannerTexts(
+      hintText: hintText ?? this.hintText,
+      invalidBarcodeText: invalidBarcodeText ?? this.invalidBarcodeText,
+      noBarcodeInImageText: noBarcodeInImageText ?? this.noBarcodeInImageText,
+      torchOnLabel: torchOnLabel ?? this.torchOnLabel,
+      torchOffLabel: torchOffLabel ?? this.torchOffLabel,
+      galleryLabel: galleryLabel ?? this.galleryLabel,
+      backButtonTooltip: backButtonTooltip ?? this.backButtonTooltip,
+      switchCameraTooltip: switchCameraTooltip ?? this.switchCameraTooltip,
+      torchUnsupportedMessage:
+          torchUnsupportedMessage ?? this.torchUnsupportedMessage,
+      cameraUnavailablePrefix:
+          cameraUnavailablePrefix ?? this.cameraUnavailablePrefix,
+      frontCameraPreviewText:
+          frontCameraPreviewText ?? this.frontCameraPreviewText,
+      backCameraPreviewText:
+          backCameraPreviewText ?? this.backCameraPreviewText,
+    );
+  }
+}
+
+/// Outcome of picking and analyzing an image from the system gallery.
+enum GalleryScanStatus {
+  /// The user cancelled the gallery picker without selecting an image.
+  cancelled,
+
+  /// One or more valid barcodes were decoded and passed validation.
+  success,
+
+  /// An image was selected, but no barcode could be recognized in it.
+  noBarcodeFound,
+
+  /// A barcode was recognized in the image, but it failed validation.
+  invalidBarcode,
+}
+
 /// Raw pixel buffer format passed to `decodeImageBytes`.
 ///
 /// Supports single-channel luminance (`lum` / Y-plane of YUV420 / NV21 for
@@ -74,10 +187,8 @@ enum BarcodeFormat {
 
   /// Resolves a [BarcodeFormat] from a Web `BarcodeDetector` or `zxing-wasm` string.
   static BarcodeFormat fromString(String raw) {
-    final normalized = raw.trim().toLowerCase().replaceAll(
-      RegExp(r'[\s_\-/]'),
-      '',
-    );
+    final normalized =
+        raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_\-/]'), '');
     switch (normalized) {
       case 'qrcode':
       case 'qrcodemodel1':
@@ -286,32 +397,30 @@ class BarcodeResult {
     final double offsetX = (viewportSize.width - scaledW) / 2.0;
     final double offsetY = (viewportSize.height - scaledH) / 2.0;
 
-    return cornerPoints
-        .map((pt) {
-          double rx = pt.dx;
-          double ry = pt.dy;
-          switch (sensorOrientation % 360) {
-            case 90:
-              rx = srcSize.height - pt.dy;
-              ry = pt.dx;
-              break;
-            case 180:
-              rx = srcSize.width - pt.dx;
-              ry = srcSize.height - pt.dy;
-              break;
-            case 270:
-              rx = pt.dy;
-              ry = srcSize.width - pt.dx;
-              break;
-            default:
-              break;
-          }
-          if (isFrontCamera) {
-            rx = orientedW - rx;
-          }
-          return Offset(rx * scale + offsetX, ry * scale + offsetY);
-        })
-        .toList(growable: false);
+    return cornerPoints.map((pt) {
+      double rx = pt.dx;
+      double ry = pt.dy;
+      switch (sensorOrientation % 360) {
+        case 90:
+          rx = srcSize.height - pt.dy;
+          ry = pt.dx;
+          break;
+        case 180:
+          rx = srcSize.width - pt.dx;
+          ry = srcSize.height - pt.dy;
+          break;
+        case 270:
+          rx = pt.dy;
+          ry = srcSize.width - pt.dx;
+          break;
+        default:
+          break;
+      }
+      if (isFrontCamera) {
+        rx = orientedW - rx;
+      }
+      return Offset(rx * scale + offsetX, ry * scale + offsetY);
+    }).toList(growable: false);
   }
 
   @override
@@ -367,6 +476,8 @@ class ScannerState {
     this.textureId,
     this.webViewType,
     this.latestResults = const <BarcodeResult>[],
+    this.hasValidationError = false,
+    this.lastGalleryScanStatus,
     this.errorMessage,
   });
 
@@ -406,6 +517,13 @@ class ScannerState {
   /// Most recently recognized barcodes in the current frame.
   final List<BarcodeResult> latestResults;
 
+  /// `true` when the most recently scanned barcode or selected image failed
+  /// validation, causing the scanner overlay border to turn red.
+  final bool hasValidationError;
+
+  /// Status of the most recent gallery image recognition attempt.
+  final GalleryScanStatus? lastGalleryScanStatus;
+
   /// Non-null when a camera permission or hardware error occurs.
   final String? errorMessage;
 
@@ -432,6 +550,9 @@ class ScannerState {
     int? textureId,
     String? webViewType,
     List<BarcodeResult>? latestResults,
+    bool? hasValidationError,
+    GalleryScanStatus? lastGalleryScanStatus,
+    bool clearGalleryScanStatus = false,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -448,6 +569,10 @@ class ScannerState {
       textureId: textureId ?? this.textureId,
       webViewType: webViewType ?? this.webViewType,
       latestResults: latestResults ?? this.latestResults,
+      hasValidationError: hasValidationError ?? this.hasValidationError,
+      lastGalleryScanStatus: clearGalleryScanStatus
+          ? null
+          : (lastGalleryScanStatus ?? this.lastGalleryScanStatus),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }

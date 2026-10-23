@@ -22,10 +22,10 @@ if(XH_FETCH_ZXING_CPP)
   set(ZXING_BLACKBOX_TESTS OFF CACHE BOOL "Disable zxing-cpp blackbox tests" FORCE)
   set(ZXING_C_API OFF CACHE BOOL "Disable zxing-cpp C wrapper" FORCE)
   set(ZXING_PYTHON_MODULE OFF CACHE BOOL "Disable zxing-cpp Python module" FORCE)
-  set(ZXING_WRITERS "NEW" CACHE STRING "Enable zxing-cpp 3.1.1 writer backend" FORCE)
-  set(ZXING_USE_BUNDLED_ZINT ON CACHE BOOL "Use bundled libzint for barcode creation" FORCE)
+  set(ZXING_WRITERS "OLD" CACHE STRING "Enable zxing-cpp built-in C++ writers without zint submodule" FORCE)
+  set(ZXING_USE_BUNDLED_ZINT OFF CACHE BOOL "Do not require zint submodule" FORCE)
   set(ZXING_READERS ON CACHE BOOL "Enable zxing-cpp barcode readers" FORCE)
-  set(ZXING_EXPERIMENTAL_API OFF CACHE BOOL "Disable experimental API" FORCE)
+  set(ZXING_EXPERIMENTAL_API ON CACHE BOOL "Enable experimental API (tryDenoise)" FORCE)
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build ZXing as a static library linked into FFI plugin" FORCE)
 
   FetchContent_Declare(

@@ -174,7 +174,8 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
         oldDelegate.cornerColor != cornerColor ||
         oldDelegate.borderRadius != borderRadius ||
         oldDelegate.cornerLength != cornerLength ||
-        oldDelegate.cornerStrokeWidth != cornerStrokeWidth;
+        oldDelegate.cornerStrokeWidth != cornerStrokeWidth ||
+        oldDelegate.borderStrokeWidth != borderStrokeWidth;
   }
 }
 
@@ -448,6 +449,7 @@ class _CornerAnchorPainter extends CustomPainter {
   bool shouldRepaint(covariant _CornerAnchorPainter oldDelegate) {
     return oldDelegate.results != results ||
         oldDelegate.pulseValue != pulseValue ||
-        oldDelegate.viewportSize != viewportSize;
+        oldDelegate.viewportSize != viewportSize ||
+        oldDelegate.anchorColor != anchorColor;
   }
 }

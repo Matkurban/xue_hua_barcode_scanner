@@ -1,7 +1,9 @@
 import 'dart:async';
-
+import 'dart:convert';
+import 'dart:ui' show Offset, Size;
 import 'package:flutter/foundation.dart';
 
+import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
 import '../core/scanner_engine_selector.dart';
 import '../models/barcode_models.dart';
@@ -110,8 +112,8 @@ class XueHuaBarcodeScanner {
 }
 
 /// Controller for managing real-time camera scanning, hardware torch/flashlight,
-/// front/back/external camera switching, frame throttling, and gallery recognition
-/// across Android, iOS, macOS, Windows, Linux, and Web.
+/// front/back/external camera switching, frame throttling, barcode validation,
+/// and gallery recognition across Android, iOS, macOS, Windows, Linux, and Web.
 class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Creates a [XueHuaScannerController].
   XueHuaScannerController({
@@ -121,10 +123,11 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     this.tryRotate = true,
     this.tryInvert = true,
     this.autoPauseOnDetect = false,
+    this.validator,
     this.onDetect,
     XueHuaScannerPlatformEngine? engine,
-  }) : _engine = engine ?? XueHuaBarcodeScanner.engine,
-       super(ScannerState(cameraFacing: initialFacing));
+  })  : _engine = engine ?? XueHuaBarcodeScanner.engine,
+        super(ScannerState(cameraFacing: initialFacing));
 
   /// Initial camera lens direction when [start] is called.
   final CameraFacing initialFacing;
@@ -144,18 +147,27 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Whether to automatically pause scanning as soon as a valid barcode is detected.
   final bool autoPauseOnDetect;
 
-  /// Optional callback invoked whenever one or more barcodes are recognized.
+  /// Optional validation predicate to check whether a decoded [BarcodeResult]
+  /// meets business requirements. When a barcode fails validation,
+  /// `ScannerState.hasValidationError` becomes `true` (turning the scan box red).
+  final XueHuaBarcodeValidator? validator;
+
+  /// Optional callback invoked whenever one or more valid barcodes are recognized.
   final void Function(List<BarcodeResult> results)? onDetect;
+
+  /// Optional view-level validator attached by `XueHuaScannerView`.
+  XueHuaBarcodeValidator? viewValidator;
 
   final XueHuaScannerPlatformEngine _engine;
   final StreamController<List<BarcodeResult>> _barcodesStreamController =
       StreamController<List<BarcodeResult>>.broadcast();
 
+  Timer? _validationResetTimer;
   bool _isProcessingFrame = false;
   DateTime _lastDecodeTimestamp = DateTime.fromMillisecondsSinceEpoch(0);
   bool _isDisposed = false;
 
-  /// Broadcast stream of detected [BarcodeResult] lists.
+  /// Broadcast stream of validated [BarcodeResult] lists.
   Stream<List<BarcodeResult>> get barcodesStream =>
       _barcodesStreamController.stream;
 
@@ -191,11 +203,13 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Stops the active camera stream and releases hardware resources.
   Future<void> stop() async {
     if (_isDisposed) return;
+    _validationResetTimer?.cancel();
     await _engine.stopCamera();
     if (!_isDisposed) {
       value = value.copyWith(
         isRunning: false,
         isPaused: false,
+        hasValidationError: false,
         torchState: value.hasTorch ? TorchState.off : TorchState.unavailable,
       );
     }
@@ -204,15 +218,19 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Temporarily pauses real-time frame decoding while keeping the controller alive.
   Future<void> pause() async {
     if (_isDisposed || !value.isRunning || value.isPaused) return;
+    _validationResetTimer?.cancel();
     value = value.copyWith(isPaused: true);
   }
 
   /// Resumes real-time frame decoding after [pause].
   Future<void> resume() async {
     if (_isDisposed || !value.isRunning || !value.isPaused) return;
+    _validationResetTimer?.cancel();
     value = value.copyWith(
       isPaused: false,
       latestResults: const <BarcodeResult>[],
+      hasValidationError: false,
+      clearGalleryScanStatus: true,
       clearError: true,
     );
   }
@@ -249,10 +267,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
 
   /// Feeds a raw [CameraFramePacket] into the throttled worker Isolate decoder.
   Future<void> processCameraFrame(CameraFramePacket frame) async {
-    if (_isDisposed ||
-        !value.isRunning ||
-        value.isPaused ||
-        _isProcessingFrame) {
+    if (_isDisposed || !value.isRunning || value.isPaused || _isProcessingFrame) {
       return;
     }
     final DateTime now = DateTime.now();
@@ -274,7 +289,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
         tryInvert: tryInvert,
       );
       if (!_isDisposed && results.isNotEmpty) {
-        _handleDetectedResults(results);
+        _evaluateAndEmitResults(results);
       }
     } catch (_) {
     } finally {
@@ -284,6 +299,11 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
 
   /// Opens the local photo gallery (or file chooser on Desktop/Web) to pick an
   /// image and decode any barcodes inside it.
+  ///
+  /// Uses the user's selected image directly. If the user cancels the picker,
+  /// `lastGalleryScanStatus` is set to [GalleryScanStatus.cancelled]. If the
+  /// selected image contains no barcode or fails validation, `hasValidationError`
+  /// is set to `true` (turning the scan box border red).
   Future<List<BarcodeResult>> analyzeImageFromGallery({
     Uint8List? fallbackImageBytes,
   }) async {
@@ -291,18 +311,56 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     Uint8List? imageBytes = await _engine.pickImageFromGallery();
     imageBytes ??= fallbackImageBytes;
     if (imageBytes == null || imageBytes.isEmpty) {
+      if (!_isDisposed) {
+        value = value.copyWith(
+          lastGalleryScanStatus: GalleryScanStatus.cancelled,
+        );
+      }
       return const <BarcodeResult>[];
     }
-    final List<BarcodeResult> results = await _engine.decodeImageMemory(
+
+    final List<BarcodeResult> decoded = await _engine.decodeImageMemory(
       imageBytes,
       tryHarder: true,
       tryRotate: true,
       tryInvert: true,
     );
-    if (!_isDisposed && results.isNotEmpty) {
-      _handleDetectedResults(results);
+    if (_isDisposed) return const <BarcodeResult>[];
+
+    if (decoded.isEmpty) {
+      value = value.copyWith(
+        latestResults: const <BarcodeResult>[],
+        hasValidationError: true,
+        lastGalleryScanStatus: GalleryScanStatus.noBarcodeFound,
+      );
+      _scheduleValidationErrorReset();
+      return const <BarcodeResult>[];
     }
-    return results;
+
+    final List<BarcodeResult> validResults = _filterValidResults(decoded);
+    if (validResults.isEmpty) {
+      value = value.copyWith(
+        latestResults: decoded,
+        hasValidationError: true,
+        lastGalleryScanStatus: GalleryScanStatus.invalidBarcode,
+      );
+      _scheduleValidationErrorReset();
+      return const <BarcodeResult>[];
+    }
+
+    _validationResetTimer?.cancel();
+    value = value.copyWith(
+      latestResults: validResults,
+      hasValidationError: false,
+      lastGalleryScanStatus: GalleryScanStatus.success,
+      isPaused: autoPauseOnDetect ? true : value.isPaused,
+      clearError: true,
+    );
+    if (!_barcodesStreamController.isClosed) {
+      _barcodesStreamController.add(validResults);
+    }
+    onDetect?.call(validResults);
+    return validResults;
   }
 
   /// Directly analyzes an image file at [filePath] and emits any detected barcodes.
@@ -315,53 +373,127 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       tryInvert: true,
     );
     if (!_isDisposed && results.isNotEmpty) {
-      _handleDetectedResults(results);
+      _evaluateAndEmitResults(results);
     }
-    return results;
+    return _filterValidResults(results);
   }
 
-  /// Simulates detecting a barcode with [content] (useful for desktop/simulator
-  /// testing when no physical barcode card is held in front of the webcam).
-  Future<List<BarcodeResult>> simulateBarcodeDetection(String content) async {
+  /// Simulates detecting a barcode with [content].
+  Future<List<BarcodeResult>> simulateBarcodeDetection(
+    String content, {
+    BarcodeFormat format = BarcodeFormat.qrCode,
+  }) async {
     if (_isDisposed) return const <BarcodeResult>[];
-    final Uint8List pngBytes = await _engine.encodeBarcode(
+    const int width = 256;
+    const int height = 256;
+    final Uint8List rgbaBytes = BarcodeMatrixCodec.generateFallbackRgbaBarcode(
       content,
-      width: 360,
-      height: 360,
+      width: width,
+      height: height,
       margin: 2,
     );
-    final List<BarcodeResult> decoded = await _engine.decodeImageMemory(
-      pngBytes,
+    List<BarcodeResult> decoded = await _engine.decodeImageBytes(
+      rgbaBytes,
+      width: width,
+      height: height,
+      rowStride: width * 4,
+      format: PixelFormat.rgba8888,
     );
-    if (!_isDisposed && decoded.isNotEmpty) {
-      _handleDetectedResults(decoded);
+    if (decoded.isEmpty) {
+      decoded = <BarcodeResult>[
+        BarcodeResult(
+          text: content,
+          rawBytes: Uint8List.fromList(utf8.encode(content)),
+          cornerPoints: const <Offset>[
+            Offset(25.6, 25.6),
+            Offset(230.4, 25.6),
+            Offset(230.4, 230.4),
+            Offset(25.6, 230.4),
+          ],
+          format: format,
+          isValid: content.trim().isNotEmpty,
+          frameSize: const Size(256, 256),
+        ),
+      ];
     }
-    return decoded;
+    if (!_isDisposed && decoded.isNotEmpty) {
+      _evaluateAndEmitResults(decoded);
+    }
+    return _filterValidResults(decoded);
   }
 
   void _handleWebBarcodes(List<BarcodeResult> results) {
     if (_isDisposed || !value.isRunning || value.isPaused || results.isEmpty) {
       return;
     }
-    _handleDetectedResults(results);
+    _evaluateAndEmitResults(results);
   }
 
-  void _handleDetectedResults(List<BarcodeResult> results) {
+  List<BarcodeResult> _filterValidResults(List<BarcodeResult> results) {
+    final XueHuaBarcodeValidator? activeValidator = validator ?? viewValidator;
+    return results.where((BarcodeResult item) {
+      if (!item.isValid || item.text.trim().isEmpty) {
+        return false;
+      }
+      if (activeValidator != null && !activeValidator(item)) {
+        return false;
+      }
+      return true;
+    }).toList(growable: false);
+  }
+
+  void _evaluateAndEmitResults(List<BarcodeResult> results) {
     if (_isDisposed || results.isEmpty) return;
+    final List<BarcodeResult> validResults = _filterValidResults(results);
+
+    if (validResults.isEmpty) {
+      value = value.copyWith(
+        latestResults: results,
+        hasValidationError: true,
+        clearError: true,
+      );
+      _scheduleValidationErrorReset();
+      return;
+    }
+
+    _validationResetTimer?.cancel();
     value = value.copyWith(
-      latestResults: results,
+      latestResults: validResults,
+      hasValidationError: false,
       isPaused: autoPauseOnDetect ? true : value.isPaused,
       clearError: true,
     );
     if (!_barcodesStreamController.isClosed) {
-      _barcodesStreamController.add(results);
+      _barcodesStreamController.add(validResults);
     }
-    onDetect?.call(results);
+    onDetect?.call(validResults);
+  }
+
+  /// Manually clears any active barcode validation error state and restores
+  /// the default scanner frame color.
+  void clearValidationError() {
+    if (_isDisposed) return;
+    _validationResetTimer?.cancel();
+    if (value.hasValidationError || value.lastGalleryScanStatus != null) {
+      value = value.copyWith(
+        hasValidationError: false,
+        latestResults: const <BarcodeResult>[],
+        clearGalleryScanStatus: true,
+      );
+    }
+  }
+
+  void _scheduleValidationErrorReset() {
+    _validationResetTimer?.cancel();
+    _validationResetTimer = Timer(const Duration(milliseconds: 1800), () {
+      clearValidationError();
+    });
   }
 
   @override
   void dispose() {
     _isDisposed = true;
+    _validationResetTimer?.cancel();
     unawaited(_engine.stopCamera());
     unawaited(_barcodesStreamController.close());
     super.dispose();

@@ -3,7 +3,8 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
 import '../widgets/scan_result_dialog.dart';
 
-/// 演示使用自定义 UI Builder 与外部 [XueHuaScannerController] 构建的扫码页面。
+/// 演示使用自定义 UI Builder、国际化 [XueHuaScannerTexts]、二维码校验 [validator]
+/// 与外部 [XueHuaScannerController] 构建的扫码页面。
 class CustomStyledScannerDemoPage extends StatefulWidget {
   const CustomStyledScannerDemoPage({super.key});
 
@@ -28,21 +29,41 @@ class _CustomStyledScannerDemoPageState
 
   @override
   Widget build(BuildContext context) {
+    const Color errorColor = Color(0xFFFF5252);
+    const Color themeColor = Colors.cyanAccent;
+
     return XueHuaBarcodeScannerPage(
       controller: _controller,
       autoPopOnDetect: false,
       cutoutSize: 270,
+      errorColor: errorColor,
+      texts: const XueHuaScannerTexts(
+        hintText: '将二维码放入框内 · 自定义赛博主题',
+        invalidBarcodeText: '二维码校验未通过',
+        noBarcodeInImageText: '所选图片未检测到有效二维码',
+        torchOnLabel: '关闭闪光灯',
+        torchOffLabel: '开启闪光灯',
+        galleryLabel: '相册导入',
+      ),
+      validator: (BarcodeResult result) {
+        return result.isValid && result.text.trim().isNotEmpty;
+      },
       onDetect: _handleBarcodeDetected,
       overlayBuilder: (
         BuildContext context,
         Rect scanWindow,
         ScannerState state,
       ) {
+        final Color activeColor =
+            state.hasValidationError ? errorColor : themeColor;
         return XueHuaScannerOverlay(
           scanWindow: scanWindow,
           maskColor: const Color(0xAA050B14),
-          cornerColor: Colors.cyanAccent,
-          borderColor: Colors.cyanAccent.withValues(alpha: 0.3),
+          cornerColor: activeColor,
+          borderColor: activeColor.withValues(
+            alpha: state.hasValidationError ? 0.85 : 0.3,
+          ),
+          borderStrokeWidth: state.hasValidationError ? 2.2 : 1.2,
           borderRadius: 24,
           cornerLength: 32,
           cornerStrokeWidth: 4.5,
@@ -53,27 +74,39 @@ class _CustomStyledScannerDemoPageState
         Animation<double> animation,
         Rect scanWindow,
       ) {
-        return XueHuaScanLineAnimation(
-          animation: animation,
-          scanWindow: scanWindow,
-          lineColor: Colors.cyanAccent,
-          glowHeight: 44,
+        return ValueListenableBuilder<ScannerState>(
+          valueListenable: _controller,
+          builder: (BuildContext context, ScannerState state, Widget? _) {
+            return XueHuaScanLineAnimation(
+              animation: animation,
+              scanWindow: scanWindow,
+              lineColor: state.hasValidationError ? errorColor : themeColor,
+              glowHeight: 44,
+            );
+          },
         );
       },
       hintTextBuilder: (BuildContext context, ScannerState state) {
+        final bool isError = state.hasValidationError;
+        final Color activeColor = isError ? errorColor : themeColor;
+        final String text = isError
+            ? (state.lastGalleryScanStatus == GalleryScanStatus.noBarcodeFound
+                ? '所选图片未检测到有效二维码'
+                : '二维码校验未通过')
+            : (state.isPaused ? '已暂停扫描' : '将二维码放入框内 · 自定义赛博主题');
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.cyanAccent.withValues(alpha: 0.16),
+            color: activeColor.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: Colors.cyanAccent.withValues(alpha: 0.5),
+              color: activeColor.withValues(alpha: 0.55),
             ),
           ),
           child: Text(
-            state.isPaused ? '已暂停扫描' : '将二维码放入框内 · 自定义赛博主题',
-            style: const TextStyle(
-              color: Colors.cyanAccent,
+            text,
+            style: TextStyle(
+              color: activeColor,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -89,7 +122,7 @@ class _CustomStyledScannerDemoPageState
           onPressed: onToggleTorch,
           icon: Icon(
             state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
-            color: state.isTorchOn ? Colors.amberAccent : Colors.cyanAccent,
+            color: state.isTorchOn ? Colors.amberAccent : themeColor,
           ),
           label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
         );
@@ -103,7 +136,7 @@ class _CustomStyledScannerDemoPageState
           onPressed: onPickGallery,
           icon: const Icon(
             Icons.photo_library_outlined,
-            color: Colors.cyanAccent,
+            color: themeColor,
           ),
           label: const Text('相册导入'),
         );

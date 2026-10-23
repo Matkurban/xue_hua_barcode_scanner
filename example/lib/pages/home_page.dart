@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
 import '../widgets/barcode_result_tile.dart';
+import '../widgets/scan_result_dialog.dart';
 import '../widgets/section_card.dart';
 import 'custom_scanner_page.dart';
 import 'default_scanner_page.dart';
@@ -170,6 +171,11 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                       label: const Text('生成条码并立即解码验证'),
                     ),
                     OutlinedButton.icon(
+                      onPressed: _isWorking ? null : _pickAndDecodeFromGallery,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('从相册选图解码'),
+                    ),
+                    OutlinedButton.icon(
                       onPressed: _isWorking ? null : _testRowStrideYPlaneDecode,
                       icon: const Icon(Icons.memory_rounded),
                       label: const Text('验证 YUV rowStride 对齐解码'),
@@ -291,6 +297,47 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         _statusLog =
             'Y-Plane (rowStride=$rowStride, width=$width) 内存对齐解码成功: '
             '${decoded.map((BarcodeResult e) => e.text).join(", ")}';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isWorking = false);
+      }
+    }
+  }
+
+  /// 从系统相册/文件选择器选取真实图片并解码。
+  Future<void> _pickAndDecodeFromGallery() async {
+    setState(() => _isWorking = true);
+    try {
+      final Uint8List? imageBytes =
+          await XueHuaBarcodeScanner.engine.pickImageFromGallery();
+      if (imageBytes == null || imageBytes.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _statusLog = '已取消选择图片';
+        });
+        return;
+      }
+      final List<BarcodeResult> decoded =
+          await XueHuaBarcodeScanner.decodeImageMemory(imageBytes);
+      if (!mounted) return;
+      setState(() {
+        _latestResults = decoded;
+        _statusLog = decoded.isNotEmpty
+            ? '【相册图片识别成功】共 ${decoded.length} 个条码: ${decoded.first.text}'
+            : '所选图片中未识别到有效条码或二维码';
+      });
+      if (decoded.isNotEmpty) {
+        await ScanResultDialog.show(
+          context,
+          title: '相册图片 · 识别结果',
+          results: decoded,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusLog = '相册图片识别异常: $e';
       });
     } finally {
       if (mounted) {

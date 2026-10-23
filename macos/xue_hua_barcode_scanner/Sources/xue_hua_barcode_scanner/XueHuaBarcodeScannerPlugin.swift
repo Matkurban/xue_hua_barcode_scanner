@@ -34,6 +34,8 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
     public static func register(with registrar: FlutterPluginRegistrar) {
         #if canImport(xue_hua_barcode_scanner_ffi)
         _ = zxing_engine_version()
+        free_barcode_results(zxing_decode_image_bytes(nil, 0, 0, 0, 0, 0, 0, 0))
+        free_encoded_barcode_image(zxing_encode_barcode(nil, 0, 0, 0, 0))
         #endif
 
         let instance = XueHuaBarcodeScannerPlugin()

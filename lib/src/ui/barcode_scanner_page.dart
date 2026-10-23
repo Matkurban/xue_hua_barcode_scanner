@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 
 import '../controller/scanner_controller.dart';
@@ -29,7 +28,7 @@ typedef XueHuaTopBarBuilder = Widget Function(
   VoidCallback onSwitchCamera,
 );
 
-/// Builder signature for customizing the prompt text (defaults to `"将二维码放入框内"`).
+/// Builder signature for customizing the prompt text.
 typedef XueHuaHintTextBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
@@ -64,14 +63,13 @@ class XueHuaScannerView extends StatefulWidget {
     super.key,
     this.controller,
     this.onDetect,
-    this.hintText = '将二维码放入框内',
-    this.torchOnLabel = '轻触关闭',
-    this.torchOffLabel = '手电筒',
-    this.galleryLabel = '相册',
+    this.validator,
+    this.texts = const XueHuaScannerTexts(),
     this.cutoutSize,
     this.cutoutBorderRadius = 16.0,
     this.maskColor = const Color(0x99000000),
     this.cornerColor = const Color(0xFF00E676),
+    this.errorColor = const Color(0xFFFF5252),
     this.scanLineColor = const Color(0xFF00E676),
     this.scanLineDuration = const Duration(milliseconds: 2200),
     this.showCornerHighlights = true,
@@ -90,20 +88,16 @@ class XueHuaScannerView extends StatefulWidget {
   /// controller is created and disposed automatically.
   final XueHuaScannerController? controller;
 
-  /// Callback invoked whenever one or more barcodes are recognized.
+  /// Callback invoked whenever one or more valid barcodes are recognized.
   final void Function(List<BarcodeResult> results)? onDetect;
 
-  /// Default prompt displayed in the top region (`"将二维码放入框内"`).
-  final String hintText;
+  /// Optional validation predicate to check whether a decoded [BarcodeResult]
+  /// is acceptable. Returning `false` turns the scanner cutout border red
+  /// ([errorColor]) and displays [XueHuaScannerTexts.invalidBarcodeText].
+  final XueHuaBarcodeValidator? validator;
 
-  /// Label shown below the torch button when the flashlight is active.
-  final String torchOnLabel;
-
-  /// Label shown below the torch button when the flashlight is off.
-  final String torchOffLabel;
-
-  /// Label shown below the gallery picker button.
-  final String galleryLabel;
+  /// Localized text strings for all UI elements in the scanner view.
+  final XueHuaScannerTexts texts;
 
   /// Optional fixed side length for the central square scan cutout.
   final double? cutoutSize;
@@ -117,13 +111,17 @@ class XueHuaScannerView extends StatefulWidget {
   /// Color of the four L-shaped corner brackets around the scan cutout.
   final Color cornerColor;
 
+  /// Highlight color used for the scan cutout border and prompt when a barcode
+  /// fails validation (`state.hasValidationError == true`).
+  final Color errorColor;
+
   /// Color of the animated laser scan line.
   final Color scanLineColor;
 
   /// Duration of one top-to-bottom sweep of the laser scan line.
   final Duration scanLineDuration;
 
-  /// Whether to render pulsing green anchor dots at `BarcodeResult.cornerPoints`.
+  /// Whether to render pulsing anchor dots at `BarcodeResult.cornerPoints`.
   final bool showCornerHighlights;
 
   /// Whether to completely hide the torch button on desktop/devices without flash.
@@ -138,7 +136,7 @@ class XueHuaScannerView extends StatefulWidget {
   /// Custom builder to replace the top bar (back button, hint text, camera switch).
   final XueHuaTopBarBuilder? topBarBuilder;
 
-  /// Custom builder to replace the `"将二维码放入框内"` hint text widget.
+  /// Custom builder to replace the hint text widget.
   final XueHuaHintTextBuilder? hintTextBuilder;
 
   /// Custom builder to replace the entire bottom bar (torch & gallery buttons).
@@ -152,7 +150,7 @@ class XueHuaScannerView extends StatefulWidget {
 
   /// Optional custom builder for overriding the underlying camera preview layer.
   final Widget Function(BuildContext context, ScannerState state)?
-  cameraPreviewBuilder;
+      cameraPreviewBuilder;
 
   @override
   State<XueHuaScannerView> createState() => _XueHuaScannerViewState();
@@ -197,8 +195,12 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       _detectSubscription?.cancel();
       if (_ownsController) {
         _controller.dispose();
+      } else {
+        oldWidget.controller?.viewValidator = null;
       }
       _attachController(widget.controller);
+    } else if (oldWidget.validator != widget.validator) {
+      _controller.viewValidator = widget.validator;
     }
   }
 
@@ -224,6 +226,16 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
           _scanLineController.repeat(reverse: true);
         }
 
+        final bool isError = state.hasValidationError;
+        final Color activeCornerColor =
+            isError ? widget.errorColor : widget.cornerColor;
+        final Color activeBorderColor = isError
+            ? widget.errorColor.withValues(alpha: 0.85)
+            : const Color(0x38FFFFFF);
+        final double activeBorderWidth = isError ? 2.2 : 1.2;
+        final Color activeScanLineColor =
+            isError ? widget.errorColor : widget.scanLineColor;
+
         return LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
             final Size viewportSize = Size(
@@ -241,7 +253,11 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                 if (widget.cameraPreviewBuilder != null)
                   widget.cameraPreviewBuilder!(context, state)
                 else
-                  _ScannerCameraPreview(isWeb: _controller.isWeb, state: state),
+                  _ScannerCameraPreview(
+                    isWeb: _controller.isWeb,
+                    state: state,
+                    texts: widget.texts,
+                  ),
 
                 if (widget.overlayBuilder != null)
                   widget.overlayBuilder!(context, scanWindow, state)
@@ -249,7 +265,9 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                   XueHuaScannerOverlay(
                     scanWindow: scanWindow,
                     maskColor: widget.maskColor,
-                    cornerColor: widget.cornerColor,
+                    cornerColor: activeCornerColor,
+                    borderColor: activeBorderColor,
+                    borderStrokeWidth: activeBorderWidth,
                     borderRadius: widget.cutoutBorderRadius,
                   ),
 
@@ -263,7 +281,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                   XueHuaScanLineAnimation(
                     animation: _scanLineAnimation,
                     scanWindow: scanWindow,
-                    lineColor: widget.scanLineColor,
+                    lineColor: activeScanLineColor,
                   ),
 
                 if (widget.showCornerHighlights &&
@@ -273,7 +291,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     viewportSize: viewportSize,
                     sensorOrientation: state.sensorOrientation,
                     isFrontCamera: state.cameraFacing == CameraFacing.front,
-                    anchorColor: widget.cornerColor,
+                    anchorColor: activeCornerColor,
                   ),
 
                 SafeArea(
@@ -282,16 +300,15 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     children: <Widget>[
                       _ScannerTopBar(
                         state: state,
-                        hintText: widget.hintText,
+                        texts: widget.texts,
+                        errorColor: widget.errorColor,
                         topBarBuilder: widget.topBarBuilder,
                         hintTextBuilder: widget.hintTextBuilder,
                         onSwitchCamera: _handleSwitchCamera,
                       ),
                       _ScannerBottomBar(
                         state: state,
-                        torchOnLabel: widget.torchOnLabel,
-                        torchOffLabel: widget.torchOffLabel,
-                        galleryLabel: widget.galleryLabel,
+                        texts: widget.texts,
                         cornerColor: widget.cornerColor,
                         hideTorchWhenUnavailable:
                             widget.hideTorchWhenUnavailable,
@@ -320,11 +337,11 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       _controller = XueHuaScannerController();
       _ownsController = true;
     }
+    _controller.viewValidator = widget.validator;
 
     _detectSubscription?.cancel();
-    _detectSubscription = _controller.barcodesStream.listen((
-      List<BarcodeResult> results,
-    ) {
+    _detectSubscription =
+        _controller.barcodesStream.listen((List<BarcodeResult> results) {
       widget.onDetect?.call(results);
     });
 
@@ -338,9 +355,9 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     if (!supported) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(
-          content: Text('当前摄像头或桌面设备不支持手电筒闪光灯'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(widget.texts.torchUnsupportedMessage),
+          duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -354,85 +371,29 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   Future<void> _handlePickGallery() async {
-    final List<BarcodeResult> results = await _controller
-        .analyzeImageFromGallery();
-    if (results.isEmpty && mounted) {
-      await _showGalleryFallbackSheet();
-    }
-  }
-
-  Future<void> _showGalleryFallbackSheet() async {
+    await _controller.analyzeImageFromGallery();
     if (!mounted) return;
-    final TextEditingController textCtrl = TextEditingController(
-      text: 'https://github.com/Matkurban/xue_hua_barcode_scanner',
-    );
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF1A1D24),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (BuildContext sheetContext) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.of(sheetContext).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const Text(
-                '相册图片条码/二维码识别 (模拟器/桌面端快速验证)',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '生成一张内存条码图片并立即通过 zxing-cpp 解码识别：',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: textCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: '条码/二维码内容',
-                  labelStyle: const TextStyle(color: Colors.white70),
-                  filled: true,
-                  fillColor: Colors.white10,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF00C853),
-                  foregroundColor: Colors.black,
-                ),
-                onPressed: () async {
-                  final String payload = textCtrl.text.trim();
-                  Navigator.of(sheetContext).pop();
-                  if (payload.isNotEmpty) {
-                    await _controller.simulateBarcodeDetection(payload);
-                  }
-                },
-                icon: const Icon(Icons.qr_code_2),
-                label: const Text('生成图片并解码识别'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    textCtrl.dispose();
+
+    final GalleryScanStatus? status = _controller.value.lastGalleryScanStatus;
+    if (status == GalleryScanStatus.noBarcodeFound) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(widget.texts.noBarcodeInImageText),
+          backgroundColor: widget.errorColor.withValues(alpha: 0.9),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (status == GalleryScanStatus.invalidBarcode) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(widget.texts.invalidBarcodeText),
+          backgroundColor: widget.errorColor.withValues(alpha: 0.9),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -442,16 +403,23 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     _scanLineController.dispose();
     if (_ownsController) {
       _controller.dispose();
+    } else {
+      _controller.viewValidator = null;
     }
     super.dispose();
   }
 }
 
 class _ScannerCameraPreview extends StatelessWidget {
-  const _ScannerCameraPreview({required this.isWeb, required this.state});
+  const _ScannerCameraPreview({
+    required this.isWeb,
+    required this.state,
+    required this.texts,
+  });
 
   final bool isWeb;
   final ScannerState state;
+  final XueHuaScannerTexts texts;
 
   @override
   Widget build(BuildContext context) {
@@ -464,12 +432,10 @@ class _ScannerCameraPreview extends StatelessWidget {
     if (state.textureId != null) {
       final bool swapDimensions =
           state.sensorOrientation == 90 || state.sensorOrientation == 270;
-      final double orientedWidth = swapDimensions
-          ? state.previewSize.height
-          : state.previewSize.width;
-      final double orientedHeight = swapDimensions
-          ? state.previewSize.width
-          : state.previewSize.height;
+      final double orientedWidth =
+          swapDimensions ? state.previewSize.height : state.previewSize.width;
+      final double orientedHeight =
+          swapDimensions ? state.previewSize.width : state.previewSize.height;
       final double safeWidth = orientedWidth > 0 ? orientedWidth : 1280;
       final double safeHeight = orientedHeight > 0 ? orientedHeight : 720;
 
@@ -488,10 +454,10 @@ class _ScannerCameraPreview extends StatelessWidget {
     }
 
     final String statusText = state.errorMessage != null
-        ? '相机不可用: ${state.errorMessage}'
+        ? '${texts.cameraUnavailablePrefix}${state.errorMessage}'
         : (state.cameraFacing == CameraFacing.front
-              ? '前置相机取景中 (${XueHuaBarcodeScanner.engineVersion})'
-              : '后置相机取景中 (${XueHuaBarcodeScanner.engineVersion})');
+            ? '${texts.frontCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})'
+            : '${texts.backCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})');
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -511,7 +477,10 @@ class _ScannerCameraPreview extends StatelessWidget {
           child: Text(
             statusText,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
+            style: const TextStyle(
+              color: Color(0x99FFFFFF),
+              fontSize: 12,
+            ),
           ),
         ),
       ),
@@ -522,14 +491,16 @@ class _ScannerCameraPreview extends StatelessWidget {
 class _ScannerTopBar extends StatelessWidget {
   const _ScannerTopBar({
     required this.state,
-    required this.hintText,
+    required this.texts,
+    required this.errorColor,
     required this.topBarBuilder,
     required this.hintTextBuilder,
     required this.onSwitchCamera,
   });
 
   final ScannerState state;
-  final String hintText;
+  final XueHuaScannerTexts texts;
+  final Color errorColor;
   final XueHuaTopBarBuilder? topBarBuilder;
   final XueHuaHintTextBuilder? hintTextBuilder;
   final VoidCallback onSwitchCamera;
@@ -541,23 +512,42 @@ class _ScannerTopBar extends StatelessWidget {
     }
 
     if (topBarBuilder != null) {
-      return topBarBuilder!(context, state, onBack, onSwitchCamera);
+      return topBarBuilder!(
+        context,
+        state,
+        onBack,
+        onSwitchCamera,
+      );
     }
+
+    final bool isError = state.hasValidationError;
+    final String displayPrompt = isError
+        ? (state.lastGalleryScanStatus == GalleryScanStatus.noBarcodeFound
+            ? texts.noBarcodeInImageText
+            : texts.invalidBarcodeText)
+        : texts.hintText;
 
     final Widget hintWidget = hintTextBuilder != null
         ? hintTextBuilder!(context, state)
-        : Container(
+        : AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.45),
+              color: isError
+                  ? errorColor.withValues(alpha: 0.24)
+                  : Colors.black.withValues(alpha: 0.45),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              border: Border.all(
+                color: isError
+                    ? errorColor.withValues(alpha: 0.85)
+                    : Colors.white.withValues(alpha: 0.14),
+              ),
             ),
             child: Text(
-              hintText,
+              displayPrompt,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: isError ? errorColor : Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.5,
@@ -573,14 +563,16 @@ class _ScannerTopBar extends StatelessWidget {
           _CircleGlassIconButton(
             key: const ValueKey<String>('xh_scanner_back_button'),
             icon: Icons.arrow_back_ios_new_rounded,
-            tooltip: '返回',
+            tooltip: texts.backButtonTooltip,
             onPressed: onBack,
           ),
-          Expanded(child: Center(child: hintWidget)),
+          Expanded(
+            child: Center(child: hintWidget),
+          ),
           _CircleGlassIconButton(
             key: const ValueKey<String>('xh_scanner_switch_camera_button'),
             icon: Icons.cameraswitch_rounded,
-            tooltip: '切换前后摄像头',
+            tooltip: texts.switchCameraTooltip,
             onPressed: onSwitchCamera,
           ),
         ],
@@ -592,9 +584,7 @@ class _ScannerTopBar extends StatelessWidget {
 class _ScannerBottomBar extends StatelessWidget {
   const _ScannerBottomBar({
     required this.state,
-    required this.torchOnLabel,
-    required this.torchOffLabel,
-    required this.galleryLabel,
+    required this.texts,
     required this.cornerColor,
     required this.hideTorchWhenUnavailable,
     required this.bottomBarBuilder,
@@ -605,9 +595,7 @@ class _ScannerBottomBar extends StatelessWidget {
   });
 
   final ScannerState state;
-  final String torchOnLabel;
-  final String torchOffLabel;
-  final String galleryLabel;
+  final XueHuaScannerTexts texts;
   final Color cornerColor;
   final bool hideTorchWhenUnavailable;
   final XueHuaBottomBarBuilder? bottomBarBuilder;
@@ -619,7 +607,12 @@ class _ScannerBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bottomBarBuilder != null) {
-      return bottomBarBuilder!(context, state, onToggleTorch, onPickGallery);
+      return bottomBarBuilder!(
+        context,
+        state,
+        onToggleTorch,
+        onPickGallery,
+      );
     }
 
     final Widget torchButton = torchButtonBuilder != null
@@ -629,7 +622,7 @@ class _ScannerBottomBar extends StatelessWidget {
             icon: state.isTorchOn
                 ? Icons.flashlight_on_rounded
                 : Icons.flashlight_off_rounded,
-            label: state.isTorchOn ? torchOnLabel : torchOffLabel,
+            label: state.isTorchOn ? texts.torchOnLabel : texts.torchOffLabel,
             isActive: state.isTorchOn,
             isEnabled: state.hasTorch,
             activeColor: cornerColor,
@@ -641,7 +634,7 @@ class _ScannerBottomBar extends StatelessWidget {
         : _ScannerBottomActionButton(
             key: const ValueKey<String>('xh_scanner_gallery_button'),
             icon: Icons.photo_library_rounded,
-            label: galleryLabel,
+            label: texts.galleryLabel,
             isActive: false,
             isEnabled: true,
             activeColor: cornerColor,
@@ -656,29 +649,32 @@ class _ScannerBottomBar extends StatelessWidget {
         mainAxisAlignment: hideTorch
             ? MainAxisAlignment.center
             : MainAxisAlignment.spaceBetween,
-        children: <Widget>[if (!hideTorch) torchButton, galleryButton],
+        children: <Widget>[
+          if (!hideTorch) torchButton,
+          galleryButton,
+        ],
       ),
     );
   }
 }
 
 /// Full-screen ready-to-use Barcode & QR Code scanner route page (`Scaffold`)
-/// with 100% customizable UI builders and `XueHuaScannerController` support.
+/// with 100% customizable UI builders, localized [texts], [validator] support,
+/// and [XueHuaScannerController] integration.
 class XueHuaBarcodeScannerPage extends StatelessWidget {
   /// Creates a [XueHuaBarcodeScannerPage].
   const XueHuaBarcodeScannerPage({
     super.key,
     this.controller,
     this.onDetect,
+    this.validator,
     this.autoPopOnDetect = false,
-    this.hintText = '将二维码放入框内',
-    this.torchOnLabel = '轻触关闭',
-    this.torchOffLabel = '手电筒',
-    this.galleryLabel = '相册',
+    this.texts = const XueHuaScannerTexts(),
     this.cutoutSize,
     this.cutoutBorderRadius = 16.0,
     this.maskColor = const Color(0x99000000),
     this.cornerColor = const Color(0xFF00E676),
+    this.errorColor = const Color(0xFFFF5252),
     this.scanLineColor = const Color(0xFF00E676),
     this.scanLineDuration = const Duration(milliseconds: 2200),
     this.showCornerHighlights = true,
@@ -696,23 +692,19 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
   /// Optional external [XueHuaScannerController].
   final XueHuaScannerController? controller;
 
-  /// Callback invoked when one or more barcodes are detected.
+  /// Callback invoked when one or more valid barcodes are detected.
   final void Function(List<BarcodeResult> results)? onDetect;
 
-  /// If `true`, automatically pops this route with `List<BarcodeResult>` on first detection.
+  /// Optional validation predicate to check whether a decoded [BarcodeResult]
+  /// is acceptable. When returning `false`, the cutout border turns red
+  /// ([errorColor]) and [XueHuaScannerTexts.invalidBarcodeText] is shown.
+  final XueHuaBarcodeValidator? validator;
+
+  /// If `true`, automatically pops this route with `List<BarcodeResult>` on first valid detection.
   final bool autoPopOnDetect;
 
-  /// Prompt text displayed in the top region (defaults to `"将二维码放入框内"`).
-  final String hintText;
-
-  /// Label displayed when the flashlight is active.
-  final String torchOnLabel;
-
-  /// Label displayed when the flashlight is off.
-  final String torchOffLabel;
-
-  /// Label displayed below the gallery picker button.
-  final String galleryLabel;
+  /// Localized text strings for all UI elements in the scanner page.
+  final XueHuaScannerTexts texts;
 
   /// Optional custom side length of the central square cutout.
   final double? cutoutSize;
@@ -726,13 +718,16 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
   /// Highlight color of the four corner brackets.
   final Color cornerColor;
 
+  /// Red highlight color used when a barcode fails validation.
+  final Color errorColor;
+
   /// Color of the animated green laser scan line.
   final Color scanLineColor;
 
   /// Sweep duration of the scan line animation.
   final Duration scanLineDuration;
 
-  /// Whether to draw green anchor dots at detected `cornerPoints`.
+  /// Whether to draw anchor dots at detected `cornerPoints`.
   final bool showCornerHighlights;
 
   /// Whether to hide the torch button when hardware flash is unavailable.
@@ -761,7 +756,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
 
   /// Custom builder for overriding the camera preview widget.
   final Widget Function(BuildContext context, ScannerState state)?
-  cameraPreviewBuilder;
+      cameraPreviewBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -770,14 +765,13 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
       backgroundColor: Colors.black,
       body: XueHuaScannerView(
         controller: controller,
-        hintText: hintText,
-        torchOnLabel: torchOnLabel,
-        torchOffLabel: torchOffLabel,
-        galleryLabel: galleryLabel,
+        validator: validator,
+        texts: texts,
         cutoutSize: cutoutSize,
         cutoutBorderRadius: cutoutBorderRadius,
         maskColor: maskColor,
         cornerColor: cornerColor,
+        errorColor: errorColor,
         scanLineColor: scanLineColor,
         scanLineDuration: scanLineDuration,
         showCornerHighlights: showCornerHighlights,

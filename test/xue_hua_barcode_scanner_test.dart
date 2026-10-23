@@ -26,26 +26,48 @@ void main() {
     expect(results.first.isValid, isTrue);
   });
 
-  testWidgets('XueHuaBarcodeScannerPage renders default prompt and action buttons',
+  testWidgets(
+      'XueHuaBarcodeScannerPage renders XueHuaScannerTexts and turns red on validation failure',
       (WidgetTester tester) async {
-    final XueHuaScannerController controller = XueHuaScannerController();
+    final XueHuaScannerController controller = XueHuaScannerController(
+      validator: (BarcodeResult result) => result.text.startsWith('https://'),
+    );
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
         home: XueHuaBarcodeScannerPage(
           controller: controller,
+          texts: const XueHuaScannerTexts(
+            hintText: 'Scan QR Code',
+            invalidBarcodeText: 'Invalid QR Code',
+            torchOffLabel: 'Flash',
+            galleryLabel: 'Photos',
+          ),
         ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('将二维码放入框内'), findsOneWidget);
-    expect(find.text('手电筒'), findsOneWidget);
-    expect(find.text('相册'), findsOneWidget);
+    expect(find.text('Scan QR Code'), findsOneWidget);
+    expect(find.text('Flash'), findsOneWidget);
+    expect(find.text('Photos'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('xh_scanner_switch_camera_button')),
       findsOneWidget,
     );
+
+    await tester.runAsync(() async {
+      await controller.simulateBarcodeDetection('INVALID_PAYLOAD');
+    });
+    await tester.pump();
+
+    expect(controller.value.hasValidationError, isTrue);
+    expect(find.text('Invalid QR Code'), findsOneWidget);
+
+    controller.clearValidationError();
+    await tester.pump();
+    expect(controller.value.hasValidationError, isFalse);
+    expect(find.text('Scan QR Code'), findsOneWidget);
   });
 }

@@ -23,9 +23,15 @@ A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time 
     ]
   }
   s.dependency 'FlutterMacOS'
-  s.platform         = :osx, '10.15'
+  s.platform         = :osx, '13.0'
   s.frameworks       = 'AVFoundation', 'CoreVideo', 'CoreMedia', 'CoreImage', 'AppKit'
   s.libraries        = 'c++'
+
+  s.prepare_command = <<-CMD
+    if [ ! -d "zxing-cpp/core/src" ]; then
+      git clone --depth 1 --branch v3.1.1 https://github.com/zxing-cpp/zxing-cpp.git zxing-cpp
+    fi
+  CMD
 
   if Dir.exist?(File.join(__dir__, 'zxing-cpp/core/src'))
     s.subspec 'ZXingCore' do |zx|
