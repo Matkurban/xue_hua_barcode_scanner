@@ -1,0 +1,362 @@
+import AppKit
+import AVFoundation
+import CoreMedia
+import CoreVideo
+import FlutterMacOS
+import UniformTypeIdentifiers
+
+#if canImport(xue_hua_barcode_scanner_ffi)
+import xue_hua_barcode_scanner_ffi
+#endif
+
+public final class XueHuaBarcodeScannerPlugin: NSObject,
+    FlutterPlugin,
+    FlutterStreamHandler,
+    FlutterTexture,
+    AVCaptureVideoDataOutputSampleBufferDelegate
+{
+    private var textureRegistry: FlutterTextureRegistry?
+    private var methodChannel: FlutterMethodChannel?
+    private var eventChannel: FlutterEventChannel?
+    private var eventSink: FlutterEventSink?
+
+    private let sessionQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.macos.session")
+    private let videoOutputQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.macos.video_output")
+    private let pixelBufferLock = NSLock()
+
+    private var captureSession: AVCaptureSession?
+    private var activeDevice: AVCaptureDevice?
+    private var currentDeviceIndex: Int = 0
+    private var textureId: Int64?
+    private var latestPixelBuffer: CVPixelBuffer?
+    private var lastFrameEmitTime: TimeInterval = 0
+
+    public static func register(with registrar: FlutterPluginRegistrar) {
+        #if canImport(xue_hua_barcode_scanner_ffi)
+        _ = zxing_engine_version()
+        #endif
+
+        let instance = XueHuaBarcodeScannerPlugin()
+        instance.textureRegistry = registrar.textures
+
+        let methodChannel = FlutterMethodChannel(
+            name: "com.kurban.xue_hua_barcode_scanner/methods",
+            binaryMessenger: registrar.messenger
+        )
+        instance.methodChannel = methodChannel
+        registrar.addMethodCallDelegate(instance, channel: methodChannel)
+
+        let eventChannel = FlutterEventChannel(
+            name: "com.kurban.xue_hua_barcode_scanner/frames",
+            binaryMessenger: registrar.messenger
+        )
+        instance.eventChannel = eventChannel
+        eventChannel.setStreamHandler(instance)
+    }
+
+    public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
+        stopCameraSession { [weak self] in
+            guard let self else { return }
+            DispatchQueue.main.async {
+                if let tid = self.textureId {
+                    self.textureRegistry?.unregisterTexture(tid)
+                    self.textureId = nil
+                }
+            }
+        }
+        methodChannel?.setMethodCallHandler(nil)
+        eventChannel?.setStreamHandler(nil)
+    }
+
+    public func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+        eventSink = events
+        return nil
+    }
+
+    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        eventSink = nil
+        return nil
+    }
+
+    public func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
+        pixelBufferLock.lock()
+        defer { pixelBufferLock.unlock() }
+        guard let buffer = latestPixelBuffer else {
+            return nil
+        }
+        return Unmanaged.passRetained(buffer)
+    }
+
+    public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        switch call.method {
+        case "startCamera":
+            let args = call.arguments as? [String: Any]
+            let facing = (args?["facing"] as? String) ?? "front"
+            startCamera(facing: facing, result: result)
+        case "stopCamera":
+            stopCameraSession {
+                DispatchQueue.main.async {
+                    result(nil)
+                }
+            }
+        case "setTorch":
+            result(false)
+        case "pickImageFromGallery":
+            pickImageFromDisk(result: result)
+        case "pickImageFilePath":
+            result(nil)
+        default:
+            result(FlutterMethodNotImplemented)
+        }
+    }
+
+    private func startCamera(facing: String, result: @escaping FlutterResult) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            configureAndStartSession(facing: facing, result: result)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                guard let self else { return }
+                if granted {
+                    self.configureAndStartSession(facing: facing, result: result)
+                } else {
+                    DispatchQueue.main.async {
+                        result(
+                            FlutterError(
+                                code: "CAMERA_PERMISSION_DENIED",
+                                message: "Camera permission was denied by the user.",
+                                details: nil
+                            )
+                        )
+                    }
+                }
+            }
+        default:
+            result(
+                FlutterError(
+                    code: "CAMERA_PERMISSION_DENIED",
+                    message: "Camera access is not authorized. Please enable camera access in System Settings > Privacy & Security > Camera.",
+                    details: nil
+                )
+            )
+        }
+    }
+
+    private func discoverVideoDevices() -> [AVCaptureDevice] {
+        var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+        if #available(macOS 14.0, *) {
+            types.append(.external)
+        } else {
+            types.append(.externalUnknown)
+        }
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: types,
+            mediaType: .video,
+            position: .unspecified
+        )
+        if !discovery.devices.isEmpty {
+            return discovery.devices
+        }
+        if let fallback = AVCaptureDevice.default(for: .video) {
+            return [fallback]
+        }
+        return []
+    }
+
+    private func configureAndStartSession(facing: String, result: @escaping FlutterResult) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            let previousDeviceId = self.activeDevice?.uniqueID
+            self.stopSessionInternal()
+
+            let devices = self.discoverVideoDevices()
+            guard !devices.isEmpty else {
+                DispatchQueue.main.async {
+                    result(
+                        FlutterError(
+                            code: "NO_CAMERA",
+                            message: "No camera device found on this Mac.",
+                            details: nil
+                        )
+                    )
+                }
+                return
+            }
+
+            let device: AVCaptureDevice
+            if devices.count > 1 && previousDeviceId != nil {
+                self.currentDeviceIndex = (self.currentDeviceIndex + 1) % devices.count
+                device = devices[self.currentDeviceIndex]
+            } else if facing == "external", devices.count > 1 {
+                device = devices.last ?? devices[0]
+            } else {
+                device = devices[0]
+            }
+
+            do {
+                let input = try AVCaptureDeviceInput(device: device)
+                let session = AVCaptureSession()
+                session.beginConfiguration()
+                if session.canSetSessionPreset(.hd1280x720) {
+                    session.sessionPreset = .hd1280x720
+                } else if session.canSetSessionPreset(.high) {
+                    session.sessionPreset = .high
+                }
+
+                if session.canAddInput(input) {
+                    session.addInput(input)
+                }
+
+                let output = AVCaptureVideoDataOutput()
+                output.alwaysDiscardsLateVideoFrames = true
+                output.videoSettings = [
+                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                ]
+                output.setSampleBufferDelegate(self, queue: self.videoOutputQueue)
+
+                if session.canAddOutput(output) {
+                    session.addOutput(output)
+                }
+
+                session.commitConfiguration()
+                self.captureSession = session
+                self.activeDevice = device
+                session.startRunning()
+
+                let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+                let previewW = Int(dimensions.width > 0 ? dimensions.width : 1280)
+                let previewH = Int(dimensions.height > 0 ? dimensions.height : 720)
+                let cameraCount = max(devices.count, 1)
+
+                DispatchQueue.main.async {
+                    if self.textureId == nil, let registry = self.textureRegistry {
+                        self.textureId = registry.register(self)
+                    }
+                    result([
+                        "textureId": self.textureId as Any,
+                        "hasTorch": false,
+                        "availableCameraCount": cameraCount,
+                        "previewWidth": previewW,
+                        "previewHeight": previewH,
+                        "sensorOrientation": 0
+                    ])
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    result(
+                        FlutterError(
+                            code: "CAMERA_INIT_FAILED",
+                            message: error.localizedDescription,
+                            details: nil
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private func stopCameraSession(completion: @escaping () -> Void) {
+        sessionQueue.async { [weak self] in
+            self?.stopSessionInternal()
+            completion()
+        }
+    }
+
+    private func stopSessionInternal() {
+        if let session = captureSession {
+            if session.isRunning {
+                session.stopRunning()
+            }
+            for input in session.inputs {
+                session.removeInput(input)
+            }
+            for output in session.outputs {
+                session.removeOutput(output)
+            }
+        }
+        captureSession = nil
+        activeDevice = nil
+        pixelBufferLock.lock()
+        latestPixelBuffer = nil
+        pixelBufferLock.unlock()
+    }
+
+    public func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return
+        }
+
+        pixelBufferLock.lock()
+        latestPixelBuffer = pixelBuffer
+        pixelBufferLock.unlock()
+
+        if let tid = textureId {
+            DispatchQueue.main.async { [weak self] in
+                self?.textureRegistry?.textureFrameAvailable(tid)
+            }
+        }
+
+        guard eventSink != nil else {
+            return
+        }
+
+        let now = CACurrentMediaTime()
+        if now - lastFrameEmitTime < 0.14 {
+            return
+        }
+        lastFrameEmitTime = now
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+            return
+        }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let byteCount = bytesPerRow * height
+        guard width > 0, height > 0, byteCount > 0 else {
+            return
+        }
+
+        let data = Data(bytes: baseAddress, count: byteCount)
+        let framePacket: [String: Any] = [
+            "bytes": FlutterStandardTypedData(bytes: data),
+            "width": width,
+            "height": height,
+            "rowStride": bytesPerRow,
+            "format": 2,
+            "sensorOrientation": 0
+        ]
+
+        DispatchQueue.main.async { [weak self] in
+            self?.eventSink?(framePacket)
+        }
+    }
+
+    private func pickImageFromDisk(result: @escaping FlutterResult) {
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            if #available(macOS 11.0, *) {
+                panel.allowedContentTypes = [.image]
+            } else {
+                panel.allowedFileTypes = ["png", "jpg", "jpeg", "webp", "bmp", "heic"]
+            }
+            let response = panel.runModal()
+            guard response == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else {
+                result(nil)
+                return
+            }
+            result(FlutterStandardTypedData(bytes: data))
+        }
+    }
+}

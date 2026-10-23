@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../controller/scanner_controller.dart';
 import '../models/barcode_models.dart';
@@ -183,26 +183,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     _attachController(widget.controller);
   }
 
-  void _attachController(XueHuaScannerController? externalController) {
-    if (externalController != null) {
-      _controller = externalController;
-      _ownsController = false;
-    } else {
-      _controller = XueHuaScannerController();
-      _ownsController = true;
-    }
-
-    _detectSubscription?.cancel();
-    _detectSubscription =
-        _controller.barcodesStream.listen((List<BarcodeResult> results) {
-      widget.onDetect?.call(results);
-    });
-
-    if (!_controller.value.isInitialized && !_controller.value.isRunning) {
-      unawaited(_controller.start());
-    }
-  }
-
   @override
   void didUpdateWidget(covariant XueHuaScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -233,14 +213,125 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _detectSubscription?.cancel();
-    _scanLineController.dispose();
-    if (_ownsController) {
-      _controller.dispose();
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<ScannerState>(
+      valueListenable: _controller,
+      builder: (BuildContext context, ScannerState state, Widget? _) {
+        if (state.isPaused && _scanLineController.isAnimating) {
+          _scanLineController.stop();
+        } else if (!state.isPaused && !_scanLineController.isAnimating) {
+          _scanLineController.repeat(reverse: true);
+        }
+
+        return LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final Size viewportSize = Size(
+              constraints.maxWidth.isFinite ? constraints.maxWidth : 390,
+              constraints.maxHeight.isFinite ? constraints.maxHeight : 844,
+            );
+            final Rect scanWindow = calculateScanWindowRect(
+              viewportSize,
+              customCutoutSize: widget.cutoutSize,
+            );
+
+            return Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                if (widget.cameraPreviewBuilder != null)
+                  widget.cameraPreviewBuilder!(context, state)
+                else
+                  _ScannerCameraPreview(
+                    isWeb: _controller.isWeb,
+                    state: state,
+                  ),
+
+                if (widget.overlayBuilder != null)
+                  widget.overlayBuilder!(context, scanWindow, state)
+                else
+                  XueHuaScannerOverlay(
+                    scanWindow: scanWindow,
+                    maskColor: widget.maskColor,
+                    cornerColor: widget.cornerColor,
+                    borderRadius: widget.cutoutBorderRadius,
+                  ),
+
+                if (widget.scanLineBuilder != null)
+                  widget.scanLineBuilder!(
+                    context,
+                    _scanLineAnimation,
+                    scanWindow,
+                  )
+                else
+                  XueHuaScanLineAnimation(
+                    animation: _scanLineAnimation,
+                    scanWindow: scanWindow,
+                    lineColor: widget.scanLineColor,
+                  ),
+
+                if (widget.showCornerHighlights &&
+                    state.latestResults.isNotEmpty)
+                  XueHuaCornerAnchorHighlight(
+                    results: state.latestResults,
+                    viewportSize: viewportSize,
+                    sensorOrientation: state.sensorOrientation,
+                    isFrontCamera: state.cameraFacing == CameraFacing.front,
+                    anchorColor: widget.cornerColor,
+                  ),
+
+                SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      _ScannerTopBar(
+                        state: state,
+                        hintText: widget.hintText,
+                        topBarBuilder: widget.topBarBuilder,
+                        hintTextBuilder: widget.hintTextBuilder,
+                        onSwitchCamera: _handleSwitchCamera,
+                      ),
+                      _ScannerBottomBar(
+                        state: state,
+                        torchOnLabel: widget.torchOnLabel,
+                        torchOffLabel: widget.torchOffLabel,
+                        galleryLabel: widget.galleryLabel,
+                        cornerColor: widget.cornerColor,
+                        hideTorchWhenUnavailable:
+                            widget.hideTorchWhenUnavailable,
+                        bottomBarBuilder: widget.bottomBarBuilder,
+                        torchButtonBuilder: widget.torchButtonBuilder,
+                        galleryButtonBuilder: widget.galleryButtonBuilder,
+                        onToggleTorch: _handleToggleTorch,
+                        onPickGallery: _handlePickGallery,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _attachController(XueHuaScannerController? externalController) {
+    if (externalController != null) {
+      _controller = externalController;
+      _ownsController = false;
+    } else {
+      _controller = XueHuaScannerController();
+      _ownsController = true;
     }
-    super.dispose();
+
+    _detectSubscription?.cancel();
+    _detectSubscription =
+        _controller.barcodesStream.listen((List<BarcodeResult> results) {
+      widget.onDetect?.call(results);
+    });
+
+    if (!_controller.value.isInitialized && !_controller.value.isRunning) {
+      unawaited(_controller.start());
+    }
   }
 
   Future<void> _handleToggleTorch() async {
@@ -346,119 +437,63 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ScannerState>(
-      valueListenable: _controller,
-      builder: (BuildContext context, ScannerState state, Widget? _) {
-        if (state.isPaused && _scanLineController.isAnimating) {
-          _scanLineController.stop();
-        } else if (!state.isPaused && !_scanLineController.isAnimating) {
-          _scanLineController.repeat(reverse: true);
-        }
-
-        return LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final Size viewportSize = Size(
-              constraints.maxWidth.isFinite ? constraints.maxWidth : 390,
-              constraints.maxHeight.isFinite ? constraints.maxHeight : 844,
-            );
-            final Rect scanWindow = calculateScanWindowRect(
-              viewportSize,
-              customCutoutSize: widget.cutoutSize,
-            );
-
-            return Stack(
-              fit: StackFit.expand,
-              children: <Widget>[
-                _buildCameraPreview(context, state, viewportSize),
-
-                if (widget.overlayBuilder != null)
-                  widget.overlayBuilder!(context, scanWindow, state)
-                else
-                  XueHuaScannerOverlay(
-                    scanWindow: scanWindow,
-                    maskColor: widget.maskColor,
-                    cornerColor: widget.cornerColor,
-                    borderRadius: widget.cutoutBorderRadius,
-                  ),
-
-                if (widget.scanLineBuilder != null)
-                  widget.scanLineBuilder!(
-                    context,
-                    _scanLineAnimation,
-                    scanWindow,
-                  )
-                else
-                  XueHuaScanLineAnimation(
-                    animation: _scanLineAnimation,
-                    scanWindow: scanWindow,
-                    lineColor: widget.scanLineColor,
-                  ),
-
-                if (widget.showCornerHighlights &&
-                    state.latestResults.isNotEmpty)
-                  XueHuaCornerAnchorHighlight(
-                    results: state.latestResults,
-                    viewportSize: viewportSize,
-                    sensorOrientation: state.sensorOrientation,
-                    isFrontCamera: state.cameraFacing == CameraFacing.front,
-                    anchorColor: widget.cornerColor,
-                  ),
-
-                SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      _buildTopSection(context, state),
-                      _buildBottomSection(context, state),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildCameraPreview(
-    BuildContext context,
-    ScannerState state,
-    Size viewportSize,
-  ) {
-    if (widget.cameraPreviewBuilder != null) {
-      return widget.cameraPreviewBuilder!(context, state);
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _detectSubscription?.cancel();
+    _scanLineController.dispose();
+    if (_ownsController) {
+      _controller.dispose();
     }
+    super.dispose();
+  }
+}
 
-    if (_controller.isWeb && state.webViewType != null) {
+class _ScannerCameraPreview extends StatelessWidget {
+  const _ScannerCameraPreview({
+    required this.isWeb,
+    required this.state,
+  });
+
+  final bool isWeb;
+  final ScannerState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isWeb && state.webViewType != null) {
       return SizedBox.expand(
         child: HtmlElementView(viewType: state.webViewType!),
       );
     }
 
     if (state.textureId != null) {
-      final double previewAspect = state.previewSize.height > 0
-          ? state.previewSize.width / state.previewSize.height
-          : (16.0 / 9.0);
-      final bool isPortrait = viewportSize.height > viewportSize.width;
-      final double effectiveAspect =
-          isPortrait ? (1.0 / previewAspect) : previewAspect;
+      final bool swapDimensions =
+          state.sensorOrientation == 90 || state.sensorOrientation == 270;
+      final double orientedWidth =
+          swapDimensions ? state.previewSize.height : state.previewSize.width;
+      final double orientedHeight =
+          swapDimensions ? state.previewSize.width : state.previewSize.height;
+      final double safeWidth = orientedWidth > 0 ? orientedWidth : 1280;
+      final double safeHeight = orientedHeight > 0 ? orientedHeight : 720;
 
-      return ClipRect(
-        child: OverflowBox(
-          alignment: Alignment.center,
+      return SizedBox.expand(
+        child: ClipRect(
           child: FittedBox(
             fit: BoxFit.cover,
             child: SizedBox(
-              width: viewportSize.width,
-              height: viewportSize.width / effectiveAspect,
+              width: safeWidth,
+              height: safeHeight,
               child: Texture(textureId: state.textureId!),
             ),
           ),
         ),
       );
     }
+
+    final String statusText = state.errorMessage != null
+        ? '相机不可用: ${state.errorMessage}'
+        : (state.cameraFacing == CameraFacing.front
+            ? '前置相机取景中 (${XueHuaBarcodeScanner.engineVersion})'
+            : '后置相机取景中 (${XueHuaBarcodeScanner.engineVersion})');
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -474,13 +509,12 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       ),
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.only(top: 260),
+          padding: const EdgeInsets.only(top: 260, left: 24, right: 24),
           child: Text(
-            state.cameraFacing == CameraFacing.front
-                ? '前置相机取景中 (${XueHuaBarcodeScanner.engineVersion})'
-                : '后置相机取景中 (${XueHuaBarcodeScanner.engineVersion})',
+            statusText,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0x66FFFFFF),
+              color: Color(0x99FFFFFF),
               fontSize: 12,
             ),
           ),
@@ -488,23 +522,40 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       ),
     );
   }
+}
 
-  Widget _buildTopSection(BuildContext context, ScannerState state) {
+class _ScannerTopBar extends StatelessWidget {
+  const _ScannerTopBar({
+    required this.state,
+    required this.hintText,
+    required this.topBarBuilder,
+    required this.hintTextBuilder,
+    required this.onSwitchCamera,
+  });
+
+  final ScannerState state;
+  final String hintText;
+  final XueHuaTopBarBuilder? topBarBuilder;
+  final XueHuaHintTextBuilder? hintTextBuilder;
+  final VoidCallback onSwitchCamera;
+
+  @override
+  Widget build(BuildContext context) {
     void onBack() {
       Navigator.of(context).maybePop();
     }
 
-    if (widget.topBarBuilder != null) {
-      return widget.topBarBuilder!(
+    if (topBarBuilder != null) {
+      return topBarBuilder!(
         context,
         state,
         onBack,
-        _handleSwitchCamera,
+        onSwitchCamera,
       );
     }
 
-    final Widget hintWidget = widget.hintTextBuilder != null
-        ? widget.hintTextBuilder!(context, state)
+    final Widget hintWidget = hintTextBuilder != null
+        ? hintTextBuilder!(context, state)
         : Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
@@ -515,7 +566,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
               ),
             ),
             child: Text(
-              widget.hintText,
+              hintText,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -544,51 +595,79 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
             key: const ValueKey<String>('xh_scanner_switch_camera_button'),
             icon: Icons.cameraswitch_rounded,
             tooltip: '切换前后摄像头',
-            onPressed: _handleSwitchCamera,
+            onPressed: onSwitchCamera,
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBottomSection(BuildContext context, ScannerState state) {
-    if (widget.bottomBarBuilder != null) {
-      return widget.bottomBarBuilder!(
+class _ScannerBottomBar extends StatelessWidget {
+  const _ScannerBottomBar({
+    required this.state,
+    required this.torchOnLabel,
+    required this.torchOffLabel,
+    required this.galleryLabel,
+    required this.cornerColor,
+    required this.hideTorchWhenUnavailable,
+    required this.bottomBarBuilder,
+    required this.torchButtonBuilder,
+    required this.galleryButtonBuilder,
+    required this.onToggleTorch,
+    required this.onPickGallery,
+  });
+
+  final ScannerState state;
+  final String torchOnLabel;
+  final String torchOffLabel;
+  final String galleryLabel;
+  final Color cornerColor;
+  final bool hideTorchWhenUnavailable;
+  final XueHuaBottomBarBuilder? bottomBarBuilder;
+  final XueHuaTorchButtonBuilder? torchButtonBuilder;
+  final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
+  final VoidCallback onToggleTorch;
+  final VoidCallback onPickGallery;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bottomBarBuilder != null) {
+      return bottomBarBuilder!(
         context,
         state,
-        _handleToggleTorch,
-        _handlePickGallery,
+        onToggleTorch,
+        onPickGallery,
       );
     }
 
-    final Widget torchButton = widget.torchButtonBuilder != null
-        ? widget.torchButtonBuilder!(context, state, _handleToggleTorch)
+    final Widget torchButton = torchButtonBuilder != null
+        ? torchButtonBuilder!(context, state, onToggleTorch)
         : _ScannerBottomActionButton(
             key: const ValueKey<String>('xh_scanner_torch_button'),
             icon: state.isTorchOn
                 ? Icons.flashlight_on_rounded
                 : Icons.flashlight_off_rounded,
-            label: state.isTorchOn ? widget.torchOnLabel : widget.torchOffLabel,
+            label: state.isTorchOn ? torchOnLabel : torchOffLabel,
             isActive: state.isTorchOn,
             isEnabled: state.hasTorch,
-            activeColor: widget.cornerColor,
-            onTap: _handleToggleTorch,
+            activeColor: cornerColor,
+            onTap: onToggleTorch,
           );
 
-    final Widget galleryButton = widget.galleryButtonBuilder != null
-        ? widget.galleryButtonBuilder!(context, state, _handlePickGallery)
+    final Widget galleryButton = galleryButtonBuilder != null
+        ? galleryButtonBuilder!(context, state, onPickGallery)
         : _ScannerBottomActionButton(
             key: const ValueKey<String>('xh_scanner_gallery_button'),
             icon: Icons.photo_library_rounded,
-            label: widget.galleryLabel,
+            label: galleryLabel,
             isActive: false,
             isEnabled: true,
-            activeColor: widget.cornerColor,
-            onTap: _handlePickGallery,
+            activeColor: cornerColor,
+            onTap: onPickGallery,
           );
 
-    final bool hideTorch =
-        widget.hideTorchWhenUnavailable && !state.hasTorch;
+    final bool hideTorch = hideTorchWhenUnavailable && !state.hasTorch;
 
     return Padding(
       padding: const EdgeInsets.only(left: 48, right: 48, bottom: 36),

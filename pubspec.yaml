@@ -16,8 +16,8 @@ topics:
   - ffi
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
-  flutter: '>=3.19.0'
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
 
 dependencies:
   flutter:
@@ -25,6 +25,7 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   ffi: ^2.2.0
+  material_ui: ^1.8.0
   plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
@@ -37,14 +38,20 @@ flutter:
   plugin:
     platforms:
       android:
+        package: com.kurban.xue_hua_barcode_scanner
+        pluginClass: XueHuaBarcodeScannerPlugin
         ffiPlugin: true
       ios:
+        pluginClass: XueHuaBarcodeScannerPlugin
         ffiPlugin: true
       linux:
+        pluginClass: XueHuaBarcodeScannerPlugin
         ffiPlugin: true
       macos:
+        pluginClass: XueHuaBarcodeScannerPlugin
         ffiPlugin: true
       windows:
+        pluginClass: XueHuaBarcodeScannerPluginCApi
         ffiPlugin: true
       web:
         pluginClass: XueHuaBarcodeScannerWeb

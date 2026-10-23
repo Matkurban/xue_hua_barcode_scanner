@@ -3,10 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  xue_hua_barcode_scanner
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  xue_hua_barcode_scanner
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

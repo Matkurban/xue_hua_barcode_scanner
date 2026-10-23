@@ -432,7 +432,19 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         );
       }
     } on MissingPluginException {
-      // Graceful fallback when running without a native camera host channel bound.
+      // Graceful fallback when running without a native camera host channel bound (e.g. unit tests).
+    } on PlatformException catch (e) {
+      return ScannerState(
+        isInitialized: true,
+        isRunning: false,
+        isPaused: false,
+        torchState: TorchState.unavailable,
+        cameraFacing: effectiveFacing,
+        availableCameraCount: _isDesktop ? 1 : 2,
+        previewSize: const Size(1280, 720),
+        sensorOrientation: _isDesktop ? 0 : 90,
+        errorMessage: e.message ?? e.code,
+      );
     } catch (_) {}
 
     return ScannerState(

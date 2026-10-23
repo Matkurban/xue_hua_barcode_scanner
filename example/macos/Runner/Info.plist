@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用摄像头实时扫描条形码和二维码。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问本地图片以识别条形码和二维码。</string>
 </dict>
 </plist>

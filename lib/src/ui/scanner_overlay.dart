@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/barcode_models.dart';
 
@@ -326,15 +326,15 @@ class XueHuaCornerAnchorHighlight extends StatefulWidget {
 class _XueHuaCornerAnchorHighlightState
     extends State<XueHuaCornerAnchorHighlight>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 650),
-  )..repeat(reverse: true);
+  late final AnimationController _pulseController;
 
   @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -360,6 +360,12 @@ class _XueHuaCornerAnchorHighlightState
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
   }
 }
 

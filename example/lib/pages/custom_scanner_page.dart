@@ -1,0 +1,114 @@
+import 'package:material_ui/material_ui.dart';
+import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
+
+/// 演示使用自定义 UI Builder 与外部 [XueHuaScannerController] 构建的扫码页面。
+class CustomStyledScannerDemoPage extends StatefulWidget {
+  const CustomStyledScannerDemoPage({super.key});
+
+  @override
+  State<CustomStyledScannerDemoPage> createState() =>
+      _CustomStyledScannerDemoPageState();
+}
+
+class _CustomStyledScannerDemoPageState
+    extends State<CustomStyledScannerDemoPage> {
+  late final XueHuaScannerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = XueHuaScannerController(
+      initialFacing: CameraFacing.back,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return XueHuaBarcodeScannerPage(
+      controller: _controller,
+      autoPopOnDetect: true,
+      cutoutSize: 270,
+      overlayBuilder: (
+        BuildContext context,
+        Rect scanWindow,
+        ScannerState state,
+      ) {
+        return XueHuaScannerOverlay(
+          scanWindow: scanWindow,
+          maskColor: const Color(0xAA050B14),
+          cornerColor: Colors.cyanAccent,
+          borderColor: Colors.cyanAccent.withValues(alpha: 0.3),
+          borderRadius: 24,
+          cornerLength: 32,
+          cornerStrokeWidth: 4.5,
+        );
+      },
+      scanLineBuilder: (
+        BuildContext context,
+        Animation<double> animation,
+        Rect scanWindow,
+      ) {
+        return XueHuaScanLineAnimation(
+          animation: animation,
+          scanWindow: scanWindow,
+          lineColor: Colors.cyanAccent,
+          glowHeight: 44,
+        );
+      },
+      hintTextBuilder: (BuildContext context, ScannerState state) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.cyanAccent.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Colors.cyanAccent.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Text(
+            state.isPaused ? '已暂停扫描' : '将二维码放入框内 · 自定义赛博主题',
+            style: const TextStyle(
+              color: Colors.cyanAccent,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+      },
+      torchButtonBuilder: (
+        BuildContext context,
+        ScannerState state,
+        VoidCallback onToggleTorch,
+      ) {
+        return FilledButton.tonalIcon(
+          onPressed: onToggleTorch,
+          icon: Icon(
+            state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
+            color: state.isTorchOn ? Colors.amberAccent : Colors.cyanAccent,
+          ),
+          label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
+        );
+      },
+      galleryButtonBuilder: (
+        BuildContext context,
+        ScannerState state,
+        VoidCallback onPickGallery,
+      ) {
+        return FilledButton.tonalIcon(
+          onPressed: onPickGallery,
+          icon: const Icon(
+            Icons.photo_library_outlined,
+            color: Colors.cyanAccent,
+          ),
+          label: const Text('相册导入'),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
