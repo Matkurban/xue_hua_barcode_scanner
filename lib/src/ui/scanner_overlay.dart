@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 /// Calculates the centered square scan window [Rect] inside [viewportSize].
@@ -9,11 +10,12 @@ Rect calculateScanWindowRect(
 }) {
   final double shortestSide = math.min(viewportSize.width, viewportSize.height);
   final double defaultSize = (shortestSide * 0.68).clamp(200.0, 320.0);
-  final double boxSize =
-      (customCutoutSize ?? defaultSize).clamp(140.0, shortestSide * 0.9);
+  final double boxSize = (customCutoutSize ?? defaultSize).clamp(
+    140.0,
+    shortestSide * 0.9,
+  );
   final double left = (viewportSize.width - boxSize) / 2.0;
-  final double top =
-      ((viewportSize.height - boxSize) / 2.0) + verticalOffset;
+  final double top = ((viewportSize.height - boxSize) / 2.0) + verticalOffset;
   return Rect.fromLTWH(left, top, boxSize, boxSize);
 }
 
@@ -144,31 +146,19 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
     final Path cornersPath = Path()
       ..moveTo(left, top + l)
       ..lineTo(left, top + r)
-      ..arcToPoint(
-        Offset(left + r, top),
-        radius: Radius.circular(r),
-      )
+      ..arcToPoint(Offset(left + r, top), radius: Radius.circular(r))
       ..lineTo(left + l, top)
       ..moveTo(right - l, top)
       ..lineTo(right - r, top)
-      ..arcToPoint(
-        Offset(right, top + r),
-        radius: Radius.circular(r),
-      )
+      ..arcToPoint(Offset(right, top + r), radius: Radius.circular(r))
       ..lineTo(right, top + l)
       ..moveTo(right, bottom - l)
       ..lineTo(right, bottom - r)
-      ..arcToPoint(
-        Offset(right - r, bottom),
-        radius: Radius.circular(r),
-      )
+      ..arcToPoint(Offset(right - r, bottom), radius: Radius.circular(r))
       ..lineTo(right - l, bottom)
       ..moveTo(left + l, bottom)
       ..lineTo(left + r, bottom)
-      ..arcToPoint(
-        Offset(left, bottom - r),
-        radius: Radius.circular(r),
-      )
+      ..arcToPoint(Offset(left, bottom - r), radius: Radius.circular(r))
       ..lineTo(left, bottom - l);
 
     canvas.drawPath(cornersPath, cornerPaint);

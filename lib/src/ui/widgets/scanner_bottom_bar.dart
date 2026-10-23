@@ -33,12 +33,7 @@ class ScannerBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bottomBarBuilder != null) {
-      return bottomBarBuilder!(
-        context,
-        state,
-        onToggleTorch,
-        onPickGallery,
-      );
+      return bottomBarBuilder!(context, state, onToggleTorch, onPickGallery);
     }
 
     final Widget torchButton = torchButtonBuilder != null
@@ -75,10 +70,7 @@ class ScannerBottomBar extends StatelessWidget {
         mainAxisAlignment: hideTorch
             ? MainAxisAlignment.center
             : MainAxisAlignment.spaceBetween,
-        children: <Widget>[
-          if (!hideTorch) torchButton,
-          galleryButton,
-        ],
+        children: <Widget>[if (!hideTorch) torchButton, galleryButton],
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../controller/scanner_controller.dart';
@@ -108,7 +109,7 @@ class XueHuaScannerView extends StatefulWidget {
 
   /// Optional custom builder for overriding the underlying camera preview layer.
   final Widget Function(BuildContext context, ScannerState state)?
-      cameraPreviewBuilder;
+  cameraPreviewBuilder;
 
   @override
   State<XueHuaScannerView> createState() => _XueHuaScannerViewState();
@@ -185,14 +186,16 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
         }
 
         final bool isError = state.hasValidationError;
-        final Color activeCornerColor =
-            isError ? widget.errorColor : widget.cornerColor;
+        final Color activeCornerColor = isError
+            ? widget.errorColor
+            : widget.cornerColor;
         final Color activeBorderColor = isError
             ? widget.errorColor.withValues(alpha: 0.85)
             : const Color(0x38FFFFFF);
         final double activeBorderWidth = isError ? 2.2 : 1.2;
-        final Color activeScanLineColor =
-            isError ? widget.errorColor : widget.scanLineColor;
+        final Color activeScanLineColor = isError
+            ? widget.errorColor
+            : widget.scanLineColor;
 
         return LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
@@ -298,8 +301,9 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     _controller.viewValidator = widget.validator;
 
     _detectSubscription?.cancel();
-    _detectSubscription =
-        _controller.barcodesStream.listen((List<BarcodeResult> results) {
+    _detectSubscription = _controller.barcodesStream.listen((
+      List<BarcodeResult> results,
+    ) {
       widget.onDetect?.call(results);
     });
 

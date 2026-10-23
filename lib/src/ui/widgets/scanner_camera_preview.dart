@@ -29,10 +29,12 @@ class ScannerCameraPreview extends StatelessWidget {
     if (state.textureId != null) {
       final bool swapDimensions =
           state.sensorOrientation == 90 || state.sensorOrientation == 270;
-      final double orientedWidth =
-          swapDimensions ? state.previewSize.height : state.previewSize.width;
-      final double orientedHeight =
-          swapDimensions ? state.previewSize.width : state.previewSize.height;
+      final double orientedWidth = swapDimensions
+          ? state.previewSize.height
+          : state.previewSize.width;
+      final double orientedHeight = swapDimensions
+          ? state.previewSize.width
+          : state.previewSize.height;
       final double safeWidth = orientedWidth > 0 ? orientedWidth : 1280;
       final double safeHeight = orientedHeight > 0 ? orientedHeight : 720;
 
@@ -53,8 +55,8 @@ class ScannerCameraPreview extends StatelessWidget {
     final String statusText = state.errorMessage != null
         ? '${texts.cameraUnavailablePrefix}${state.errorMessage}'
         : (state.cameraFacing == CameraFacing.front
-            ? '${texts.frontCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})'
-            : '${texts.backCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})');
+              ? '${texts.frontCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})'
+              : '${texts.backCameraPreviewText} (${XueHuaBarcodeScanner.engineVersion})');
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -74,10 +76,7 @@ class ScannerCameraPreview extends StatelessWidget {
           child: Text(
             statusText,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0x99FFFFFF),
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
           ),
         ),
       ),

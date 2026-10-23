@@ -89,10 +89,10 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 
     final List<BarcodeResult> detectorResults =
         await tryDecodeWithBrowserBarcodeDetector(
-      rgbaBytes,
-      width: width,
-      height: height,
-    );
+          rgbaBytes,
+          width: width,
+          height: height,
+        );
     if (detectorResults.isNotEmpty) {
       return detectorResults;
     }
@@ -114,11 +114,11 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     bool tryInvert = true,
   }) async {
     try {
-      final JSPromise<JSObject> fetchPromise =
-          jsWindow.callMethod<JSPromise<JSObject>>('fetch'.toJS, filePath.toJS);
+      final JSPromise<JSObject> fetchPromise = jsWindow
+          .callMethod<JSPromise<JSObject>>('fetch'.toJS, filePath.toJS);
       final JSObject response = await fetchPromise.toDart;
-      final JSPromise<JSArrayBuffer> bufferPromise =
-          response.callMethod<JSPromise<JSArrayBuffer>>('arrayBuffer'.toJS);
+      final JSPromise<JSArrayBuffer> bufferPromise = response
+          .callMethod<JSPromise<JSArrayBuffer>>('arrayBuffer'.toJS);
       final JSArrayBuffer arrayBuffer = await bufferPromise.toDart;
       final Uint8List encodedBytes = arrayBuffer.toDart.asUint8List();
       return await decodeImageMemory(
@@ -142,8 +142,9 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     if (encodedImageBytes.isEmpty) {
       return const <BarcodeResult>[];
     }
-    final decoded =
-        await BarcodeMatrixCodec.decodeCompressedImageToRgba(encodedImageBytes);
+    final decoded = await BarcodeMatrixCodec.decodeCompressedImageToRgba(
+      encodedImageBytes,
+    );
     return decodeImageBytes(
       decoded.rgbaBytes,
       width: decoded.width,
@@ -195,8 +196,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   }) async {
     await stopCamera();
 
-    final String viewType =
-        'xue_hua_barcode_scanner_video_${++_nextViewId}';
+    final String viewType = 'xue_hua_barcode_scanner_video_${++_nextViewId}';
     _currentViewType = viewType;
 
     final JSObject video = createDomElement('video');
@@ -228,11 +228,13 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     const Size previewSize = Size(1280, 720);
 
     try {
-      final JSObject? mediaDevices =
-          jsNavigator.getProperty<JSObject?>('mediaDevices'.toJS);
+      final JSObject? mediaDevices = jsNavigator.getProperty<JSObject?>(
+        'mediaDevices'.toJS,
+      );
       if (mediaDevices != null) {
-        final String facingModeStr =
-            facing == CameraFacing.front ? 'user' : 'environment';
+        final String facingModeStr = facing == CameraFacing.front
+            ? 'user'
+            : 'environment';
         final JSObject videoConstraints = JSObject();
         videoConstraints.setProperty('facingMode'.toJS, facingModeStr.toJS);
         videoConstraints.setProperty('width'.toJS, 1280.toJS);
@@ -249,15 +251,17 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
         video.setProperty('srcObject'.toJS, stream);
         video.callMethod<JSAny?>('play'.toJS);
 
-        final JSArray<JSObject> tracks =
-            stream.callMethod<JSArray<JSObject>>('getVideoTracks'.toJS);
+        final JSArray<JSObject> tracks = stream.callMethod<JSArray<JSObject>>(
+          'getVideoTracks'.toJS,
+        );
         final List<JSObject> dartTracks = tracks.toDart;
         if (dartTracks.isNotEmpty) {
           final JSObject track = dartTracks.first;
           _activeVideoTrack = track;
           if (track.has('getCapabilities')) {
-            final JSObject? caps =
-                track.callMethod<JSObject?>('getCapabilities'.toJS);
+            final JSObject? caps = track.callMethod<JSObject?>(
+              'getCapabilities'.toJS,
+            );
             if (caps != null && caps.has('torch')) {
               final JSAny? torchCap = caps.getProperty<JSAny?>('torch'.toJS);
               hasTorch = torchCap.dartify() == true;
@@ -266,15 +270,17 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
         }
 
         if (mediaDevices.has('enumerateDevices')) {
-          final JSPromise<JSArray<JSObject>> devicesPromise =
-              mediaDevices.callMethod<JSPromise<JSArray<JSObject>>>(
-            'enumerateDevices'.toJS,
-          );
+          final JSPromise<JSArray<JSObject>> devicesPromise = mediaDevices
+              .callMethod<JSPromise<JSArray<JSObject>>>(
+                'enumerateDevices'.toJS,
+              );
           final List<JSObject> devices = (await devicesPromise.toDart).toDart;
           int count = 0;
           for (final dev in devices) {
-            final String? kind =
-                dev.getProperty<JSAny?>('kind'.toJS)?.dartify()?.toString();
+            final String? kind = dev
+                .getProperty<JSAny?>('kind'.toJS)
+                ?.dartify()
+                ?.toString();
             if (kind == 'videoinput') {
               count++;
             }
@@ -286,8 +292,10 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 
         final JSObject canvas = createDomElement('canvas');
         _canvasElement = canvas;
-        _canvasContext2d =
-            canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
+        _canvasContext2d = canvas.callMethod<JSObject?>(
+          'getContext'.toJS,
+          '2d'.toJS,
+        );
 
         _framePollTimer = Timer.periodic(
           const Duration(milliseconds: 150),
@@ -336,17 +344,20 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     try {
       canvas.setProperty('width'.toJS, videoWidth.toJS);
       canvas.setProperty('height'.toJS, videoHeight.toJS);
-      ctx.callMethodVarArgs<JSAny?>(
-        'drawImage'.toJS,
-        <JSAny?>[video, 0.toJS, 0.toJS, videoWidth.toJS, videoHeight.toJS],
-      );
+      ctx.callMethodVarArgs<JSAny?>('drawImage'.toJS, <JSAny?>[
+        video,
+        0.toJS,
+        0.toJS,
+        videoWidth.toJS,
+        videoHeight.toJS,
+      ]);
       final JSObject? imageData = ctx.callMethodVarArgs<JSObject?>(
         'getImageData'.toJS,
         <JSAny?>[0.toJS, 0.toJS, videoWidth.toJS, videoHeight.toJS],
       );
       if (imageData != null) {
-        final JSUint8ClampedArray? clamped =
-            imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
+        final JSUint8ClampedArray? clamped = imageData
+            .getProperty<JSUint8ClampedArray?>('data'.toJS);
         if (clamped != null) {
           final Uint8List rgba = Uint8List.sublistView(clamped.toDart);
           final List<BarcodeResult> results = await decodeImageBytes(
@@ -374,8 +385,9 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     try {
       final JSObject? stream = _activeMediaStream;
       if (stream != null) {
-        final JSArray<JSObject> tracks =
-            stream.callMethod<JSArray<JSObject>>('getTracks'.toJS);
+        final JSArray<JSObject> tracks = stream.callMethod<JSArray<JSObject>>(
+          'getTracks'.toJS,
+        );
         for (final JSObject track in tracks.toDart) {
           track.callMethod<JSAny?>('stop'.toJS);
         }
@@ -444,8 +456,10 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
             if (!completer.isCompleted) completer.complete(null);
             return;
           }
-          final JSObject? file =
-              files.callMethod<JSObject?>('item'.toJS, 0.toJS);
+          final JSObject? file = files.callMethod<JSObject?>(
+            'item'.toJS,
+            0.toJS,
+          );
           if (file == null) {
             if (!completer.isCompleted) completer.complete(null);
             return;
@@ -457,8 +471,9 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           reader.setProperty(
             'onload'.toJS,
             ((JSAny? _) {
-              final JSArrayBuffer? result =
-                  reader.getProperty<JSArrayBuffer?>('result'.toJS);
+              final JSArrayBuffer? result = reader.getProperty<JSArrayBuffer?>(
+                'result'.toJS,
+              );
               if (!completer.isCompleted) {
                 completer.complete(result?.toDart.asUint8List());
               }

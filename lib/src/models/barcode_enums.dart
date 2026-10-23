@@ -86,8 +86,10 @@ enum BarcodeFormat {
 
   /// Resolves a [BarcodeFormat] from a Web `BarcodeDetector` or `zxing-wasm` string.
   static BarcodeFormat fromString(String raw) {
-    final normalized =
-        raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_\-/]'), '');
+    final normalized = raw.trim().toLowerCase().replaceAll(
+      RegExp(r'[\s_\-/]'),
+      '',
+    );
     switch (normalized) {
       case 'qrcode':
       case 'qrcodemodel1':

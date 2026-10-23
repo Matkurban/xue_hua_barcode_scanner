@@ -108,7 +108,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
 
   /// Custom builder for overriding the camera preview widget.
   final Widget Function(BuildContext context, ScannerState state)?
-      cameraPreviewBuilder;
+  cameraPreviewBuilder;
 
   @override
   Widget build(BuildContext context) {

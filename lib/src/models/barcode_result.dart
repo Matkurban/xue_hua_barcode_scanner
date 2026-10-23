@@ -99,30 +99,32 @@ class BarcodeResult {
     final double offsetX = (viewportSize.width - scaledW) / 2.0;
     final double offsetY = (viewportSize.height - scaledH) / 2.0;
 
-    return cornerPoints.map((pt) {
-      double rx = pt.dx;
-      double ry = pt.dy;
-      switch (sensorOrientation % 360) {
-        case 90:
-          rx = srcSize.height - pt.dy;
-          ry = pt.dx;
-          break;
-        case 180:
-          rx = srcSize.width - pt.dx;
-          ry = srcSize.height - pt.dy;
-          break;
-        case 270:
-          rx = pt.dy;
-          ry = srcSize.width - pt.dx;
-          break;
-        default:
-          break;
-      }
-      if (isFrontCamera) {
-        rx = orientedW - rx;
-      }
-      return Offset(rx * scale + offsetX, ry * scale + offsetY);
-    }).toList(growable: false);
+    return cornerPoints
+        .map((pt) {
+          double rx = pt.dx;
+          double ry = pt.dy;
+          switch (sensorOrientation % 360) {
+            case 90:
+              rx = srcSize.height - pt.dy;
+              ry = pt.dx;
+              break;
+            case 180:
+              rx = srcSize.width - pt.dx;
+              ry = srcSize.height - pt.dy;
+              break;
+            case 270:
+              rx = pt.dy;
+              ry = srcSize.width - pt.dx;
+              break;
+            default:
+              break;
+          }
+          if (isFrontCamera) {
+            rx = orientedW - rx;
+          }
+          return Offset(rx * scale + offsetX, ry * scale + offsetY);
+        })
+        .toList(growable: false);
   }
 
   @override

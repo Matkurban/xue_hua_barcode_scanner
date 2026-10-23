@@ -26,17 +26,20 @@ ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
       if (execLib.providesSymbol('zxing_decode_image_bytes')) {
         return execLib;
       }
-      final String debugDylibPath = '${Platform.resolvedExecutable}.debug.dylib';
+      final String debugDylibPath =
+          '${Platform.resolvedExecutable}.debug.dylib';
       if (File(debugDylibPath).existsSync()) {
-        final ffi.DynamicLibrary debugLib =
-            ffi.DynamicLibrary.open(debugDylibPath);
+        final ffi.DynamicLibrary debugLib = ffi.DynamicLibrary.open(
+          debugDylibPath,
+        );
         if (debugLib.providesSymbol('zxing_decode_image_bytes')) {
           return debugLib;
         }
       }
       try {
-        final ffi.DynamicLibrary frameworkLib =
-            ffi.DynamicLibrary.open('$_kLibName.framework/$_kLibName');
+        final ffi.DynamicLibrary frameworkLib = ffi.DynamicLibrary.open(
+          '$_kLibName.framework/$_kLibName',
+        );
         if (frameworkLib.providesSymbol('zxing_decode_image_bytes')) {
           return frameworkLib;
         }
@@ -133,8 +136,8 @@ List<BarcodeResult> decodeInWorkerIsolate({
             final int rawLen = item.raw_bytes_length;
             final Uint8List rawBytes =
                 (item.raw_bytes != ffi.nullptr && rawLen > 0)
-                    ? Uint8List.fromList(item.raw_bytes.asTypedList(rawLen))
-                    : Uint8List.fromList(utf8.encode(text));
+                ? Uint8List.fromList(item.raw_bytes.asTypedList(rawLen))
+                : Uint8List.fromList(utf8.encode(text));
 
             final int cornerCount = item.corner_points_count.clamp(0, 4);
             final List<Offset> corners = <Offset>[];

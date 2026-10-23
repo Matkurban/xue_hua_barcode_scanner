@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 /// Smooth vertical back-and-forth green laser scan line with gradient glow

@@ -23,8 +23,9 @@ Future<List<BarcodeResult>> tryDecodeWithZxingWasm(
     return const <BarcodeResult>[];
   }
   try {
-    final JSObject? zxingWasm =
-        jsWindow.getProperty<JSObject?>('ZXingWasm'.toJS);
+    final JSObject? zxingWasm = jsWindow.getProperty<JSObject?>(
+      'ZXingWasm'.toJS,
+    );
     if (zxingWasm == null || !zxingWasm.has('readBarcodesFromImageData')) {
       return const <BarcodeResult>[];
     }
@@ -33,16 +34,18 @@ Future<List<BarcodeResult>> tryDecodeWithZxingWasm(
       final JSObject canvas = createDomElement('canvas');
       canvas.setProperty('width'.toJS, width.toJS);
       canvas.setProperty('height'.toJS, height.toJS);
-      final JSObject? ctx =
-          canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
+      final JSObject? ctx = canvas.callMethod<JSObject?>(
+        'getContext'.toJS,
+        '2d'.toJS,
+      );
       if (ctx == null) return const <BarcodeResult>[];
 
       final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
         'createImageData'.toJS,
         <JSAny?>[width.toJS, height.toJS],
       );
-      final JSUint8ClampedArray? dstData =
-          imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
+      final JSUint8ClampedArray? dstData = imageData
+          .getProperty<JSUint8ClampedArray?>('data'.toJS);
       dstData?.toDart.setAll(0, buffer);
 
       final JSObject readerOptions = JSObject();
@@ -51,11 +54,11 @@ Future<List<BarcodeResult>> tryDecodeWithZxingWasm(
       readerOptions.setProperty('tryInvert'.toJS, tryInvert.toJS);
       readerOptions.setProperty('tryDenoise'.toJS, true.toJS);
 
-      final JSPromise<JSArray<JSObject>> promise =
-          zxingWasm.callMethodVarArgs<JSPromise<JSArray<JSObject>>>(
-        'readBarcodesFromImageData'.toJS,
-        <JSAny?>[imageData, readerOptions],
-      );
+      final JSPromise<JSArray<JSObject>> promise = zxingWasm
+          .callMethodVarArgs<JSPromise<JSArray<JSObject>>>(
+            'readBarcodesFromImageData'.toJS,
+            <JSAny?>[imageData, readerOptions],
+          );
       final List<JSObject> items = (await promise.toDart).toDart;
       return parseJsBarcodeResults(items, width: width, height: height);
     }
@@ -90,21 +93,24 @@ Future<List<BarcodeResult>> tryDecodeWithBrowserBarcodeDetector(
       final JSObject canvas = createDomElement('canvas');
       canvas.setProperty('width'.toJS, width.toJS);
       canvas.setProperty('height'.toJS, height.toJS);
-      final JSObject? ctx =
-          canvas.callMethod<JSObject?>('getContext'.toJS, '2d'.toJS);
+      final JSObject? ctx = canvas.callMethod<JSObject?>(
+        'getContext'.toJS,
+        '2d'.toJS,
+      );
       if (ctx == null) return const <BarcodeResult>[];
 
       final JSObject imageData = ctx.callMethodVarArgs<JSObject>(
         'createImageData'.toJS,
         <JSAny?>[width.toJS, height.toJS],
       );
-      final JSUint8ClampedArray? dstData =
-          imageData.getProperty<JSUint8ClampedArray?>('data'.toJS);
+      final JSUint8ClampedArray? dstData = imageData
+          .getProperty<JSUint8ClampedArray?>('data'.toJS);
       dstData?.toDart.setAll(0, buffer);
-      ctx.callMethodVarArgs<JSAny?>(
-        'putImageData'.toJS,
-        <JSAny?>[imageData, 0.toJS, 0.toJS],
-      );
+      ctx.callMethodVarArgs<JSAny?>('putImageData'.toJS, <JSAny?>[
+        imageData,
+        0.toJS,
+        0.toJS,
+      ]);
 
       final JSObject detector = jsWindow.callMethod<JSObject>(
         'eval'.toJS,
@@ -142,18 +148,19 @@ List<BarcodeResult> parseJsBarcodeResults(
   for (final JSObject obj in items) {
     final String text =
         (obj.getProperty<JSAny?>('text'.toJS)?.dartify()?.toString()) ??
-            (obj.getProperty<JSAny?>('rawValue'.toJS)?.dartify()?.toString()) ??
-            '';
+        (obj.getProperty<JSAny?>('rawValue'.toJS)?.dartify()?.toString()) ??
+        '';
     if (text.isEmpty) continue;
 
     final String formatStr =
         (obj.getProperty<JSAny?>('format'.toJS)?.dartify()?.toString()) ??
-            'qr_code';
+        'qr_code';
     final List<Offset> corners = <Offset>[];
 
     if (obj.has('cornerPoints')) {
-      final JSArray<JSObject>? pts =
-          obj.getProperty<JSArray<JSObject>?>('cornerPoints'.toJS);
+      final JSArray<JSObject>? pts = obj.getProperty<JSArray<JSObject>?>(
+        'cornerPoints'.toJS,
+      );
       if (pts != null) {
         for (final JSObject pt in pts.toDart) {
           final double x =

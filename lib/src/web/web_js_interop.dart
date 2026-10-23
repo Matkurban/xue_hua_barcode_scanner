@@ -80,12 +80,13 @@ Uint8List dilateDarkDotsRgba3x3(
 }) {
   final Uint8List lum = Uint8List(width * height);
   for (int i = 0, p = 0; i < lum.length; i++, p += 4) {
-    lum[i] = ((306 * rgbaBytes[p] +
-                601 * rgbaBytes[p + 1] +
-                117 * rgbaBytes[p + 2] +
-                512) >>
-            10)
-        .clamp(0, 255);
+    lum[i] =
+        ((306 * rgbaBytes[p] +
+                    601 * rgbaBytes[p + 1] +
+                    117 * rgbaBytes[p + 2] +
+                    512) >>
+                10)
+            .clamp(0, 255);
   }
 
   final Uint8List temp = Uint8List(width * height);
@@ -105,7 +106,10 @@ Uint8List dilateDarkDotsRgba3x3(
     final int r1 = y * width;
     final int r2 = math.min(height - 1, y + 1) * width;
     for (int x = 0; x < width; x++) {
-      final int m = math.min(temp[r0 + x], math.min(temp[r1 + x], temp[r2 + x]));
+      final int m = math.min(
+        temp[r0 + x],
+        math.min(temp[r1 + x], temp[r2 + x]),
+      );
       final int dst = (r1 + x) * 4;
       outRgba[dst] = m;
       outRgba[dst + 1] = m;

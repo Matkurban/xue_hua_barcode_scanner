@@ -142,8 +142,9 @@ class _CornerAnchorPainter extends CustomPainter {
         center,
         outerRadius,
         Paint()
-          ..color =
-              anchorColor.withValues(alpha: 0.35 * (1.0 - pulseValue * 0.5))
+          ..color = anchorColor.withValues(
+            alpha: 0.35 * (1.0 - pulseValue * 0.5),
+          )
           ..style = PaintingStyle.fill,
       );
       canvas.drawCircle(

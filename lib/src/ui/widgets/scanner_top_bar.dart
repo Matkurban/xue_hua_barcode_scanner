@@ -32,19 +32,14 @@ class ScannerTopBar extends StatelessWidget {
     }
 
     if (topBarBuilder != null) {
-      return topBarBuilder!(
-        context,
-        state,
-        onBack,
-        onSwitchCamera,
-      );
+      return topBarBuilder!(context, state, onBack, onSwitchCamera);
     }
 
     final bool isError = state.hasValidationError;
     final String displayPrompt = isError
         ? (state.lastGalleryScanStatus == GalleryScanStatus.noBarcodeFound
-            ? texts.noBarcodeInImageText
-            : texts.invalidBarcodeText)
+              ? texts.noBarcodeInImageText
+              : texts.invalidBarcodeText)
         : texts.hintText;
 
     final Widget hintWidget = hintTextBuilder != null
@@ -86,9 +81,7 @@ class ScannerTopBar extends StatelessWidget {
             tooltip: texts.backButtonTooltip,
             onPressed: onBack,
           ),
-          Expanded(
-            child: Center(child: hintWidget),
-          ),
+          Expanded(child: Center(child: hintWidget)),
           CircleGlassIconButton(
             key: const ValueKey<String>('xh_scanner_switch_camera_button'),
             icon: Icons.cameraswitch_rounded,
