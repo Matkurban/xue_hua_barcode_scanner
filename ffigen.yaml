@@ -1,15 +1,14 @@
 # Run with `dart run ffigen --config ffigen.yaml`.
-name: XueHuaBarcodeScannerBindings
+name: ZxingFfiBindings
 description: |
-  Bindings for `src/xue_hua_barcode_scanner.h`.
-
-  Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
-output: 'lib/xue_hua_barcode_scanner_bindings_generated.dart'
+  Auto-generated FFI bindings for `src/zxing_ffi_bridge.h` (zxing-cpp C wrapper).
+  Author: Matkurban <3496354336@qq.com>
+output: 'lib/src/ffi/zxing_ffi_bindings.dart'
 headers:
   entry-points:
-    - 'src/xue_hua_barcode_scanner.h'
+    - 'src/zxing_ffi_bridge.h'
   include-directives:
-    - 'src/xue_hua_barcode_scanner.h'
+    - 'src/zxing_ffi_bridge.h'
 comments:
   style: any
   length: full
