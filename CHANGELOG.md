@@ -1,8 +1,13 @@
-## 1.0.0
+## 1.0.1
 
-* Initial stable `1.0.0` release of `xue_hua_barcode_scanner` by Matkurban <3496354336@qq.com>.
-* Unified `zxing-cpp` (C++20) FFI & WebAssembly (`dart:js_interop`) barcode recognition and generation engine across Android, iOS, macOS, Windows, Linux, and Web.
-* High-performance `Isolate` worker decoding with `rowStride` alignment support for YUV420 (`yPlane`), `RGBA8888`, and `BGRA8888` streams.
-* Built-in `XueHuaBarcodeScannerPage` and `XueHuaScannerView` with animated green laser scan line, corner borders, real-time corner-point anchor highlights, torch control, front/back camera switching, and gallery image recognition.
-* 100% customizable UI via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
-* Included Dart Package Skill (`skills/xue-hua-barcode-scanner/SKILL.md`).
+* Fix Windows MediaFoundation camera media type setup: use `IMFMediaType::SetGUID(MF_MT_MAJOR_TYPE/SUBTYPE)` instead of non-existent `SetMajorType`/`SetSubtype`.
+* Fix Windows Flutter install failure when embedding `zxing-cpp` via FetchContent: declare dependency with `EXCLUDE_FROM_ALL` and provide a no-op install stub so generator-expression `CMAKE_INSTALL_PREFIX` no longer breaks the build.
+
+## 1.0.0
+
+* Initial stable `1.0.0` release of `xue_hua_barcode_scanner` by Matkurban <3496354336@qq.com>.
+* Unified `zxing-cpp` (C++20) FFI & WebAssembly (`dart:js_interop`) barcode recognition and generation engine across Android, iOS, macOS, Windows, Linux, and Web.
+* High-performance `Isolate` worker decoding with `rowStride` alignment support for YUV420 (`yPlane`), `RGBA8888`, and `BGRA8888` streams.
+* Built-in `XueHuaBarcodeScannerPage` and `XueHuaScannerView` with animated green laser scan line, corner borders, real-time corner-point anchor highlights, torch control, front/back camera switching, and gallery image recognition.
+* 100% customizable UI via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
+* Included Dart Package Skill (`skills/xue-hua-barcode-scanner/SKILL.md`).
