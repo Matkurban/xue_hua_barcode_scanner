@@ -38,8 +38,18 @@ if(XH_FETCH_ZXING_CPP)
     URL      https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v3.1.1.tar.gz
     URL_HASH SHA256=7286b1e6ade66fe82b7c8208b4595deeb55d6486b410834fdc65702f46650542
     SOURCE_SUBDIR core
+    # CMake 3.28+: exclude from ALL and skip install while embedding.
+    # Prevents zxing-cpp install() from breaking Flutter Windows builds whose
+    # CMAKE_INSTALL_PREFIX is a generator expression ($<TARGET_FILE_DIR:...>).
+    EXCLUDE_FROM_ALL
   )
   FetchContent_MakeAvailable(zxing_cpp)
+  # Stub install script if a parent install still includes it. ZXing is
+  # statically linked into this FFI shared library.
+  if(NOT EXISTS "${zxing_cpp_BINARY_DIR}/cmake_install.cmake")
+    file(WRITE "${zxing_cpp_BINARY_DIR}/cmake_install.cmake"
+      "# No-op: ZXing statically linked; Flutter bundles only the FFI DLL.\n")
+  endif()
 endif()
 
 add_library(xue_hua_barcode_scanner SHARED
