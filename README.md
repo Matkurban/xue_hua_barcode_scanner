@@ -8,7 +8,6 @@ A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Fl
 - **Environment**: Dart `^3.13.0` | Flutter `>=3.47.0`
 - **Author**: Matkurban <3496354336@qq.com>
 - **Repository**: [https://github.com/Matkurban/xue_hua_barcode_scanner](https://github.com/Matkurban/xue_hua_barcode_scanner)
-- **Implementation Plan**: [Architecture & Implementation Plan (IMPLEMENTATION_PLAN.md)](IMPLEMENTATION_PLAN.md)
 
 ## Platform Support Matrix
 

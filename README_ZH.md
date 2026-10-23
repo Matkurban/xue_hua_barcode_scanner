@@ -8,7 +8,6 @@
 - **环境要求 (Environment)**：Dart `^3.13.0` | Flutter `>=3.47.0`
 - **作者 (Author)**：Matkurban <3496354336@qq.com>
 - **仓库地址 (Repository)**：[https://github.com/Matkurban/xue_hua_barcode_scanner](https://github.com/Matkurban/xue_hua_barcode_scanner)
-- **架构与实现方案**：[架构设计与实现方案 (IMPLEMENTATION_PLAN_ZH.md)](IMPLEMENTATION_PLAN_ZH.md)
 
 ## 6 端平台支持矩阵
 
