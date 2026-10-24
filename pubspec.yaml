@@ -3,7 +3,7 @@
 # Repository: https://github.com/Matkurban/xue_hua_barcode_scanner
 name: xue_hua_barcode_scanner
 description: "Flutter barcode and QR recognition, generation, and real-time camera scanner for Android, iOS, macOS, Windows, Linux, and Web, powered by zxing-cpp."
-version: 1.0.2
+version: 1.0.3
 homepage: https://github.com/Matkurban/xue_hua_barcode_scanner
 repository: https://github.com/Matkurban/xue_hua_barcode_scanner
 issue_tracker: https://github.com/Matkurban/xue_hua_barcode_scanner/issues
