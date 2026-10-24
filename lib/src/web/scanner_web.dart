@@ -14,6 +14,7 @@ import '../core/scanner_engine_interface.dart';
 import '../models/barcode_enums.dart';
 import '../models/barcode_result.dart';
 import '../models/camera_frame_packet.dart';
+import '../models/camera_input_source.dart';
 import '../models/scanner_state.dart';
 import 'web_barcode_decoder.dart';
 import 'web_js_interop.dart';
@@ -189,8 +190,14 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   }
 
   @override
+  Future<List<CameraInputSource>> listCameras() {
+    return _enumerateVideoInputs();
+  }
+
+  @override
   Future<ScannerState> startCamera({
     required CameraFacing facing,
+    String? cameraId,
     required void Function(CameraFramePacket frame) onFrame,
     required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
@@ -224,19 +231,27 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     );
 
     bool hasTorch = false;
-    int cameraCount = 1;
+    List<CameraInputSource> cameras = await _enumerateVideoInputs();
+    String? activeCameraId = cameraId;
     const Size previewSize = Size(1280, 720);
+    final bool explicitDevice = cameraId != null && cameraId.isNotEmpty;
 
     try {
       final JSObject? mediaDevices = jsNavigator.getProperty<JSObject?>(
         'mediaDevices'.toJS,
       );
       if (mediaDevices != null) {
-        final String facingModeStr = facing == CameraFacing.front
-            ? 'user'
-            : 'environment';
         final JSObject videoConstraints = JSObject();
-        videoConstraints.setProperty('facingMode'.toJS, facingModeStr.toJS);
+        if (cameraId != null && cameraId.isNotEmpty) {
+          final JSObject deviceIdConstraint = JSObject();
+          deviceIdConstraint.setProperty('exact'.toJS, cameraId.toJS);
+          videoConstraints.setProperty('deviceId'.toJS, deviceIdConstraint);
+        } else {
+          final String facingModeStr = facing == CameraFacing.front
+              ? 'user'
+              : 'environment';
+          videoConstraints.setProperty('facingMode'.toJS, facingModeStr.toJS);
+        }
         videoConstraints.setProperty('width'.toJS, 1280.toJS);
         videoConstraints.setProperty('height'.toJS, 720.toJS);
 
@@ -269,25 +284,13 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           }
         }
 
-        if (mediaDevices.has('enumerateDevices')) {
-          final JSPromise<JSArray<JSObject>> devicesPromise = mediaDevices
-              .callMethod<JSPromise<JSArray<JSObject>>>(
-                'enumerateDevices'.toJS,
-              );
-          final List<JSObject> devices = (await devicesPromise.toDart).toDart;
-          int count = 0;
-          for (final dev in devices) {
-            final String? kind = dev
-                .getProperty<JSAny?>('kind'.toJS)
-                ?.dartify()
-                ?.toString();
-            if (kind == 'videoinput') {
-              count++;
-            }
-          }
-          if (count > 0) {
-            cameraCount = count;
-          }
+        final List<CameraInputSource> refreshed = await _enumerateVideoInputs();
+        if (refreshed.isNotEmpty) {
+          cameras = refreshed;
+        }
+        final String? settingsId = _deviceIdOfTrack(_activeVideoTrack);
+        if (settingsId != null && settingsId.isNotEmpty) {
+          activeCameraId = settingsId;
         }
 
         final JSObject canvas = createDomElement('canvas');
@@ -307,17 +310,121 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       }
     } catch (_) {}
 
+    CameraFacing activeFacing = facing;
+    String resolvedId = activeCameraId ?? '';
+    if (resolvedId.isEmpty && cameras.isNotEmpty) {
+      CameraInputSource fallback = cameras.first;
+      if (!explicitDevice) {
+        for (final CameraInputSource camera in cameras) {
+          if (camera.facing == facing) {
+            fallback = camera;
+            break;
+          }
+        }
+      }
+      resolvedId = fallback.id;
+      activeFacing = fallback.facing;
+    } else {
+      for (final CameraInputSource camera in cameras) {
+        if (camera.id == resolvedId) {
+          activeFacing = camera.facing;
+          break;
+        }
+      }
+    }
+
     return ScannerState(
       isInitialized: true,
       isRunning: true,
       isPaused: false,
       torchState: hasTorch ? TorchState.off : TorchState.unavailable,
-      cameraFacing: facing,
-      availableCameraCount: cameraCount,
+      cameraFacing: activeFacing,
+      availableCameraCount: cameras.isEmpty ? 1 : cameras.length,
+      cameras: cameras,
+      activeCameraId: resolvedId.isEmpty ? 'default' : resolvedId,
       webViewType: _currentViewType,
       previewSize: previewSize,
       sensorOrientation: 0,
     );
+  }
+
+  Future<List<CameraInputSource>> _enumerateVideoInputs() async {
+    try {
+      final JSObject? mediaDevices = jsNavigator.getProperty<JSObject?>(
+        'mediaDevices'.toJS,
+      );
+      if (mediaDevices == null || !mediaDevices.has('enumerateDevices')) {
+        return const <CameraInputSource>[];
+      }
+      final JSPromise<JSArray<JSObject>> devicesPromise = mediaDevices
+          .callMethod<JSPromise<JSArray<JSObject>>>('enumerateDevices'.toJS);
+      final List<JSObject> devices = (await devicesPromise.toDart).toDart;
+      final List<CameraInputSource> sources = <CameraInputSource>[];
+      int index = 0;
+      for (final JSObject device in devices) {
+        final String? kind = device
+            .getProperty<JSAny?>('kind'.toJS)
+            ?.dartify()
+            ?.toString();
+        if (kind != 'videoinput') {
+          continue;
+        }
+        index++;
+        final String id =
+            device
+                .getProperty<JSAny?>('deviceId'.toJS)
+                ?.dartify()
+                ?.toString() ??
+            '';
+        if (id.isEmpty) {
+          continue;
+        }
+        final String rawLabel =
+            device.getProperty<JSAny?>('label'.toJS)?.dartify()?.toString() ??
+            '';
+        final String label = rawLabel.trim().isEmpty
+            ? '摄像头 $index'
+            : rawLabel.trim();
+        sources.add(
+          CameraInputSource(
+            id: id,
+            label: label,
+            facing: _facingFromLabel(label),
+          ),
+        );
+      }
+      return sources;
+    } catch (_) {
+      return const <CameraInputSource>[];
+    }
+  }
+
+  String? _deviceIdOfTrack(JSObject? track) {
+    if (track == null || !track.has('getSettings')) {
+      return null;
+    }
+    final JSObject? settings = track.callMethod<JSObject?>('getSettings'.toJS);
+    return settings
+        ?.getProperty<JSAny?>('deviceId'.toJS)
+        ?.dartify()
+        ?.toString();
+  }
+
+  CameraFacing _facingFromLabel(String label) {
+    final String lower = label.toLowerCase();
+    if (lower.contains('front') ||
+        lower.contains('user') ||
+        lower.contains('facetime') ||
+        lower.contains('前置')) {
+      return CameraFacing.front;
+    }
+    if (lower.contains('back') ||
+        lower.contains('rear') ||
+        lower.contains('environment') ||
+        lower.contains('后置')) {
+      return CameraFacing.back;
+    }
+    return CameraFacing.external;
   }
 
   Future<void> _pollWebVideoFrame({

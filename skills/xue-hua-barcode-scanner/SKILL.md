@@ -16,7 +16,7 @@ Provide complete 6-platform integration tutorials, permission configurations, UI
 - Integrating `xue_hua_barcode_scanner` into a Flutter project and configuring camera/gallery permissions across Android, iOS, macOS, Windows, Linux, and Web
 - Opening a ready-to-use full-screen barcode scanner page (`XueHuaBarcodeScannerPage`) or embedding a camera scanner view (`XueHuaScannerView`)
 - Customizing any scanner UI element (`overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, `galleryButtonBuilder`)
-- Programmatically controlling the flashlight/torch (`toggleTorch`), switching front/back/external cameras (`switchCamera`), pausing/resuming streams (`pause`, `resume`), or picking an image from the photo gallery (`analyzeImageFromGallery`) via `XueHuaScannerController`
+- Programmatically controlling the flashlight/torch (`toggleTorch`), cycling cameras (`switchCamera`), selecting a specific enumerated device (`selectCamera` / `listCameras` / `CameraInputSource`), pausing/resuming streams (`pause`, `resume`), or picking an image from the photo gallery (`analyzeImageFromGallery`) via `XueHuaScannerController`. `XueHuaBarcodeScannerPage` starts the platform default camera. It shows a `chat_context_menu` input picker on the existing top-bar camera button only when more than one source exists, and only after the user taps that button.
 - Decoding barcodes / QR codes directly from raw camera planes (`decodeImageBytes` with `PixelFormat.lum` / `rgba8888` / `bgra8888` and `rowStride`), local image files (`decodeImageFile`), or compressed PNG/JPEG bytes (`decodeImageMemory`)
 - Generating barcode PNG images (`encodeBarcode`) with configurable dimensions, margin, and `BarcodeEccLevel`
 

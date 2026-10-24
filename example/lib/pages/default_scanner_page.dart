@@ -4,6 +4,9 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 import '../widgets/scan_result_dialog.dart';
 
 /// 标准默认扫码演示页面，识别到条码后弹出 [ScanResultDialog] 展示结果。
+///
+/// 进入页面后直接使用平台默认相机，不弹出输入源菜单。多个输入源时，顶栏按钮
+/// 由用户点击后通过 `chat_context_menu` 选择设备；只有一个输入源时不显示该按钮。
 class DefaultScannerDemoPage extends StatefulWidget {
   const DefaultScannerDemoPage({super.key});
 

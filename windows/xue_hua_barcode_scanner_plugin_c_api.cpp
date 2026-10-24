@@ -38,6 +38,11 @@
 
 namespace {
 
+struct VideoInput {
+  std::string id;
+  std::string label;
+};
+
 std::string WideToUtf8(const std::wstring& wstr) {
   if (wstr.empty()) return {};
   int size_needed = WideCharToMultiByte(
@@ -46,6 +51,67 @@ std::string WideToUtf8(const std::wstring& wstr) {
   WideCharToMultiByte(
       CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), result.data(), size_needed, nullptr, nullptr);
   return result;
+}
+
+VideoInput ReadVideoInput(IMFActivate* device, UINT32 index) {
+  VideoInput input;
+  input.id = std::to_string(index);
+  input.label = "摄像头 " + std::to_string(index + 1);
+  if (device == nullptr) {
+    return input;
+  }
+  WCHAR* link = nullptr;
+  UINT32 link_len = 0;
+  WCHAR* name = nullptr;
+  UINT32 name_len = 0;
+  if (SUCCEEDED(device->GetAllocatedString(
+          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+          &link,
+          &link_len)) &&
+      link != nullptr) {
+    input.id = WideToUtf8(std::wstring(link));
+    CoTaskMemFree(link);
+  }
+  if (SUCCEEDED(device->GetAllocatedString(
+          MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &name, &name_len)) &&
+      name != nullptr) {
+    const std::string friendly = WideToUtf8(std::wstring(name));
+    CoTaskMemFree(name);
+    if (!friendly.empty()) {
+      input.label = friendly;
+    }
+  }
+  return input;
+}
+
+flutter::EncodableList CameraListValue(const std::vector<VideoInput>& inputs) {
+  flutter::EncodableList cameras;
+  cameras.reserve(inputs.size());
+  for (const VideoInput& input : inputs) {
+    flutter::EncodableMap item;
+    item[flutter::EncodableValue("id")] = flutter::EncodableValue(input.id);
+    item[flutter::EncodableValue("label")] = flutter::EncodableValue(input.label);
+    item[flutter::EncodableValue("facing")] = flutter::EncodableValue("external");
+    cameras.push_back(flutter::EncodableValue(item));
+  }
+  return cameras;
+}
+
+std::string ArgumentString(
+    const flutter::MethodCall<flutter::EncodableValue>& call,
+    const char* key) {
+  const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+  if (args == nullptr) {
+    return {};
+  }
+  const auto it = args->find(flutter::EncodableValue(key));
+  if (it == args->end()) {
+    return {};
+  }
+  if (const auto* value = std::get_if<std::string>(&it->second)) {
+    return *value;
+  }
+  return {};
 }
 
 class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
@@ -123,8 +189,10 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
       const flutter::MethodCall<flutter::EncodableValue>& call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     const std::string& method = call.method_name();
-    if (method == "startCamera") {
-      StartCameraCapture(std::move(result));
+    if (method == "listCameras") {
+      result->Success(flutter::EncodableValue(CameraListValue(EnumerateVideoInputs())));
+    } else if (method == "startCamera") {
+      StartCameraCapture(ArgumentString(call, "cameraId"), std::move(result));
     } else if (method == "stopCamera") {
       StopCameraCapture();
       result->Success();
@@ -144,7 +212,40 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     }
   }
 
+  std::vector<VideoInput> EnumerateVideoInputs() {
+    std::vector<VideoInput> inputs;
+    IMFAttributes* attributes = nullptr;
+    IMFActivate** devices = nullptr;
+    UINT32 count = 0;
+    HRESULT hr = MFCreateAttributes(&attributes, 1);
+    if (SUCCEEDED(hr)) {
+      hr = attributes->SetGUID(
+          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+          MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+    }
+    if (SUCCEEDED(hr)) {
+      hr = MFEnumDeviceSources(attributes, &devices, &count);
+    }
+    if (attributes != nullptr) {
+      attributes->Release();
+    }
+    if (FAILED(hr) || devices == nullptr) {
+      if (devices != nullptr) {
+        CoTaskMemFree(devices);
+      }
+      return inputs;
+    }
+    inputs.reserve(count);
+    for (UINT32 i = 0; i < count; ++i) {
+      inputs.push_back(ReadVideoInput(devices[i], i));
+      devices[i]->Release();
+    }
+    CoTaskMemFree(devices);
+    return inputs;
+  }
+
   void StartCameraCapture(
+      const std::string& camera_id,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
     StopCameraCapture();
 
@@ -172,8 +273,20 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
       return;
     }
 
-    const UINT32 selected = device_index_ % count;
-    device_index_ = (device_index_ + 1) % count;
+    std::vector<VideoInput> inputs;
+    inputs.reserve(count);
+    for (UINT32 i = 0; i < count; ++i) {
+      inputs.push_back(ReadVideoInput(devices[i], i));
+    }
+    UINT32 selected = 0;
+    if (!camera_id.empty()) {
+      for (UINT32 i = 0; i < count; ++i) {
+        if (inputs[i].id == camera_id) {
+          selected = i;
+          break;
+        }
+      }
+    }
 
     IMFMediaSource* media_source = nullptr;
     hr = devices[selected]->ActivateObject(IID_PPV_ARGS(&media_source));
@@ -238,6 +351,12 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     reply[flutter::EncodableValue("hasTorch")] = flutter::EncodableValue(false);
     reply[flutter::EncodableValue("availableCameraCount")] =
         flutter::EncodableValue(static_cast<int32_t>(count));
+    reply[flutter::EncodableValue("cameras")] =
+        flutter::EncodableValue(CameraListValue(inputs));
+    reply[flutter::EncodableValue("activeCameraId")] =
+        flutter::EncodableValue(inputs[selected].id);
+    reply[flutter::EncodableValue("cameraFacing")] =
+        flutter::EncodableValue("external");
     reply[flutter::EncodableValue("previewWidth")] =
         flutter::EncodableValue(static_cast<int32_t>(width));
     reply[flutter::EncodableValue("previewHeight")] =
@@ -360,7 +479,6 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
 
   std::atomic<bool> running_{false};
   std::thread capture_thread_;
-  UINT32 device_index_ = 0;
 };
 
 }  // namespace

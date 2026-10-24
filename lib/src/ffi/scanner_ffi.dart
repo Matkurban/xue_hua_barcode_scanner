@@ -9,6 +9,7 @@ import '../core/scanner_engine_interface.dart';
 import '../models/barcode_enums.dart';
 import '../models/barcode_result.dart';
 import '../models/camera_frame_packet.dart';
+import '../models/camera_input_source.dart';
 import '../models/scanner_state.dart';
 import 'ffi_isolate_worker.dart';
 
@@ -145,26 +146,49 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
+  Future<List<CameraInputSource>> listCameras() async {
+    try {
+      final List<dynamic>? raw = await _kCameraMethodChannel
+          .invokeListMethod<dynamic>('listCameras');
+      final List<CameraInputSource> cameras = CameraInputSource.listFromChannel(
+        raw,
+      );
+      if (cameras.isNotEmpty) {
+        return cameras;
+      }
+    } on MissingPluginException {
+      return _unboundCameras();
+    } catch (_) {
+      return const <CameraInputSource>[];
+    }
+    return const <CameraInputSource>[];
+  }
+
+  @override
   Future<ScannerState> startCamera({
     required CameraFacing facing,
+    String? cameraId,
     required void Function(CameraFramePacket frame) onFrame,
     required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
     await _frameSubscription?.cancel();
     _frameSubscription = null;
 
-    final CameraFacing defaultDesktopFacing = facing == CameraFacing.back
+    final bool explicitDevice = cameraId != null && cameraId.isNotEmpty;
+    final CameraFacing effectiveFacing =
+        (!explicitDevice && _isDesktop && facing == CameraFacing.back)
         ? CameraFacing.front
         : facing;
-    final CameraFacing effectiveFacing = _isDesktop
-        ? defaultDesktopFacing
-        : facing;
+    final Map<String, Object?> args = <String, Object?>{
+      'facing': effectiveFacing.name,
+    };
+    if (explicitDevice) {
+      args['cameraId'] = cameraId;
+    }
 
     try {
       final Map<Object?, Object?>? reply = await _kCameraMethodChannel
-          .invokeMapMethod<Object?, Object?>('startCamera', <String, Object?>{
-            'facing': effectiveFacing.name,
-          });
+          .invokeMapMethod<Object?, Object?>('startCamera', args);
 
       _frameSubscription = _kCameraFrameEventChannel
           .receiveBroadcastStream()
@@ -197,55 +221,156 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
           });
 
       if (reply != null) {
-        final bool hasTorch = (reply['hasTorch'] as bool?) ?? !_isDesktop;
-        final int cameraCount =
-            (reply['availableCameraCount'] as int?) ?? (_isDesktop ? 1 : 2);
-        final int? textureId = reply['textureId'] as int?;
-        final double previewW = ((reply['previewWidth'] as num?) ?? 1280)
-            .toDouble();
-        final double previewH = ((reply['previewHeight'] as num?) ?? 720)
-            .toDouble();
-        final int sensorOrientation =
-            (reply['sensorOrientation'] as int?) ?? (_isDesktop ? 0 : 90);
-        return ScannerState(
-          isInitialized: true,
-          isRunning: true,
-          isPaused: false,
-          torchState: hasTorch ? TorchState.off : TorchState.unavailable,
-          cameraFacing: effectiveFacing,
-          availableCameraCount: cameraCount,
-          textureId: textureId,
-          previewSize: Size(previewW, previewH),
-          sensorOrientation: sensorOrientation,
+        return _stateFromCameraReply(
+          reply,
+          requestedFacing: effectiveFacing,
+          requestedCameraId: explicitDevice ? cameraId : null,
         );
       }
     } on MissingPluginException {
       // Graceful fallback when running without a native camera host channel bound (e.g. unit tests).
     } on PlatformException catch (e) {
-      return ScannerState(
-        isInitialized: true,
-        isRunning: false,
-        isPaused: false,
-        torchState: TorchState.unavailable,
-        cameraFacing: effectiveFacing,
-        availableCameraCount: _isDesktop ? 1 : 2,
-        previewSize: const Size(1280, 720),
-        sensorOrientation: _isDesktop ? 0 : 90,
+      final List<CameraInputSource> cameras = await listCameras();
+      return _unboundCameraState(
+        facing: effectiveFacing,
+        cameraId: explicitDevice ? cameraId : null,
+        cameras: cameras,
+        running: false,
         errorMessage: e.message ?? e.code,
       );
     } catch (_) {}
 
+    return _unboundCameraState(
+      facing: effectiveFacing,
+      cameraId: explicitDevice ? cameraId : null,
+    );
+  }
+
+  ScannerState _stateFromCameraReply(
+    Map<Object?, Object?> reply, {
+    required CameraFacing requestedFacing,
+    String? requestedCameraId,
+  }) {
+    final List<CameraInputSource> cameras = CameraInputSource.listFromChannel(
+      reply['cameras'],
+    );
+    final String reportedFacing = reply['cameraFacing']?.toString() ?? '';
+    final String activeCameraId =
+        reply['activeCameraId']?.toString() ??
+        requestedCameraId ??
+        (cameras.isNotEmpty ? cameras.first.id : 'default');
+    CameraFacing facing = reportedFacing.isEmpty
+        ? requestedFacing
+        : CameraInputSource.facingFromName(reportedFacing);
+    if (reportedFacing.isEmpty) {
+      for (final CameraInputSource camera in cameras) {
+        if (camera.id == activeCameraId) {
+          facing = camera.facing;
+          break;
+        }
+      }
+    }
+    final bool hasTorch = (reply['hasTorch'] as bool?) ?? !_isDesktop;
+    final int cameraCount = cameras.isNotEmpty
+        ? cameras.length
+        : ((reply['availableCameraCount'] as num?)?.toInt() ?? 1);
+    final int? textureId = (reply['textureId'] as num?)?.toInt();
+    final double previewW = ((reply['previewWidth'] as num?) ?? 1280)
+        .toDouble();
+    final double previewH = ((reply['previewHeight'] as num?) ?? 720)
+        .toDouble();
+    final int sensorOrientation =
+        (reply['sensorOrientation'] as num?)?.toInt() ?? (_isDesktop ? 0 : 90);
     return ScannerState(
       isInitialized: true,
       isRunning: true,
       isPaused: false,
-      torchState: _isDesktop || effectiveFacing == CameraFacing.front
-          ? TorchState.unavailable
-          : TorchState.off,
-      cameraFacing: effectiveFacing,
-      availableCameraCount: _isDesktop ? 2 : 2,
+      torchState: hasTorch ? TorchState.off : TorchState.unavailable,
+      cameraFacing: facing,
+      availableCameraCount: cameraCount,
+      cameras: cameras,
+      activeCameraId: activeCameraId,
+      textureId: textureId,
+      previewSize: Size(previewW, previewH),
+      sensorOrientation: sensorOrientation,
+    );
+  }
+
+  List<CameraInputSource> _unboundCameras() {
+    if (_isDesktop) {
+      return const <CameraInputSource>[
+        CameraInputSource(
+          id: 'desktop-0',
+          label: '摄像头 1',
+          facing: CameraFacing.external,
+        ),
+        CameraInputSource(
+          id: 'desktop-1',
+          label: '摄像头 2',
+          facing: CameraFacing.external,
+        ),
+      ];
+    }
+    return const <CameraInputSource>[
+      CameraInputSource(id: 'back', label: '后置相机', facing: CameraFacing.back),
+      CameraInputSource(id: 'front', label: '前置相机', facing: CameraFacing.front),
+    ];
+  }
+
+  ScannerState _unboundCameraState({
+    required CameraFacing facing,
+    String? cameraId,
+    List<CameraInputSource>? cameras,
+    bool running = true,
+    String? errorMessage,
+  }) {
+    final List<CameraInputSource> resolved = cameras ?? _unboundCameras();
+    if (resolved.isEmpty) {
+      return ScannerState(
+        isInitialized: true,
+        isRunning: running,
+        isPaused: false,
+        torchState: TorchState.unavailable,
+        cameraFacing: facing,
+        availableCameraCount: 1,
+        activeCameraId: (cameraId == null || cameraId.isEmpty)
+            ? 'default'
+            : cameraId,
+        previewSize: const Size(1280, 720),
+        sensorOrientation: _isDesktop ? 0 : 90,
+        errorMessage: errorMessage,
+      );
+    }
+    CameraInputSource active = resolved.first;
+    if (cameraId != null && cameraId.isNotEmpty) {
+      for (final CameraInputSource camera in resolved) {
+        if (camera.id == cameraId) {
+          active = camera;
+          break;
+        }
+      }
+    } else {
+      for (final CameraInputSource camera in resolved) {
+        if (camera.facing == facing) {
+          active = camera;
+          break;
+        }
+      }
+    }
+    final bool hasTorch =
+        running && !_isDesktop && active.facing == CameraFacing.back;
+    return ScannerState(
+      isInitialized: true,
+      isRunning: running,
+      isPaused: false,
+      torchState: hasTorch ? TorchState.off : TorchState.unavailable,
+      cameraFacing: active.facing,
+      availableCameraCount: resolved.length,
+      cameras: resolved,
+      activeCameraId: active.id,
       previewSize: const Size(1280, 720),
       sensorOrientation: _isDesktop ? 0 : 90,
+      errorMessage: errorMessage,
     );
   }
 

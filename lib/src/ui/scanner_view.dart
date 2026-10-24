@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import '../controller/scanner_controller.dart';
 import '../models/barcode_enums.dart';
 import '../models/barcode_result.dart';
+import '../models/camera_input_source.dart';
 import '../models/scanner_state.dart';
 import '../models/scanner_texts.dart';
 import 'corner_anchor_highlight.dart';
@@ -266,6 +267,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                         topBarBuilder: widget.topBarBuilder,
                         hintTextBuilder: widget.hintTextBuilder,
                         onSwitchCamera: _handleSwitchCamera,
+                        onSelectCamera: _handleSelectCamera,
                       ),
                       ScannerBottomBar(
                         state: state,
@@ -330,6 +332,10 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
 
   Future<void> _handleSwitchCamera() async {
     await _controller.switchCamera();
+  }
+
+  Future<void> _handleSelectCamera(CameraInputSource source) async {
+    await _controller.selectCamera(source);
   }
 
   Future<void> _handlePickGallery() async {

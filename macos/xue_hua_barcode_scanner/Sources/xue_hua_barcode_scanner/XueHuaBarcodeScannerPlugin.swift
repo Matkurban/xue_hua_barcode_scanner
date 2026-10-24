@@ -91,10 +91,13 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
+        case "listCameras":
+            listCameras(result: result)
         case "startCamera":
             let args = call.arguments as? [String: Any]
             let facing = (args?["facing"] as? String) ?? "front"
-            startCamera(facing: facing, result: result)
+            let cameraId = args?["cameraId"] as? String
+            startCamera(facing: facing, cameraId: cameraId, result: result)
         case "stopCamera":
             stopCameraSession {
                 DispatchQueue.main.async {
@@ -112,16 +115,55 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         }
     }
 
-    private func startCamera(facing: String, result: @escaping FlutterResult) {
+    private func listCameras(result: @escaping FlutterResult) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            let payload = self.cameraPayload(devices: self.discoverVideoDevices())
+            DispatchQueue.main.async {
+                result(payload)
+            }
+        }
+    }
+
+    private func facingName(_ device: AVCaptureDevice) -> String {
+        switch device.position {
+        case .front:
+            return "front"
+        case .back:
+            return "back"
+        default:
+            return "external"
+        }
+    }
+
+    private func cameraPayload(devices: [AVCaptureDevice]) -> [[String: String]] {
+        var counts: [String: Int] = [:]
+        var rows: [(id: String, facing: String, base: String)] = []
+        for device in devices {
+            let facing = facingName(device)
+            let base = device.localizedName.isEmpty ? "摄像头" : device.localizedName
+            rows.append((device.uniqueID, facing, base))
+            counts[base, default: 0] += 1
+        }
+        var seen: [String: Int] = [:]
+        return rows.map { row in
+            let next = (seen[row.base] ?? 0) + 1
+            seen[row.base] = next
+            let label = (counts[row.base] ?? 1) > 1 ? "\(row.base) \(next)" : row.base
+            return ["id": row.id, "label": label, "facing": row.facing]
+        }
+    }
+
+    private func startCamera(facing: String, cameraId: String?, result: @escaping FlutterResult) {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
         case .authorized:
-            configureAndStartSession(facing: facing, result: result)
+            configureAndStartSession(facing: facing, cameraId: cameraId, result: result)
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 guard let self else { return }
                 if granted {
-                    self.configureAndStartSession(facing: facing, result: result)
+                    self.configureAndStartSession(facing: facing, cameraId: cameraId, result: result)
                 } else {
                     DispatchQueue.main.async {
                         result(
@@ -152,6 +194,9 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         } else {
             types.append(.externalUnknown)
         }
+        if #available(macOS 13.0, *) {
+            types.append(.continuityCamera)
+        }
         let discovery = AVCaptureDevice.DiscoverySession(
             deviceTypes: types,
             mediaType: .video,
@@ -166,10 +211,13 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         return []
     }
 
-    private func configureAndStartSession(facing: String, result: @escaping FlutterResult) {
+    private func configureAndStartSession(
+        facing: String,
+        cameraId: String?,
+        result: @escaping FlutterResult
+    ) {
         sessionQueue.async { [weak self] in
             guard let self else { return }
-            let previousDeviceId = self.activeDevice?.uniqueID
             self.stopSessionInternal()
 
             let devices = self.discoverVideoDevices()
@@ -187,13 +235,16 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
             }
 
             let device: AVCaptureDevice
-            if devices.count > 1 && previousDeviceId != nil {
-                self.currentDeviceIndex = (self.currentDeviceIndex + 1) % devices.count
-                device = devices[self.currentDeviceIndex]
+            if let cameraId, !cameraId.isEmpty,
+               let match = devices.first(where: { $0.uniqueID == cameraId }) {
+                device = match
             } else if facing == "external", devices.count > 1 {
                 device = devices.last ?? devices[0]
             } else {
                 device = devices[0]
+            }
+            if let index = devices.firstIndex(where: { $0.uniqueID == device.uniqueID }) {
+                self.currentDeviceIndex = index
             }
 
             do {
@@ -229,7 +280,8 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
                 let previewW = Int(dimensions.width > 0 ? dimensions.width : 1280)
                 let previewH = Int(dimensions.height > 0 ? dimensions.height : 720)
-                let cameraCount = max(devices.count, 1)
+                let payload = self.cameraPayload(devices: devices)
+                let cameraCount = max(payload.count, 1)
 
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
@@ -239,6 +291,9 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                         "textureId": self.textureId as Any,
                         "hasTorch": false,
                         "availableCameraCount": cameraCount,
+                        "cameras": payload,
+                        "activeCameraId": device.uniqueID,
+                        "cameraFacing": self.facingName(device),
                         "previewWidth": previewW,
                         "previewHeight": previewH,
                         "sensorOrientation": 0

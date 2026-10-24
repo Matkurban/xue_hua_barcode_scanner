@@ -2,6 +2,7 @@ import 'dart:ui' show Size;
 
 import 'barcode_enums.dart';
 import 'barcode_result.dart';
+import 'camera_input_source.dart';
 
 /// Immutable state snapshot exposed by `XueHuaScannerController`.
 class ScannerState {
@@ -13,6 +14,7 @@ class ScannerState {
     this.torchState = TorchState.off,
     this.cameraFacing = CameraFacing.back,
     this.availableCameraCount = 1,
+    this.cameras = const <CameraInputSource>[],
     this.activeCameraId = 'default',
     this.previewSize = const Size(1280, 720),
     this.sensorOrientation = 0,
@@ -41,6 +43,12 @@ class ScannerState {
 
   /// Number of cameras detected on the current device.
   final int availableCameraCount;
+
+  /// Enumerated cameras and other video inputs.
+  ///
+  /// Empty until the platform reports a list. The source picker is shown only
+  /// when this list contains more than one entry.
+  final List<CameraInputSource> cameras;
 
   /// Identifier of the active camera device.
   final String activeCameraId;
@@ -77,7 +85,8 @@ class ScannerState {
   bool get isTorchOn => torchState == TorchState.on;
 
   /// Whether switching between multiple cameras is supported.
-  bool get canSwitchCamera => availableCameraCount > 1;
+  bool get canSwitchCamera =>
+      cameras.length > 1 || (cameras.isEmpty && availableCameraCount > 1);
 
   /// Creates a copy of this [ScannerState] with updated fields.
   ScannerState copyWith({
@@ -87,6 +96,7 @@ class ScannerState {
     TorchState? torchState,
     CameraFacing? cameraFacing,
     int? availableCameraCount,
+    List<CameraInputSource>? cameras,
     String? activeCameraId,
     Size? previewSize,
     int? sensorOrientation,
@@ -106,6 +116,7 @@ class ScannerState {
       torchState: torchState ?? this.torchState,
       cameraFacing: cameraFacing ?? this.cameraFacing,
       availableCameraCount: availableCameraCount ?? this.availableCameraCount,
+      cameras: cameras ?? this.cameras,
       activeCameraId: activeCameraId ?? this.activeCameraId,
       previewSize: previewSize ?? this.previewSize,
       sensorOrientation: sensorOrientation ?? this.sensorOrientation,
