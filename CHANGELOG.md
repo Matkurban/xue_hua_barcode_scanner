@@ -3,6 +3,7 @@
 * Enumerate camera input sources and select one by id on Android, iOS, macOS, Windows, Linux, and Web. Opening the scanner still starts the platform default camera.
 * When more than one input source is available, the default scanner page opens a `chat_context_menu` menu from the top-bar camera button. A single source hides that control, and the menu is not shown on entry.
 * Add `chat_context_menu: ^4.2.0`. The package version is intentionally unchanged in this change.
+* Compile the Windows plugin with MSVC `/utf-8` so UTF-8 fallback camera labels build on code page 936 with `/WX`.
 
 ## 1.0.2
 
