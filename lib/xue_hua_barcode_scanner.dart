@@ -16,6 +16,7 @@ export 'src/models/camera_frame_packet.dart';
 export 'src/models/scanner_state.dart';
 export 'src/models/scanner_texts.dart';
 export 'src/ui/barcode_scanner_page.dart';
+export 'src/ui/widgets/scanner_camera_source_button.dart';
 export 'src/ui/corner_anchor_highlight.dart';
 export 'src/ui/scan_line_animation.dart';
 export 'src/ui/scanner_builders.dart';

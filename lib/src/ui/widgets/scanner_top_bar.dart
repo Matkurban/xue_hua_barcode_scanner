@@ -1,10 +1,12 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../models/barcode_enums.dart';
+import '../../models/camera_input_source.dart';
 import '../../models/scanner_state.dart';
 import '../../models/scanner_texts.dart';
 import '../scanner_builders.dart';
 import 'circle_glass_icon_button.dart';
+import 'scanner_camera_source_button.dart';
 
 /// Top bar of the scanner view containing the back button, hint badge, and camera switch button.
 class ScannerTopBar extends StatelessWidget {
@@ -16,6 +18,7 @@ class ScannerTopBar extends StatelessWidget {
     required this.topBarBuilder,
     required this.hintTextBuilder,
     required this.onSwitchCamera,
+    required this.onSelectCamera,
   });
 
   final ScannerState state;
@@ -24,6 +27,7 @@ class ScannerTopBar extends StatelessWidget {
   final XueHuaTopBarBuilder? topBarBuilder;
   final XueHuaHintTextBuilder? hintTextBuilder;
   final VoidCallback onSwitchCamera;
+  final ValueChanged<CameraInputSource> onSelectCamera;
 
   @override
   Widget build(BuildContext context) {
@@ -82,12 +86,15 @@ class ScannerTopBar extends StatelessWidget {
             onPressed: onBack,
           ),
           Expanded(child: Center(child: hintWidget)),
-          CircleGlassIconButton(
-            key: const ValueKey<String>('xh_scanner_switch_camera_button'),
-            icon: Icons.cameraswitch_rounded,
-            tooltip: texts.switchCameraTooltip,
-            onPressed: onSwitchCamera,
-          ),
+          if (state.cameras.length > 1)
+            XueHuaCameraSourceButton(
+              sources: state.cameras,
+              activeSourceId: state.activeCameraId,
+              tooltip: texts.selectInputSourceTooltip,
+              onSelected: onSelectCamera,
+            )
+          else
+            const SizedBox(width: 48, height: 48),
         ],
       ),
     );

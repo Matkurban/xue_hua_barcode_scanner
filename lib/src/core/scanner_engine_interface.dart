@@ -52,9 +52,16 @@ abstract class XueHuaScannerPlatformEngine {
     BarcodeEccLevel eccLevel = BarcodeEccLevel.medium,
   });
 
+  /// Lists cameras and other video inputs without changing the active device.
+  Future<List<CameraInputSource>> listCameras();
+
   /// Starts the platform camera stream and invokes [onFrame] or [onWebBarcodes].
+  ///
+  /// When [cameraId] is null, the platform opens its default camera for
+  /// [facing]. When [cameraId] is set, that exact input source is opened.
   Future<ScannerState> startCamera({
     required CameraFacing facing,
+    String? cameraId,
     required void Function(CameraFramePacket frame) onFrame,
     required void Function(List<BarcodeResult> results) onWebBarcodes,
   });

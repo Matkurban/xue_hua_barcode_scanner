@@ -8,6 +8,7 @@ import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
 import '../models/barcode_enums.dart';
 import '../models/barcode_result.dart';
+import '../models/camera_input_source.dart';
 import '../models/camera_frame_packet.dart';
 import '../models/scanner_state.dart';
 import 'barcode_scanner.dart';
@@ -86,11 +87,12 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     try {
       final ScannerState newState = await _engine.startCamera(
         facing: value.cameraFacing,
+        cameraId: _selectedCameraId,
         onFrame: processCameraFrame,
         onWebBarcodes: _handleWebBarcodes,
       );
       if (!_isDisposed) {
-        value = newState;
+        value = _retainKnownCameras(newState);
       }
     } catch (e) {
       if (!_isDisposed) {
@@ -151,10 +153,59 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     return newTorchState == TorchState.on;
   }
 
-  /// Switches between rear (`CameraFacing.back`) and front (`CameraFacing.front`)
-  /// cameras (or cycles external USB cameras on desktop).
+  /// Lists the cameras and other video inputs currently available.
+  Future<List<CameraInputSource>> listCameras() async {
+    if (_isDisposed) {
+      return const <CameraInputSource>[];
+    }
+    final List<CameraInputSource> cameras = await _engine.listCameras();
+    if (!_isDisposed && cameras.isNotEmpty) {
+      value = value.copyWith(
+        cameras: cameras,
+        availableCameraCount: cameras.length,
+      );
+    }
+    return cameras;
+  }
+
+  /// Opens [source] and continues the preview.
+  ///
+  /// Does nothing when [source] is already the active running camera.
+  Future<void> selectCamera(CameraInputSource source) async {
+    if (_isDisposed || source.id.isEmpty) {
+      return;
+    }
+    if (value.isRunning && value.activeCameraId == source.id) {
+      return;
+    }
+    final ScannerState switchedState = await _engine.startCamera(
+      facing: source.facing,
+      cameraId: source.id,
+      onFrame: processCameraFrame,
+      onWebBarcodes: _handleWebBarcodes,
+    );
+    if (!_isDisposed) {
+      value = _retainKnownCameras(switchedState);
+    }
+  }
+
+  /// Cycles to the next enumerated input when more than one is known.
+  ///
+  /// Falls back to toggling [CameraFacing.back] and [CameraFacing.front] when
+  /// the platform has not reported a device list yet.
   Future<void> switchCamera() async {
     if (_isDisposed) return;
+    final List<CameraInputSource> cameras = value.cameras;
+    if (cameras.length > 1) {
+      final int currentIndex = cameras.indexWhere(
+        (CameraInputSource camera) => camera.id == value.activeCameraId,
+      );
+      final int nextIndex = currentIndex < 0
+          ? 0
+          : (currentIndex + 1) % cameras.length;
+      await selectCamera(cameras[nextIndex]);
+      return;
+    }
     final CameraFacing nextFacing = value.cameraFacing == CameraFacing.back
         ? CameraFacing.front
         : CameraFacing.back;
@@ -164,8 +215,28 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       onWebBarcodes: _handleWebBarcodes,
     );
     if (!_isDisposed) {
-      value = switchedState;
+      value = _retainKnownCameras(switchedState);
     }
+  }
+
+  /// Keeps a previously enumerated device list when a later reply omits it.
+  ScannerState _retainKnownCameras(ScannerState next) {
+    if (next.cameras.isNotEmpty || value.cameras.isEmpty) {
+      return next;
+    }
+    return next.copyWith(
+      cameras: value.cameras,
+      availableCameraCount: value.cameras.length,
+    );
+  }
+
+  /// Non-null only after the user or platform has chosen a concrete device.
+  String? get _selectedCameraId {
+    final String id = value.activeCameraId;
+    if (id.isEmpty || id == 'default') {
+      return null;
+    }
+    return id;
   }
 
   /// Feeds a raw [CameraFramePacket] into the throttled worker Isolate decoder.

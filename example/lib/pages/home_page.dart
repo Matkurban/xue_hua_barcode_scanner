@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 import 'package:xue_hua_qr_code/xue_hua_qr_code.dart';
@@ -8,6 +9,7 @@ import '../widgets/scan_result_dialog.dart';
 import '../widgets/section_card.dart';
 import 'custom_scanner_page.dart';
 import 'default_scanner_page.dart';
+import 'input_source_menu_demo_page.dart';
 
 /// 示例应用主页。
 class ExampleHomePage extends StatefulWidget {
@@ -31,9 +33,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   @override
   void initState() {
     super.initState();
-    _barcodeInputController = TextEditingController(
-      text: _currentQrValue,
-    );
+    _barcodeInputController = TextEditingController(text: _currentQrValue);
     _generateAndDecodeSample();
   }
 
@@ -60,7 +60,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             icon: Icons.qr_code_scanner_rounded,
             title: '1. 实时相机条码/二维码扫描页面 (6 端统一组件)',
             subtitle:
-                '支持全屏相机预览、镂空圆角扫描框、绿色平滑扫描线、“将二维码放入框内”提示、前后摄切换、手电筒与相册选图识别。',
+                '进入扫码页即使用平台默认相机，不会弹出设备菜单。'
+                '多个输入源时，点击右上角按钮用菜单选择；只有一个输入源时不显示该按钮。',
             child: Row(
               children: <Widget>[
                 Expanded(
@@ -88,6 +89,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const ValueKey<String>('xh_open_input_source_demo'),
+            onPressed: _openInputSourceDemo,
+            icon: const Icon(Icons.cameraswitch_rounded),
+            label: const Text('查看多输入源 / 单输入源选择'),
           ),
           const SizedBox(height: 16),
           ExampleSectionCard(
@@ -124,9 +132,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                             .map(
                               (QrErrorLevel level) =>
                                   DropdownMenuItem<QrErrorLevel>(
-                                value: level,
-                                child: Text(level.name.toUpperCase()),
-                              ),
+                                    value: level,
+                                    child: Text(level.name.toUpperCase()),
+                                  ),
                             )
                             .toList(),
                         onChanged: (QrErrorLevel? value) {
@@ -149,9 +157,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                             .map(
                               (QrModuleShape shape) =>
                                   DropdownMenuItem<QrModuleShape>(
-                                value: shape,
-                                child: Text(shape.name),
-                              ),
+                                    value: shape,
+                                    child: Text(shape.name),
+                                  ),
                             )
                             .toList(),
                         onChanged: (QrModuleShape? value) {
@@ -225,10 +233,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 ),
                 const SizedBox(height: 8),
                 if (_latestResults.isEmpty)
-                  const Text(
-                    '暂无解码记录',
-                    style: TextStyle(color: Colors.white54),
-                  )
+                  const Text('暂无解码记录', style: TextStyle(color: Colors.white54))
                 else
                   for (final BarcodeResult item in _latestResults)
                     BarcodeResultTile(result: item),
@@ -325,8 +330,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   Future<void> _pickAndDecodeFromGallery() async {
     setState(() => _isWorking = true);
     try {
-      final Uint8List? imageBytes =
-          await XueHuaBarcodeScanner.engine.pickImageFromGallery();
+      final Uint8List? imageBytes = await XueHuaBarcodeScanner.engine
+          .pickImageFromGallery();
       if (imageBytes == null || imageBytes.isEmpty) {
         if (!mounted) return;
         setState(() {
@@ -364,12 +369,12 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
 
   /// 打开默认配置的扫码页面。
   Future<void> _openDefaultScannerPage() async {
-    final List<BarcodeResult>? results =
-        await Navigator.of(context).push<List<BarcodeResult>>(
-      MaterialPageRoute<List<BarcodeResult>>(
-        builder: (BuildContext context) => const DefaultScannerDemoPage(),
-      ),
-    );
+    final List<BarcodeResult>? results = await Navigator.of(context)
+        .push<List<BarcodeResult>>(
+          MaterialPageRoute<List<BarcodeResult>>(
+            builder: (BuildContext context) => const DefaultScannerDemoPage(),
+          ),
+        );
     if (results != null && results.isNotEmpty && mounted) {
       setState(() {
         _latestResults = results;
@@ -378,14 +383,24 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     }
   }
 
-  /// 打开自定义 UI 样式的扫码页面。
-  Future<void> _openCustomScannerPage() async {
-    final List<BarcodeResult>? results =
-        await Navigator.of(context).push<List<BarcodeResult>>(
-      MaterialPageRoute<List<BarcodeResult>>(
-        builder: (BuildContext context) => const CustomStyledScannerDemoPage(),
+  /// 打开不启动相机的输入源菜单演示。
+  Future<void> _openInputSourceDemo() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => const InputSourceMenuDemoPage(),
       ),
     );
+  }
+
+  /// 打开自定义 UI 样式的扫码页面。
+  Future<void> _openCustomScannerPage() async {
+    final List<BarcodeResult>? results = await Navigator.of(context)
+        .push<List<BarcodeResult>>(
+          MaterialPageRoute<List<BarcodeResult>>(
+            builder: (BuildContext context) =>
+                const CustomStyledScannerDemoPage(),
+          ),
+        );
     if (results != null && results.isNotEmpty && mounted) {
       setState(() {
         _latestResults = results;

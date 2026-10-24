@@ -26,6 +26,7 @@ dependencies:
     sdk: flutter
   ffi: ^2.2.0
   material_ui: ^1.8.0
+  chat_context_menu: ^4.2.0
   plugin_platform_interface: ^2.1.8
 
 dev_dependencies:

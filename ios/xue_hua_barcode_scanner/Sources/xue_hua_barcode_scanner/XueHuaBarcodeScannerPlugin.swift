@@ -92,10 +92,13 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
+        case "listCameras":
+            listCameras(result: result)
         case "startCamera":
             let args = call.arguments as? [String: Any]
             let facing = (args?["facing"] as? String) ?? "back"
-            startCamera(facing: facing, result: result)
+            let cameraId = args?["cameraId"] as? String
+            startCamera(facing: facing, cameraId: cameraId, result: result)
         case "stopCamera":
             stopCameraSession {
                 DispatchQueue.main.async {
@@ -115,16 +118,100 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         }
     }
 
-    private func startCamera(facing: String, result: @escaping FlutterResult) {
+    private func listCameras(result: @escaping FlutterResult) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            let payload = self.cameraPayload(devices: self.discoverVideoDevices())
+            DispatchQueue.main.async {
+                result(payload)
+            }
+        }
+    }
+
+    private func discoverVideoDevices() -> [AVCaptureDevice] {
+        var types: [AVCaptureDevice.DeviceType] = [
+            .builtInWideAngleCamera,
+            .builtInTelephotoCamera,
+        ]
+        if #available(iOS 13.0, *) {
+            types.append(.builtInUltraWideCamera)
+        }
+        if #available(iOS 17.0, *) {
+            types.append(.external)
+        }
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: types,
+            mediaType: .video,
+            position: .unspecified
+        )
+        return discovery.devices
+    }
+
+    private func facingName(_ device: AVCaptureDevice) -> String {
+        switch device.position {
+        case .front:
+            return "front"
+        case .back:
+            return "back"
+        default:
+            return "external"
+        }
+    }
+
+    private func cameraPayload(devices: [AVCaptureDevice]) -> [[String: String]] {
+        var counts: [String: Int] = [:]
+        var rows: [(id: String, facing: String, base: String)] = []
+        for device in devices {
+            let facing = facingName(device)
+            let base = device.localizedName.isEmpty ? facing : device.localizedName
+            rows.append((device.uniqueID, facing, base))
+            counts[base, default: 0] += 1
+        }
+        var seen: [String: Int] = [:]
+        return rows.map { row in
+            let next = (seen[row.base] ?? 0) + 1
+            seen[row.base] = next
+            let label = (counts[row.base] ?? 1) > 1 ? "\(row.base) \(next)" : row.base
+            return ["id": row.id, "label": label, "facing": row.facing]
+        }
+    }
+
+    private func selectDevice(
+        devices: [AVCaptureDevice],
+        facing: String,
+        cameraId: String?
+    ) -> AVCaptureDevice? {
+        if let cameraId, !cameraId.isEmpty,
+           let match = devices.first(where: { $0.uniqueID == cameraId }) {
+            return match
+        }
+        if facing == "front" {
+            return devices.first(where: {
+                $0.position == .front && $0.deviceType == .builtInWideAngleCamera
+            }) ?? devices.first(where: { $0.position == .front })
+                ?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+        }
+        if facing == "external" {
+            return devices.first(where: { $0.position == .unspecified }) ?? devices.first
+        }
+        return devices.first(where: {
+            $0.position == .back && $0.deviceType == .builtInWideAngleCamera
+        }) ?? devices.first(where: { $0.position == .back })
+            ?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
+            ?? devices.first
+            ?? AVCaptureDevice.default(for: .video)
+    }
+
+    private func startCamera(facing: String, cameraId: String?, result: @escaping FlutterResult) {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
         case .authorized:
-            configureAndStartSession(facing: facing, result: result)
+            configureAndStartSession(facing: facing, cameraId: cameraId, result: result)
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 guard let self else { return }
                 if granted {
-                    self.configureAndStartSession(facing: facing, result: result)
+                    self.configureAndStartSession(facing: facing, cameraId: cameraId, result: result)
                 } else {
                     DispatchQueue.main.async {
                         result(
@@ -148,25 +235,21 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         }
     }
 
-    private func configureAndStartSession(facing: String, result: @escaping FlutterResult) {
+    private func configureAndStartSession(
+        facing: String,
+        cameraId: String?,
+        result: @escaping FlutterResult
+    ) {
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.stopSessionInternal()
 
-            let discovery = AVCaptureDevice.DiscoverySession(
-                deviceTypes: [.builtInWideAngleCamera],
-                mediaType: .video,
-                position: .unspecified
-            )
-            let devices = discovery.devices
-            let targetPosition: AVCaptureDevice.Position = (facing == "front") ? .front : .back
-            let selectedDevice =
-                devices.first(where: { $0.position == targetPosition }) ??
-                AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: targetPosition) ??
-                devices.first ??
-                AVCaptureDevice.default(for: .video)
-
-            guard let device = selectedDevice else {
+            var devices = self.discoverVideoDevices()
+            guard let selectedDevice = self.selectDevice(
+                devices: devices,
+                facing: facing,
+                cameraId: cameraId
+            ) else {
                 DispatchQueue.main.async {
                     result(
                         FlutterError(
@@ -178,6 +261,11 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 }
                 return
             }
+
+            if !devices.contains(where: { $0.uniqueID == selectedDevice.uniqueID }) {
+                devices.append(selectedDevice)
+            }
+            let device = selectedDevice
 
             do {
                 let input = try AVCaptureDeviceInput(device: device)
@@ -231,7 +319,8 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 let previewW = min(rawW, rawH)
                 let previewH = max(rawW, rawH)
                 let hasTorch = device.hasTorch && device.isTorchAvailable
-                let cameraCount = max(devices.count, 1)
+                let payload = self.cameraPayload(devices: devices)
+                let cameraCount = max(payload.count, 1)
 
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
@@ -241,6 +330,9 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                         "textureId": self.textureId as Any,
                         "hasTorch": hasTorch,
                         "availableCameraCount": cameraCount,
+                        "cameras": payload,
+                        "activeCameraId": device.uniqueID,
+                        "cameraFacing": self.facingName(device),
                         "previewWidth": previewW,
                         "previewHeight": previewH,
                         "sensorOrientation": 0

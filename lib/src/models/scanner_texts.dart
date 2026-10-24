@@ -11,6 +11,7 @@ class XueHuaScannerTexts {
     this.galleryLabel = '相册',
     this.backButtonTooltip = '返回',
     this.switchCameraTooltip = '切换前后摄像头',
+    this.selectInputSourceTooltip = '选择输入源',
     this.torchUnsupportedMessage = '当前摄像头或桌面设备不支持手电筒闪光灯',
     this.cameraUnavailablePrefix = '相机不可用: ',
     this.frontCameraPreviewText = '前置相机取景中',
@@ -41,6 +42,9 @@ class XueHuaScannerTexts {
   /// Tooltip for the top-right camera switch button.
   final String switchCameraTooltip;
 
+  /// Tooltip for the input-source button shown when several cameras are available.
+  final String selectInputSourceTooltip;
+
   /// Message shown when the user taps the torch button on a device without flash.
   final String torchUnsupportedMessage;
 
@@ -63,6 +67,7 @@ class XueHuaScannerTexts {
     String? galleryLabel,
     String? backButtonTooltip,
     String? switchCameraTooltip,
+    String? selectInputSourceTooltip,
     String? torchUnsupportedMessage,
     String? cameraUnavailablePrefix,
     String? frontCameraPreviewText,
@@ -77,6 +82,8 @@ class XueHuaScannerTexts {
       galleryLabel: galleryLabel ?? this.galleryLabel,
       backButtonTooltip: backButtonTooltip ?? this.backButtonTooltip,
       switchCameraTooltip: switchCameraTooltip ?? this.switchCameraTooltip,
+      selectInputSourceTooltip:
+          selectInputSourceTooltip ?? this.selectInputSourceTooltip,
       torchUnsupportedMessage:
           torchUnsupportedMessage ?? this.torchUnsupportedMessage,
       cameraUnavailablePrefix:
