@@ -54,20 +54,23 @@ class XueHuaCameraSourceButton extends StatelessWidget {
         ),
       ],
       menuBuilder: (BuildContext context, VoidCallback hideMenu) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            for (final CameraInputSource source in sources)
-              _CameraSourceMenuItem(
-                source: source,
-                selected: source.id == activeSourceId,
-                onTap: () {
-                  hideMenu();
-                  onSelected(source);
-                },
-              ),
-          ],
+        return Material(
+          type: MaterialType.transparency,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final CameraInputSource source in sources)
+                _CameraSourceMenuItem(
+                  source: source,
+                  selected: source.id == activeSourceId,
+                  onTap: () {
+                    hideMenu();
+                    onSelected(source);
+                  },
+                ),
+            ],
+          ),
         );
       },
       widgetBuilder:
