@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.0.4 - 2026-10-24
+
+* Fix the macOS build on deployment targets older than 14.0: `AVCaptureDevice.DeviceType.continuityCamera` is only available on macOS 14.0 or newer, so discover it inside the existing `#available(macOS 14.0, *)` check instead of `#available(macOS 13.0, *)`.
+
 ## 1.0.3 - 2026-10-24
 
 * Enumerate camera input sources and select one by id on Android, iOS, macOS, Windows, Linux, and Web. Opening the scanner still starts the platform default camera.

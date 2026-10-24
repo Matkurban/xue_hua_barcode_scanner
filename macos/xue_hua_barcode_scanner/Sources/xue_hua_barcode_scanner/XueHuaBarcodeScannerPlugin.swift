@@ -191,11 +191,9 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
         if #available(macOS 14.0, *) {
             types.append(.external)
+            types.append(.continuityCamera)
         } else {
             types.append(.externalUnknown)
-        }
-        if #available(macOS 13.0, *) {
-            types.append(.continuityCamera)
         }
         let discovery = AVCaptureDevice.DiscoverySession(
             deviceTypes: types,
