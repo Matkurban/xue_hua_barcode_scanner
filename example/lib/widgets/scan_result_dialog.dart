@@ -30,20 +30,19 @@ class ScanResultDialog extends StatelessWidget {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return ScanResultDialog(
-          title: title,
-          results: results,
-        );
+        return ScanResultDialog(title: title, results: results);
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final String combinedText =
-        results.map((BarcodeResult item) => item.text).join('\n');
+    final String combinedText = results
+        .map((BarcodeResult item) => item.text)
+        .join('\n');
 
     return AlertDialog(
+      key: const ValueKey<String>('xh_scan_result_dialog'),
       backgroundColor: const Color(0xFF1A1D24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -84,6 +83,7 @@ class ScanResultDialog extends StatelessWidget {
       ),
       actions: <Widget>[
         TextButton.icon(
+          key: const ValueKey<String>('xh_scan_result_copy'),
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: combinedText));
             if (!context.mounted) return;
@@ -99,10 +99,12 @@ class ScanResultDialog extends StatelessWidget {
           label: const Text('复制内容'),
         ),
         OutlinedButton(
+          key: const ValueKey<String>('xh_scan_result_continue'),
           onPressed: () => Navigator.of(context).pop(false),
           child: const Text('继续扫码'),
         ),
         FilledButton(
+          key: const ValueKey<String>('xh_scan_result_confirm'),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFF00E676),
             foregroundColor: Colors.black,

@@ -33,6 +33,7 @@ class _CustomStyledScannerDemoPageState
     const Color themeColor = Colors.cyanAccent;
 
     return XueHuaBarcodeScannerPage(
+      key: const ValueKey<String>('xh_custom_scanner_page'),
       controller: _controller,
       autoPopOnDetect: false,
       cutoutSize: 270,
@@ -105,6 +106,7 @@ class _CustomStyledScannerDemoPageState
           ),
           child: Text(
             text,
+            key: const ValueKey<String>('xh_scanner_hint'),
             style: TextStyle(
               color: activeColor,
               fontSize: 13,
@@ -119,6 +121,7 @@ class _CustomStyledScannerDemoPageState
         VoidCallback onToggleTorch,
       ) {
         return FilledButton.tonalIcon(
+          key: const ValueKey<String>('xh_scanner_torch_button'),
           onPressed: onToggleTorch,
           icon: Icon(
             state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
@@ -133,6 +136,7 @@ class _CustomStyledScannerDemoPageState
         VoidCallback onPickGallery,
       ) {
         return FilledButton.tonalIcon(
+          key: const ValueKey<String>('xh_scanner_gallery_button'),
           onPressed: onPickGallery,
           icon: const Icon(
             Icons.photo_library_outlined,

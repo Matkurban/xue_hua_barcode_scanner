@@ -14,6 +14,73 @@ import 'zxing_ffi_bindings.dart';
 
 const String _kLibName = 'xue_hua_barcode_scanner';
 
+const List<String> _kLinuxLibraryNames = <String>[
+  'lib$_kLibName.so',
+  'lib$_kLibName.so.1',
+  'lib$_kLibName.so.1.0.0',
+];
+
+/// Opens the zxing FFI library on Android or Linux.
+///
+/// The unversioned soname is tried first. Linux CMake builds that set
+/// VERSION/SOVERSION only ship the real file (`*.so.1.0.0`) next to the
+/// executable, so those names and `$ORIGIN/lib` are tried as well.
+ffi.DynamicLibrary? _openAndroidOrLinuxLibrary() {
+  for (final String name in _kLinuxLibraryNames) {
+    final ffi.DynamicLibrary? opened = _tryOpenLibrary(name);
+    if (opened != null) {
+      return opened;
+    }
+  }
+
+  final String executableDir = File(Platform.resolvedExecutable).parent.path;
+  final List<String> directories = <String>[
+    executableDir,
+    '$executableDir${Platform.pathSeparator}lib',
+  ];
+  for (final String directory in directories) {
+    for (final String name in _kLinuxLibraryNames) {
+      final String path = '$directory${Platform.pathSeparator}$name';
+      if (!File(path).existsSync()) {
+        continue;
+      }
+      final ffi.DynamicLibrary? opened = _tryOpenLibrary(path);
+      if (opened != null) {
+        return opened;
+      }
+    }
+  }
+  return null;
+}
+
+/// Opens the zxing FFI library on Windows.
+///
+/// The bare DLL name is tried first (the exe directory is on the Windows
+/// search path). A full path next to the executable covers worker isolates
+/// whose search path does not include that directory.
+ffi.DynamicLibrary? _openWindowsLibrary() {
+  final ffi.DynamicLibrary? byName = _tryOpenLibrary('$_kLibName.dll');
+  if (byName != null) {
+    return byName;
+  }
+  final String executableDir = File(Platform.resolvedExecutable).parent.path;
+  final String path = '$executableDir${Platform.pathSeparator}$_kLibName.dll';
+  if (!File(path).existsSync()) {
+    return null;
+  }
+  return _tryOpenLibrary(path);
+}
+
+ffi.DynamicLibrary? _tryOpenLibrary(String path) {
+  try {
+    final ffi.DynamicLibrary library = ffi.DynamicLibrary.open(path);
+    if (library.providesSymbol('zxing_decode_image_bytes')) {
+      return library;
+    }
+  } catch (_) {}
+  return null;
+}
+
 /// Opens the platform-specific dynamic library containing `zxing-cpp` C symbols.
 ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
   try {
@@ -47,10 +114,10 @@ ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
       return null;
     }
     if (Platform.isAndroid || Platform.isLinux) {
-      return ffi.DynamicLibrary.open('lib$_kLibName.so');
+      return _openAndroidOrLinuxLibrary();
     }
     if (Platform.isWindows) {
-      return ffi.DynamicLibrary.open('$_kLibName.dll');
+      return _openWindowsLibrary();
     }
   } catch (_) {
     return null;

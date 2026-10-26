@@ -75,6 +75,7 @@ class ScannerCameraPreview extends StatelessWidget {
           padding: const EdgeInsets.only(top: 260, left: 24, right: 24),
           child: Text(
             statusText,
+            key: const ValueKey<String>('xh_scanner_camera_status'),
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0x99FFFFFF), fontSize: 12),
           ),
