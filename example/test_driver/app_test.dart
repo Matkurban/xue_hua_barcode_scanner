@@ -1,12 +1,13 @@
 import 'package:flutter_driver/flutter_driver.dart';
 import 'package:test/test.dart';
 
-/// Linux desktop smoke for the example app.
+/// Desktop smoke for the example app.
 ///
-/// Camera preview and the OS gallery picker are not required. A machine with
-/// no `/dev/video*` must still pass: the scanner shows an error or empty
-/// preview and stays tappable. Gallery buttons are asserted, then left alone,
-/// because the Linux embedder opens a blocking GTK file chooser.
+/// Windows (the acceptance target) usually has a webcam, so a live texture
+/// with no error label is success. Linux boxes often have no `/dev/video*`;
+/// the same tests then accept the error or empty preview and must not crash.
+/// Gallery buttons are asserted, then left alone: Windows `GetOpenFileName`
+/// and the Linux GTK chooser both block the platform thread.
 void main() {
   late FlutterDriver driver;
 
@@ -52,11 +53,13 @@ void main() {
       await driver.tap(find.byValueKey('xh_barcode_input'));
       await driver.enterText('driver-smoke-ok');
       expect(await textOf(driver, 'xh_barcode_input'), 'driver-smoke-ok');
+      final String before = await textOf(driver, 'xh_status_log');
       await driver.tap(find.byValueKey('xh_generate_and_decode'));
       final String generated = await waitForStatus(
         driver,
         (String value) =>
-            value.contains('driver-smoke-ok') || value.contains('操作异常'),
+            value != before &&
+            (value.contains('driver-smoke-ok') || value.contains('操作异常')),
       );
       expect(generated, contains('解码验证成功'), reason: generated);
       expect(generated, contains('driver-smoke-ok'));
@@ -68,40 +71,36 @@ void main() {
       await waitForPopupText(driver, 'HIGH');
       expect(await driver.requestData('tapPopupText:HIGH'), 'tapped');
       await waitForPopupTextAbsent(driver, 'HIGH');
-      final String ecc = await driver.requestData(
-        'visibleText:xh_ecc_dropdown',
-      );
-      expect(ecc, contains('HIGH'), reason: ecc);
-      expect(ecc, isNot(contains('LOW')), reason: ecc);
 
       await scrollTo(driver, 'xh_shape_dropdown');
       await driver.tap(find.byValueKey('xh_shape_dropdown'));
       await waitForPopupText(driver, 'circle');
       expect(await driver.requestData('tapPopupText:circle'), 'tapped');
       await waitForPopupTextAbsent(driver, 'circle');
-      final String shape = await driver.requestData(
-        'visibleText:xh_shape_dropdown',
-      );
-      expect(shape, contains('circle'), reason: shape);
-      expect(shape, isNot(contains('roundedSquare')), reason: shape);
 
+      final String before = await textOf(driver, 'xh_status_log');
       await scrollTo(driver, 'xh_generate_and_decode');
       await driver.tap(find.byValueKey('xh_generate_and_decode'));
       final String status = await waitForStatus(
         driver,
         (String value) =>
-            value.contains('driver-smoke-ok') || value.contains('操作异常'),
+            value != before &&
+            (value.contains('driver-smoke-ok') || value.contains('操作异常')),
       );
       expect(status, contains('解码验证成功'), reason: status);
+      expect(status, contains('ecc=high'), reason: status);
+      expect(status, contains('shape=circle'), reason: status);
     });
 
     test('decodes a padded Y plane through rowStride', () async {
+      final String before = await textOf(driver, 'xh_status_log');
       await scrollTo(driver, 'xh_row_stride_decode');
       await driver.tap(find.byValueKey('xh_row_stride_decode'));
       final String status = await waitForStatus(
         driver,
         (String value) =>
-            value.contains('rowStride=') || value.contains('操作异常'),
+            value != before &&
+            (value.contains('rowStride=') || value.contains('操作异常')),
       );
       expect(status, contains('内存对齐解码成功'), reason: status);
       expect(status, contains('driver-smoke-ok'));
@@ -180,13 +179,23 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 3)));
 }
 
-Future<void> scrollTo(FlutterDriver driver, String key) {
-  return driver.scrollUntilVisible(
+Future<void> scrollTo(FlutterDriver driver, String key) async {
+  // Drag toward the start. Children above the viewport are disposed, so a
+  // downward-only search cannot bring them back. scrollIntoView is avoided
+  // here: it waits on a scroll animation that stalls while another ticker
+  // (scanner line, progress indicator) is running.
+  await driver.scroll(
+    find.byValueKey('xh_home_list'),
+    0,
+    4000,
+    const Duration(milliseconds: 300),
+  );
+  await driver.scrollUntilVisible(
     find.byValueKey('xh_home_list'),
     find.byValueKey(key),
-    dyScroll: -160,
+    dyScroll: -180,
     alignment: 0.2,
-    timeout: const Duration(seconds: 20),
+    timeout: const Duration(seconds: 25),
   );
 }
 
@@ -241,6 +250,13 @@ Future<void> waitForPopupTextAbsent(FlutterDriver driver, String text) async {
   fail('Popup text "$text" stayed open');
 }
 
+Future<void> dismissScanDialog(FlutterDriver driver) async {
+  if (await exists(driver, 'xh_scan_result_dialog')) {
+    await driver.tap(find.byValueKey('xh_scan_result_continue'));
+    await driver.waitForAbsent(find.byValueKey('xh_scan_result_dialog'));
+  }
+}
+
 Future<void> openScanner(
   FlutterDriver driver,
   String buttonKey,
@@ -273,6 +289,7 @@ Future<void> exerciseScanner(
     final String gallery = await textOf(driver, 'xh_scanner_gallery_button');
     expect(gallery, contains(galleryFragment), reason: gallery);
 
+    await dismissScanDialog(driver);
     if (await exists(driver, 'xh_scanner_camera_status')) {
       final String camera = await textOf(driver, 'xh_scanner_camera_status');
       expect(camera.trim(), isNotEmpty);
@@ -280,7 +297,9 @@ Future<void> exerciseScanner(
         camera.contains('相机不可用') ||
             camera.contains('取景') ||
             camera.contains('NO_CAMERA') ||
-            camera.contains('No V4L2'),
+            camera.contains('No V4L2') ||
+            camera.contains('webcam') ||
+            camera.contains('CAMERA'),
         isTrue,
         reason: 'Unexpected camera placeholder: $camera',
       );
@@ -289,6 +308,7 @@ Future<void> exerciseScanner(
     final String torchBefore = await textOf(driver, 'xh_scanner_torch_button');
     await driver.tap(find.byValueKey('xh_scanner_torch_button'));
     await Future<void>.delayed(const Duration(milliseconds: 400));
+    await dismissScanDialog(driver);
     final bool unsupported =
         await driver.requestData('existsText:不支持手电筒') == 'yes';
     final String torchAfter = await textOf(driver, 'xh_scanner_torch_button');
@@ -300,6 +320,7 @@ Future<void> exerciseScanner(
     await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
 
     if (await exists(driver, 'xh_scanner_switch_camera_button')) {
+      await dismissScanDialog(driver);
       await driver.tap(find.byValueKey('xh_scanner_switch_camera_button'));
       await driver.waitFor(find.byValueKey('xh_scanner_camera_menu'));
       final String itemKey =
@@ -311,6 +332,7 @@ Future<void> exerciseScanner(
       await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
     }
 
+    await dismissScanDialog(driver);
     await driver.tap(find.byValueKey('xh_scanner_back_button'));
     await driver.waitForAbsent(find.byValueKey(pageKey));
   });

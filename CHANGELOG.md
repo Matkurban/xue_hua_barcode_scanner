@@ -1,7 +1,8 @@
 ## Unreleased
 
-* Add `flutter_driver` coverage for the example app, including a Linux path with no camera. Gallery file pickers stay out of the driver run because the Linux embedder opens a blocking GTK dialog.
+* Add `flutter_driver` coverage for the example app. Run it on Windows with `flutter drive -d windows --target=test_driver/app.dart` (a webcam is fine). The same suite still passes on Linux with no camera. Gallery file pickers stay out of the driver run because Windows `GetOpenFileName` and the Linux GTK chooser block the platform thread.
 * Example row-stride action now decodes a padded Y plane through `decodeImageBytes` and reports failures in the status log.
+* Load the Linux/Android zxing library from the unversioned soname or from `lib/` next to the executable. A `VERSION`/`SOVERSION` build previously bundled only `libxue_hua_barcode_scanner.so.1.0.0`, so `dlopen` missed it and image decode silently fell back. Linux and Android builds no longer version that private library. Windows also tries `xue_hua_barcode_scanner.dll` beside the executable when the bare name does not resolve.
 
 ## 1.0.5 - 2026-10-24
 

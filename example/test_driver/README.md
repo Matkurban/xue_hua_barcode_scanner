@@ -1,8 +1,21 @@
 # Example driver tests
 
-Classic `flutter_driver` smoke for the example app on the Linux desktop. The instrumented entry is `test_driver/app.dart` (`enableFlutterDriverExtension`). Everyday `flutter run` still uses `lib/main.dart` and does not install the extension.
+Classic `flutter_driver` smoke for the example app. The instrumented entry is `test_driver/app.dart` (`enableFlutterDriverExtension`). Everyday `flutter run` still uses `lib/main.dart` and does not install the extension.
 
-## Run
+The acceptance target is **Windows desktop**. Linux stays runnable for machines without a camera.
+
+## Run on Windows
+
+From the `example` directory, with the `windows` device:
+
+```bash
+cd example
+flutter drive -d windows --target=test_driver/app.dart
+```
+
+A webcam is the common case. The scanner tests accept a live preview (no error label). If the camera cannot open, they accept the error placeholder instead of failing. A barcode in the frame may open the result dialog; the suite dismisses it with **继续扫码** and still navigates back.
+
+## Run on Linux
 
 From the `example` directory, with a display (or Xvfb) and the `linux` device:
 
@@ -17,6 +30,8 @@ If this machine has no display:
 cd example
 xvfb-run -a flutter drive -d linux --target=test_driver/app.dart
 ```
+
+No `/dev/video*` is required. The preview may say the camera is unavailable; that is a pass.
 
 `flutter drive` looks up `test_driver/app_test.dart` from that target. Flutter 3.47.x is the version this package is developed against.
 
@@ -35,9 +50,11 @@ flutter test test/input_source_menu_demo_test.dart
 - Padded Y-plane `decodeImageBytes` (`rowStride` greater than the image width).
 - Input-source demo: multi-camera menu, single-camera control stays hidden, back navigation.
 - Default and custom scanner pages: hint, torch, gallery control, back navigation.
-- Missing camera: the page stays up. The test accepts either the error placeholder (`相机不可用` / `NO_CAMERA` / `No V4L2`) or a live preview placeholder (`取景`). A real texture (no status label) is also treated as success. Torch either toggles or shows the unsupported snackbar.
+- Camera present (typical Windows): live texture, no crash, torch reports that the desktop device has no flash or the label changes, and the camera menu is used when more than one device is listed.
+- Camera missing (typical Linux): the page stays up. The test accepts the error placeholder (`相机不可用` / `NO_CAMERA` / `No V4L2` / `webcam`) or a non-texture preview (`取景`).
+- If a live frame opens the scan-result dialog, **继续扫码** is tapped so the rest of the page can still be driven.
 
 ## Intentionally skipped
 
-- Tapping **从相册选图解码** or the scanner gallery button. On Linux, `pickImageFilePath` runs a modal GTK file chooser on the platform thread and would block the driver.
-- A real camera stream. The Linux embedder reports `NO_CAMERA` when no V4L2 device is opened, which is normal on a box without `/dev/video*`.
+- Tapping **从相册选图解码** or the scanner gallery button. `pickImageFilePath` opens a modal file chooser on the platform thread (`GetOpenFileName` on Windows, GTK on Linux) and would block the driver. The buttons are still required to be present.
+- Forcing a specific barcode into a live camera frame. Detection depends on what the webcam sees.

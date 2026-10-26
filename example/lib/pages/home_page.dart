@@ -294,7 +294,9 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       setState(() {
         _latestResults = decoded;
         _statusLog = decoded.isNotEmpty
-            ? 'xue_hua_qr_code 生成并解码验证成功: "${decoded.first.text}" (${decoded.first.format.displayName})'
+            ? 'xue_hua_qr_code 生成并解码验证成功: "${decoded.first.text}" '
+                  '(${decoded.first.format.displayName}, '
+                  'ecc=${_selectedEcc.name}, shape=${_selectedShape.name})'
             : '二维码图片已生成 (${pngBytes.lengthInBytes} bytes)';
       });
     } catch (e) {

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show InkWell;
 
 /// Handles `requestData` messages from `flutter_driver`.
 ///
@@ -41,14 +42,19 @@ Future<String> driverDataHandler(String? message) async {
         : 'yes';
   }
   if (message.startsWith('tapPopupText:')) {
-    final Element? target = _findPopupText(
-      message.substring('tapPopupText:'.length),
-    );
-    if (target == null) {
-      return 'missing';
+    final String text = message.substring('tapPopupText:'.length);
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 3));
+    Element? label;
+    while (DateTime.now().isBefore(deadline)) {
+      label = _findPopupText(text);
+      final Element? target = label == null ? null : _tappableAncestor(label);
+      if (target != null && _isHitTestable(target)) {
+        await _tapElement(target);
+        return 'tapped';
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     }
-    await _tapElement(target);
-    return 'tapped';
+    return label == null ? 'missing' : 'not-hit-testable';
   }
   return 'unknown';
 }
@@ -199,6 +205,72 @@ bool _containsText(String needle) {
   return found;
 }
 
+/// Menu rows fade in for most of the route animation. A tap during that
+/// window lands on the modal barrier and dismisses the menu without selecting.
+Element? _tappableAncestor(Element element) {
+  final ModalRoute<dynamic>? route = ModalRoute.of(element);
+  if (route?.animation?.status != AnimationStatus.completed) {
+    return null;
+  }
+  Element? inkWell;
+  element.visitAncestorElements((Element ancestor) {
+    if (ancestor.widget is InkWell) {
+      inkWell = ancestor;
+      return false;
+    }
+    return ancestor.widget is! Overlay;
+  });
+  return inkWell ?? element;
+}
+
+/// True only when [element]'s box is the hit target or an ancestor of it.
+///
+/// The overlay itself is always on the hit path, so treating every ancestor
+/// as a successful hit taps the barrier instead of the menu row.
+bool _isHitTestable(Element element) {
+  final RenderObject? renderObject = element.renderObject;
+  if (renderObject is! RenderBox ||
+      !renderObject.attached ||
+      !renderObject.hasSize ||
+      renderObject.size.isEmpty) {
+    return false;
+  }
+  final Offset position = renderObject.localToGlobal(
+    renderObject.size.center(Offset.zero),
+  );
+  final HitTestResult result = HitTestResult();
+  RendererBinding.instance.hitTestInView(
+    result,
+    position,
+    View.of(element).viewId,
+  );
+  for (final HitTestEntry entry in result.path) {
+    if (_isAncestorOfHitTarget(renderObject, entry.target)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool _isAncestorOfHitTarget(RenderObject ancestor, HitTestTarget target) {
+  if (identical(target, ancestor)) {
+    return true;
+  }
+  if (target is! RenderObject) {
+    return false;
+  }
+  for (
+    RenderObject? current = target.parent;
+    current != null;
+    current = current.parent
+  ) {
+    if (identical(current, ancestor)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Element? _findPopupText(String text) {
   final Element? root = _root();
   if (root == null) {
@@ -231,23 +303,26 @@ Future<void> _tapElement(Element element) async {
     renderObject.size.center(Offset.zero),
   );
   final int pointer = _nextPointer++;
+  final int viewId = View.of(element).viewId;
   GestureBinding.instance.handlePointerEvent(
     PointerDownEvent(
+      viewId: viewId,
       timeStamp: _clock.elapsed,
       pointer: pointer,
-      kind: PointerDeviceKind.mouse,
+      kind: PointerDeviceKind.touch,
       position: position,
       buttons: kPrimaryButton,
     ),
   );
-  await Future<void>.delayed(const Duration(milliseconds: 40));
+  await Future<void>.delayed(const Duration(milliseconds: 50));
   GestureBinding.instance.handlePointerEvent(
     PointerUpEvent(
+      viewId: viewId,
       timeStamp: _clock.elapsed,
       pointer: pointer,
-      kind: PointerDeviceKind.mouse,
+      kind: PointerDeviceKind.touch,
       position: position,
     ),
   );
-  await Future<void>.delayed(const Duration(milliseconds: 40));
+  await Future<void>.delayed(const Duration(milliseconds: 50));
 }

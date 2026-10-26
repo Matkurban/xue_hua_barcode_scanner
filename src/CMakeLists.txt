@@ -59,9 +59,18 @@ add_library(xue_hua_barcode_scanner SHARED
 set_target_properties(xue_hua_barcode_scanner PROPERTIES
   PUBLIC_HEADER zxing_ffi_bridge.h
   OUTPUT_NAME "xue_hua_barcode_scanner"
-  VERSION 1.0.0
-  SOVERSION 1
 )
+
+# Flutter copies TARGET_FILE into the bundle and Dart dlopen()s the
+# unversioned soname. VERSION/SOVERSION would emit
+# libxue_hua_barcode_scanner.so.1.0.0 and the .so name would be missing,
+# so Linux (and Android) decode silently falls back.
+if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set_target_properties(xue_hua_barcode_scanner PROPERTIES
+    VERSION 1.0.0
+    SOVERSION 1
+  )
+endif()
 
 target_compile_definitions(xue_hua_barcode_scanner PUBLIC DART_SHARED_LIB)
 
