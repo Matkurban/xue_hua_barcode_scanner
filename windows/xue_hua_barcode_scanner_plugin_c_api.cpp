@@ -23,7 +23,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,6 +39,20 @@
 #pragma comment(lib, "Comdlg32.lib")
 
 namespace {
+
+// Posted to the top-level Flutter window. The runner pumps that window on the
+// platform thread and forwards the message into plugin window-proc delegates,
+// which is the same thread the Windows task runner uses for platform channels.
+constexpr UINT kDeliverCameraFrameMessage = WM_APP + 0x485;
+
+struct CameraFramePacket {
+  std::vector<uint8_t> bytes;
+  int32_t width = 0;
+  int32_t height = 0;
+  int32_t row_stride = 0;
+  int32_t format = 1;
+  int32_t sensor_orientation = 0;
+};
 
 struct VideoInput {
   std::string id;
@@ -157,7 +173,25 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
   }
 
   explicit XueHuaBarcodeScannerWindowsPlugin(flutter::PluginRegistrarWindows* registrar)
-      : texture_registrar_(registrar->texture_registrar()) {
+      : registrar_(registrar),
+        texture_registrar_(registrar->texture_registrar()) {
+    if (flutter::FlutterView* view = registrar->GetView()) {
+      view_hwnd_ = view->GetNativeWindow();
+    }
+    window_proc_delegate_id_ = registrar_->RegisterTopLevelWindowProcDelegate(
+        [this](HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+            -> std::optional<LRESULT> {
+          (void)wparam;
+          (void)lparam;
+          if (message != kDeliverCameraFrameMessage) {
+            return std::nullopt;
+          }
+          if (!IsOurTopLevelWindow(hwnd)) {
+            return std::nullopt;
+          }
+          DeliverPendingFrames();
+          return 0;
+        });
     MFStartup(MF_VERSION);
     pixel_buffer_.width = 1;
     pixel_buffer_.height = 1;
@@ -177,6 +211,10 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
 
   ~XueHuaBarcodeScannerWindowsPlugin() override {
     StopCameraCapture();
+    if (registrar_ != nullptr && window_proc_delegate_id_ != 0) {
+      registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_delegate_id_);
+      window_proc_delegate_id_ = 0;
+    }
     if (texture_id_ >= 0 && texture_registrar_ != nullptr) {
       texture_registrar_->UnregisterTexture(texture_id_);
       texture_id_ = -1;
@@ -411,26 +449,20 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
               auto now = std::chrono::steady_clock::now();
               if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_emit).count() >= 150) {
                 last_emit = now;
-                std::lock_guard<std::mutex> sink_lock(sink_mutex_);
-                if (event_sink_) {
-                  std::vector<uint8_t> copy;
-                  {
-                    std::lock_guard<std::mutex> lock(frame_mutex_);
-                    copy = front_rgba_;
-                  }
-                  flutter::EncodableMap packet;
-                  packet[flutter::EncodableValue("bytes")] = flutter::EncodableValue(copy);
-                  packet[flutter::EncodableValue("width")] =
-                      flutter::EncodableValue(static_cast<int32_t>(width));
-                  packet[flutter::EncodableValue("height")] =
-                      flutter::EncodableValue(static_cast<int32_t>(height));
-                  packet[flutter::EncodableValue("rowStride")] =
-                      flutter::EncodableValue(static_cast<int32_t>(width * 4));
-                  packet[flutter::EncodableValue("format")] = flutter::EncodableValue(1);
-                  packet[flutter::EncodableValue("sensorOrientation")] =
-                      flutter::EncodableValue(0);
-                  event_sink_->Success(flutter::EncodableValue(packet));
+                std::vector<uint8_t> copy;
+                {
+                  std::lock_guard<std::mutex> lock(frame_mutex_);
+                  copy = front_rgba_;
                 }
+                CameraFramePacket packet;
+                packet.bytes = std::move(copy);
+                packet.width = static_cast<int32_t>(width);
+                packet.height = static_cast<int32_t>(height);
+                packet.row_stride = static_cast<int32_t>(width * 4);
+                packet.format = 1;
+                packet.sensor_orientation = 0;
+                // EventChannel::Success must run on the platform thread.
+                PostFrameToPlatformThread(std::move(packet));
               }
             }
             buffer->Unlock();
@@ -441,6 +473,71 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
       }
     }
     reader->Release();
+  }
+
+  bool IsOurTopLevelWindow(HWND hwnd) const {
+    if (view_hwnd_ == nullptr || hwnd == nullptr) {
+      return false;
+    }
+    HWND top = GetAncestor(view_hwnd_, GA_ROOT);
+    if (top == nullptr) {
+      top = view_hwnd_;
+    }
+    return hwnd == top;
+  }
+
+  HWND PlatformWindow() const {
+    if (view_hwnd_ == nullptr) {
+      return nullptr;
+    }
+    HWND top = GetAncestor(view_hwnd_, GA_ROOT);
+    return top != nullptr ? top : view_hwnd_;
+  }
+
+  void PostFrameToPlatformThread(CameraFramePacket packet) {
+    HWND target = PlatformWindow();
+    if (target == nullptr) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(pending_frames_mutex_);
+      pending_frames_.push_back(std::move(packet));
+      if (pending_frames_.size() > 2) {
+        pending_frames_.pop_front();
+      }
+    }
+    if (PostMessage(target, kDeliverCameraFrameMessage, 0, 0) == FALSE) {
+      std::lock_guard<std::mutex> lock(pending_frames_mutex_);
+      pending_frames_.clear();
+    }
+  }
+
+  void DeliverPendingFrames() {
+    std::deque<CameraFramePacket> frames;
+    {
+      std::lock_guard<std::mutex> lock(pending_frames_mutex_);
+      frames.swap(pending_frames_);
+    }
+    std::lock_guard<std::mutex> sink_lock(sink_mutex_);
+    if (!event_sink_) {
+      return;
+    }
+    for (CameraFramePacket& frame : frames) {
+      flutter::EncodableMap packet;
+      packet[flutter::EncodableValue("bytes")] =
+          flutter::EncodableValue(frame.bytes);
+      packet[flutter::EncodableValue("width")] =
+          flutter::EncodableValue(frame.width);
+      packet[flutter::EncodableValue("height")] =
+          flutter::EncodableValue(frame.height);
+      packet[flutter::EncodableValue("rowStride")] =
+          flutter::EncodableValue(frame.row_stride);
+      packet[flutter::EncodableValue("format")] =
+          flutter::EncodableValue(frame.format);
+      packet[flutter::EncodableValue("sensorOrientation")] =
+          flutter::EncodableValue(frame.sensor_orientation);
+      event_sink_->Success(flutter::EncodableValue(packet));
+    }
   }
 
   void StopCameraCapture() {
@@ -464,6 +561,12 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     }
     return {};
   }
+
+  flutter::PluginRegistrarWindows* registrar_ = nullptr;
+  int window_proc_delegate_id_ = 0;
+  HWND view_hwnd_ = nullptr;
+  std::mutex pending_frames_mutex_;
+  std::deque<CameraFramePacket> pending_frames_;
 
   flutter::TextureRegistrar* texture_registrar_ = nullptr;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> method_channel_;
