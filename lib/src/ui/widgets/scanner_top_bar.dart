@@ -64,6 +64,7 @@ class ScannerTopBar extends StatelessWidget {
             ),
             child: Text(
               displayPrompt,
+              key: const ValueKey<String>('xh_scanner_hint'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isError ? errorColor : Colors.white,

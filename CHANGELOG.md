@@ -1,5 +1,8 @@
 ## Unreleased
 
+* Add `flutter_driver` coverage for the example app, including a Linux path with no camera. Gallery file pickers stay out of the driver run because the Linux embedder opens a blocking GTK dialog.
+* Example row-stride action now decodes a padded Y plane through `decodeImageBytes` and reports failures in the status log.
+
 ## 1.0.5 - 2026-10-24
 
 * Wrap `chat_context_menu` `menuBuilder` content in `Material(type: MaterialType.transparency)`.

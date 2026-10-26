@@ -57,17 +57,22 @@ class XueHuaCameraSourceButton extends StatelessWidget {
         return Material(
           type: MaterialType.transparency,
           child: Column(
+            key: const ValueKey<String>('xh_scanner_camera_menu'),
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              for (final CameraInputSource source in sources)
-                _CameraSourceMenuItem(
-                  source: source,
-                  selected: source.id == activeSourceId,
-                  onTap: () {
-                    hideMenu();
-                    onSelected(source);
-                  },
+              for (final (int index, CameraInputSource source)
+                  in sources.indexed)
+                KeyedSubtree(
+                  key: ValueKey<String>('xh_scanner_camera_menu_item_$index'),
+                  child: _CameraSourceMenuItem(
+                    source: source,
+                    selected: source.id == activeSourceId,
+                    onTap: () {
+                      hideMenu();
+                      onSelected(source);
+                    },
+                  ),
                 ),
             ],
           ),

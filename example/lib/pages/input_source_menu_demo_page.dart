@@ -31,7 +31,16 @@ class _InputSourceMenuDemoPageState extends State<InputSourceMenuDemoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('输入源选择')),
+      key: const ValueKey<String>('xh_input_source_demo_page'),
+      appBar: AppBar(
+        title: const Text('输入源选择'),
+        leading: IconButton(
+          key: const ValueKey<String>('xh_input_source_demo_back'),
+          tooltip: '返回',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[

@@ -30,6 +30,7 @@ class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
   @override
   Widget build(BuildContext context) {
     return XueHuaBarcodeScannerPage(
+      key: const ValueKey<String>('xh_default_scanner_page'),
       controller: _controller,
       autoPopOnDetect: false,
       texts: const XueHuaScannerTexts(

@@ -2,6 +2,22 @@
 
 Demonstrates how to use the xue_hua_barcode_scanner plugin.
 
+## Driver tests (Linux)
+
+From this directory:
+
+```bash
+flutter drive -d linux --target=test_driver/app.dart
+```
+
+Headless:
+
+```bash
+xvfb-run -a flutter drive -d linux --target=test_driver/app.dart
+```
+
+What the suite covers, and why gallery picking is skipped, is in [test_driver/README.md](test_driver/README.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

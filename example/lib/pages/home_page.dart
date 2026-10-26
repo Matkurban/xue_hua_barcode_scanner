@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
@@ -40,6 +41,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: const ValueKey<String>('xh_home_page'),
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,14 +50,18 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             const Text('XueHua Barcode Scanner (v1.0.0)'),
             Text(
               'Engine: ${XueHuaBarcodeScanner.engineVersion}',
+              key: const ValueKey<String>('xh_engine_version'),
               style: const TextStyle(fontSize: 12, color: Colors.white70),
             ),
           ],
         ),
       ),
       body: ListView(
+        key: const ValueKey<String>('xh_home_list'),
         padding: const EdgeInsets.all(16),
         children: <Widget>[
+          if (_isWorking)
+            const SizedBox.shrink(key: ValueKey<String>('xh_home_busy')),
           ExampleSectionCard(
             icon: Icons.qr_code_scanner_rounded,
             title: '1. 实时相机条码/二维码扫描页面 (6 端统一组件)',
@@ -66,6 +72,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               children: <Widget>[
                 Expanded(
                   child: FilledButton.icon(
+                    key: const ValueKey<String>('xh_open_default_scanner'),
                     onPressed: _openDefaultScannerPage,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF00E676),
@@ -79,6 +86,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
+                    key: const ValueKey<String>('xh_open_custom_scanner'),
                     onPressed: _openCustomScannerPage,
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -105,6 +113,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 TextField(
+                  key: const ValueKey<String>('xh_barcode_input'),
                   controller: _barcodeInputController,
                   decoration: InputDecoration(
                     labelText: '输入要编码的文本或 URL',
@@ -112,6 +121,8 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     suffixIcon: IconButton(
+                      key: const ValueKey<String>('xh_barcode_input_clear'),
+                      tooltip: '清空',
                       icon: const Icon(Icons.clear),
                       onPressed: _barcodeInputController.clear,
                     ),
@@ -122,6 +133,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   children: <Widget>[
                     Expanded(
                       child: DropdownButtonFormField<QrErrorLevel>(
+                        key: const ValueKey<String>('xh_ecc_dropdown'),
                         initialValue: _selectedEcc,
                         decoration: const InputDecoration(
                           labelText: '纠错等级 (ECC)',
@@ -147,6 +159,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<QrModuleShape>(
+                        key: const ValueKey<String>('xh_shape_dropdown'),
                         initialValue: _selectedShape,
                         decoration: const InputDecoration(
                           labelText: '码点样式 (Shape)',
@@ -177,16 +190,19 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   runSpacing: 10,
                   children: <Widget>[
                     FilledButton.tonalIcon(
+                      key: const ValueKey<String>('xh_generate_and_decode'),
                       onPressed: _isWorking ? null : _generateAndDecodeSample,
                       icon: const Icon(Icons.qr_code_2_rounded),
                       label: const Text('生成二维码并立即解码验证'),
                     ),
                     OutlinedButton.icon(
+                      key: const ValueKey<String>('xh_pick_gallery'),
                       onPressed: _isWorking ? null : _pickAndDecodeFromGallery,
                       icon: const Icon(Icons.photo_library_outlined),
                       label: const Text('从相册选图解码'),
                     ),
                     OutlinedButton.icon(
+                      key: const ValueKey<String>('xh_row_stride_decode'),
                       onPressed: _isWorking ? null : _testRowStrideYPlaneDecode,
                       icon: const Icon(Icons.memory_rounded),
                       label: const Text('验证 YUV rowStride 对齐解码'),
@@ -197,6 +213,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                   const SizedBox(height: 16),
                   Center(
                     child: Container(
+                      key: const ValueKey<String>('xh_qr_preview'),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -226,6 +243,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
               children: <Widget>[
                 Text(
                   _statusLog,
+                  key: const ValueKey<String>('xh_status_log'),
                   style: const TextStyle(
                     color: Color(0xFF69F0AE),
                     fontSize: 13,
@@ -233,7 +251,11 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
                 ),
                 const SizedBox(height: 8),
                 if (_latestResults.isEmpty)
-                  const Text('暂无解码记录', style: TextStyle(color: Colors.white54))
+                  const Text(
+                    '暂无解码记录',
+                    key: ValueKey<String>('xh_empty_results'),
+                    style: TextStyle(color: Colors.white54),
+                  )
                 else
                   for (final BarcodeResult item in _latestResults)
                     BarcodeResultTile(result: item),
@@ -289,7 +311,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     }
   }
 
-  /// 验证带 `rowStride` 对齐步长的 Y 平面解码流程。
+  /// 把生成的二维码展开成带行填充的 Y 平面，再走 `decodeImageBytes` 的 rowStride 路径。
   Future<void> _testRowStrideYPlaneDecode() async {
     final String content = _barcodeInputController.text.trim();
     if (content.isEmpty) return;
@@ -299,25 +321,37 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
       _currentQrValue = content;
     });
     try {
-      const int width = 264;
-      const int rowStride = 288;
       final Uint8List png = await XueHuaQrCode.toPngBytes(
         content,
-        size: width.toDouble(),
+        size: 264,
         errorCorrectionLevel: _selectedEcc,
         style: QrStyle(
           shape: _selectedShape,
           padding: const EdgeInsets.all(12),
         ),
       );
+      final _LumaPlane plane = await _pngToPaddedLuma(png);
       final List<BarcodeResult> decoded =
-          await XueHuaBarcodeScanner.decodeImageMemory(png);
+          await XueHuaBarcodeScanner.decodeImageBytes(
+            plane.bytes,
+            width: plane.width,
+            height: plane.height,
+            rowStride: plane.rowStride,
+            format: PixelFormat.lum,
+          );
       if (!mounted) return;
       setState(() {
         _latestResults = decoded;
-        _statusLog =
-            'Y-Plane (rowStride=$rowStride, width=$width) 内存对齐解码成功: '
-            '${decoded.map((BarcodeResult e) => e.text).join(", ")}';
+        _statusLog = decoded.isNotEmpty
+            ? 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
+                  '内存对齐解码成功: ${decoded.map((BarcodeResult e) => e.text).join(", ")}'
+            : 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
+                  '未识别到条码';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusLog = '操作异常: $e';
       });
     } finally {
       if (mounted) {
@@ -413,5 +447,63 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   void dispose() {
     _barcodeInputController.dispose();
     super.dispose();
+  }
+}
+
+class _LumaPlane {
+  const _LumaPlane({
+    required this.bytes,
+    required this.width,
+    required this.height,
+    required this.rowStride,
+  });
+
+  final Uint8List bytes;
+  final int width;
+  final int height;
+  final int rowStride;
+}
+
+/// Decodes [png] and copies luminance into a buffer whose rows are padded.
+///
+/// Padding stays past `width` so a decoder that ignores `rowStride` reads the
+/// wrong pixels. The stride is always greater than [width].
+Future<_LumaPlane> _pngToPaddedLuma(Uint8List png) async {
+  final ui.Codec codec = await ui.instantiateImageCodec(png);
+  try {
+    final ui.FrameInfo frame = await codec.getNextFrame();
+    final ui.Image image = frame.image;
+    try {
+      final ByteData? raw = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+      if (raw == null || image.width <= 0 || image.height <= 0) {
+        throw StateError('无法把二维码展开成像素');
+      }
+      final int width = image.width;
+      final int height = image.height;
+      final int rowStride = width + 32;
+      final Uint8List yPlane = Uint8List(rowStride * height);
+      final Uint8List rgba = raw.buffer.asUint8List();
+      for (int y = 0; y < height; y++) {
+        final int srcRow = y * width * 4;
+        final int dstRow = y * rowStride;
+        for (int x = 0; x < width; x++) {
+          final int i = srcRow + x * 4;
+          final int luma = (rgba[i] + rgba[i + 1] + rgba[i + 2]) ~/ 3;
+          yPlane[dstRow + x] = luma < 128 ? 0 : 255;
+        }
+      }
+      return _LumaPlane(
+        bytes: yPlane,
+        width: width,
+        height: height,
+        rowStride: rowStride,
+      );
+    } finally {
+      image.dispose();
+    }
+  } finally {
+    codec.dispose();
   }
 }
