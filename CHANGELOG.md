@@ -1,11 +1,12 @@
 ## Unreleased
 
+## 1.0.6 - 2026-10-27
+
 * Example generate/decode status lines now end with `phase=done` plus the selected ECC and module shape, including when no barcode is found. Verification PNGs use whole-pixel modules and no extra module gap so circle and rounded styles do not intermittently fail to decode.
 * Send Windows camera frames on the platform thread. Media Foundation `ReadSample` was calling the frames `EventChannel` sink from the capture thread, which Flutter logs as `shell.cc` "channel sent a message from native to Flutter on a non-platform thread". Frames are now queued and delivered from the top-level window procedure. Android (`main` looper), iOS, and macOS (`DispatchQueue.main`) already hop to the platform thread before `success`. Linux does not open this channel.
 * Add `flutter_driver` coverage for the example app. Run it on Windows with `flutter drive -d windows --target=test_driver/app.dart` (a webcam is fine). The same suite still passes on Linux with no camera. Gallery file pickers stay out of the driver run because Windows `GetOpenFileName` and the Linux GTK chooser block the platform thread.
 * Example row-stride action now decodes a padded Y plane through `decodeImageBytes` and reports failures in the status log.
 * Load the Linux/Android zxing library from the unversioned soname or from `lib/` next to the executable. A `VERSION`/`SOVERSION` build previously bundled only `libxue_hua_barcode_scanner.so.1.0.0`, so `dlopen` missed it and image decode silently fell back. Linux and Android builds no longer version that private library. Windows also tries `xue_hua_barcode_scanner.dll` beside the executable when the bare name does not resolve.
-
 ## 1.0.5 - 2026-10-24
 
 * Wrap `chat_context_menu` `menuBuilder` content in `Material(type: MaterialType.transparency)`.
