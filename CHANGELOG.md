@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 1.0.7 - 2026-10-27
+
+* Fix torch feedback before camera init finishes: default `TorchState` is now `unavailable`, start failures clear torch capability, and tapping torch after the platform reports no flash shows the unsupported snackbar (including when `setTorch` flips to unavailable). This unblocked macOS `flutter_driver` scanner coverage where the label previously stayed unchanged.
+* Return from iOS/macOS `startCamera` before `AVCaptureSession.startRunning`. On some Simulator builds `startRunning` could block the session queue indefinitely and leave Dart `start()` hanging, so the scanner never reached the ready state.
+* Time out native `startCamera` / `setTorch` calls and treat an unbound camera session as torch-unavailable instead of assuming a back camera has flash.
+* Harden example `flutter_driver` scanner checks (wait for ready markers, retry torch feedback, always navigate home) and document running the suite on macOS.
+
 ## 1.0.6 - 2026-10-27
 
 * Example generate/decode status lines now end with `phase=done` plus the selected ECC and module shape, including when no barcode is found. Verification PNGs use whole-pixel modules and no extra module gap so circle and rounded styles do not intermittently fail to decode.
