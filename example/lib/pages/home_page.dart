@@ -30,6 +30,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
   List<BarcodeResult> _latestResults = const <BarcodeResult>[];
   String _statusLog = '准备就绪：点击下方按钮打开扫码页，或直接生成并验证二维码。';
   bool _isWorking = false;
+  int _statusGeneration = 0;
 
   @override
   void initState() {
@@ -272,44 +273,26 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     final String content = _barcodeInputController.text.trim();
     if (content.isEmpty) return;
 
-    setState(() {
-      _isWorking = true;
-      _currentQrValue = content;
-    });
-
+    final int op = _beginStatusOp(currentValue: content);
     try {
+      final _VerificationImage spec = _verificationImage(content);
       final Uint8List pngBytes = await XueHuaQrCode.toPngBytes(
         content,
-        size: 420,
+        size: spec.size,
         errorCorrectionLevel: _selectedEcc,
-        style: QrStyle(
-          shape: _selectedShape,
-          padding: const EdgeInsets.all(12),
-        ),
+        style: spec.style,
       );
       final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(pngBytes);
 
-      if (!mounted) return;
-      setState(() {
-        _latestResults = decoded;
-        _statusLog = decoded.isNotEmpty
-            ? 'xue_hua_qr_code 生成并解码验证成功: "${decoded.first.text}" '
-                  '(${decoded.first.format.displayName}, '
-                  'ecc=${_selectedEcc.name}, shape=${_selectedShape.name})'
-            : '二维码图片已生成 (${pngBytes.lengthInBytes} bytes)';
-      });
+      if (!mounted || op != _statusGeneration) return;
+      final String outcome = decoded.isNotEmpty
+          ? '解码验证成功: "${decoded.first.text}" '
+                '(${decoded.first.format.displayName})'
+          : '未识别到条码 (${pngBytes.lengthInBytes} bytes)';
+      _finishStatusOp(op, outcome, results: decoded);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _statusLog = '操作异常: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isWorking = false;
-        });
-      }
+      _finishStatusOp(op, '操作异常: $e');
     }
   }
 
@@ -318,19 +301,14 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     final String content = _barcodeInputController.text.trim();
     if (content.isEmpty) return;
 
-    setState(() {
-      _isWorking = true;
-      _currentQrValue = content;
-    });
+    final int op = _beginStatusOp(currentValue: content);
     try {
+      final _VerificationImage spec = _verificationImage(content);
       final Uint8List png = await XueHuaQrCode.toPngBytes(
         content,
-        size: 264,
+        size: spec.size,
         errorCorrectionLevel: _selectedEcc,
-        style: QrStyle(
-          shape: _selectedShape,
-          padding: const EdgeInsets.all(12),
-        ),
+        style: spec.style,
       );
       final _LumaPlane plane = await _pngToPaddedLuma(png);
       final List<BarcodeResult> decoded =
@@ -341,49 +319,78 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
             rowStride: plane.rowStride,
             format: PixelFormat.lum,
           );
-      if (!mounted) return;
-      setState(() {
-        _latestResults = decoded;
-        _statusLog = decoded.isNotEmpty
-            ? 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
-                  '内存对齐解码成功: ${decoded.map((BarcodeResult e) => e.text).join(", ")}'
-            : 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
-                  '未识别到条码';
-      });
+      if (!mounted || op != _statusGeneration) return;
+      final String texts = decoded.map((BarcodeResult e) => e.text).join(", ");
+      final String outcome = decoded.isNotEmpty
+          ? 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
+                '内存对齐解码成功: $texts'
+          : 'Y-Plane (rowStride=${plane.rowStride}, width=${plane.width}) '
+                '未识别到条码';
+      _finishStatusOp(op, outcome, results: decoded);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _statusLog = '操作异常: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isWorking = false);
-      }
+      _finishStatusOp(op, '操作异常: $e');
     }
+  }
+
+  /// 开始一轮可等待的状态。结束时状态行一定包含 `phase=done` 和本次编号。
+  int _beginStatusOp({String? currentValue}) {
+    final int op = ++_statusGeneration;
+    setState(() {
+      _isWorking = true;
+      if (currentValue != null) {
+        _currentQrValue = currentValue;
+      }
+      _statusLog = 'op=$op phase=running';
+    });
+    return op;
+  }
+
+  void _finishStatusOp(int op, String outcome, {List<BarcodeResult>? results}) {
+    if (!mounted || op != _statusGeneration) return;
+    setState(() {
+      _isWorking = false;
+      if (results != null) {
+        _latestResults = results;
+      }
+      _statusLog =
+          'op=$op phase=done ecc=${_selectedEcc.name} '
+          'shape=${_selectedShape.name} $outcome';
+    });
+  }
+
+  /// 整像素模块边长，避免圆形/圆角码点落在小数像素上时 zxing 时而识别失败。
+  _VerificationImage _verificationImage(String content) {
+    final QrMatrix matrix = QrMatrix.encode(content, errorLevel: _selectedEcc);
+    final int modulePx = _selectedShape == QrModuleShape.square ? 10 : 16;
+    const int quietModules = 4;
+    final double quiet = quietModules * modulePx.toDouble();
+    return _VerificationImage(
+      size: (matrix.moduleCount + quietModules * 2) * modulePx.toDouble(),
+      style: QrStyle(
+        shape: _selectedShape,
+        padding: EdgeInsets.all(quiet),
+        moduleGap: 0,
+      ),
+    );
   }
 
   /// 从系统相册/文件选择器选取真实图片并解码。
   Future<void> _pickAndDecodeFromGallery() async {
-    setState(() => _isWorking = true);
+    final int op = _beginStatusOp();
     try {
       final Uint8List? imageBytes = await XueHuaBarcodeScanner.engine
           .pickImageFromGallery();
       if (imageBytes == null || imageBytes.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _statusLog = '已取消选择图片';
-        });
+        _finishStatusOp(op, '已取消选择图片');
         return;
       }
       final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(imageBytes);
-      if (!mounted) return;
-      setState(() {
-        _latestResults = decoded;
-        _statusLog = decoded.isNotEmpty
-            ? '【相册图片识别成功】共 ${decoded.length} 个条码: ${decoded.first.text}'
-            : '所选图片中未识别到有效条码或二维码';
-      });
+      if (!mounted || op != _statusGeneration) return;
+      final String outcome = decoded.isNotEmpty
+          ? '【相册图片识别成功】共 ${decoded.length} 个条码: ${decoded.first.text}'
+          : '所选图片中未识别到有效条码或二维码';
+      _finishStatusOp(op, outcome, results: decoded);
       if (decoded.isNotEmpty) {
         await ScanResultDialog.show(
           context,
@@ -392,14 +399,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
         );
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _statusLog = '相册图片识别异常: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isWorking = false);
-      }
+      _finishStatusOp(op, '操作异常: $e');
     }
   }
 
@@ -450,6 +450,13 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
     _barcodeInputController.dispose();
     super.dispose();
   }
+}
+
+class _VerificationImage {
+  const _VerificationImage({required this.size, required this.style});
+
+  final double size;
+  final QrStyle style;
 }
 
 class _LumaPlane {

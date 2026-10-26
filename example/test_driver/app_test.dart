@@ -57,9 +57,7 @@ void main() {
       await driver.tap(find.byValueKey('xh_generate_and_decode'));
       final String generated = await waitForStatus(
         driver,
-        (String value) =>
-            value != before &&
-            (value.contains('driver-smoke-ok') || value.contains('操作异常')),
+        (String value) => isFinishedStatus(value, before),
       );
       expect(generated, contains('解码验证成功'), reason: generated);
       expect(generated, contains('driver-smoke-ok'));
@@ -83,9 +81,7 @@ void main() {
       await driver.tap(find.byValueKey('xh_generate_and_decode'));
       final String status = await waitForStatus(
         driver,
-        (String value) =>
-            value != before &&
-            (value.contains('driver-smoke-ok') || value.contains('操作异常')),
+        (String value) => isFinishedStatus(value, before),
       );
       expect(status, contains('解码验证成功'), reason: status);
       expect(status, contains('ecc=high'), reason: status);
@@ -99,7 +95,7 @@ void main() {
       final String status = await waitForStatus(
         driver,
         (String value) =>
-            value != before &&
+            isFinishedStatus(value, before) &&
             (value.contains('rowStride=') || value.contains('操作异常')),
       );
       expect(status, contains('内存对齐解码成功'), reason: status);
@@ -209,6 +205,13 @@ Future<int> countOf(FlutterDriver driver, String key) async {
 
 Future<String> textOf(FlutterDriver driver, String key) {
   return driver.requestData('text:$key');
+}
+
+/// A finished home-page operation replaces `phase=running` with `phase=done`.
+///
+/// The payload text from the previous success is not a completion signal.
+bool isFinishedStatus(String value, String before) {
+  return value != before && value.contains('phase=done');
 }
 
 Future<String> waitForStatus(

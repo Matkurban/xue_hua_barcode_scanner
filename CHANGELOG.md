@@ -1,5 +1,6 @@
 ## Unreleased
 
+* Example generate/decode status lines now end with `phase=done` plus the selected ECC and module shape, including when no barcode is found. Verification PNGs use whole-pixel modules and no extra module gap so circle and rounded styles do not intermittently fail to decode.
 * Send Windows camera frames on the platform thread. Media Foundation `ReadSample` was calling the frames `EventChannel` sink from the capture thread, which Flutter logs as `shell.cc` "channel sent a message from native to Flutter on a non-platform thread". Frames are now queued and delivered from the top-level window procedure. Android (`main` looper), iOS, and macOS (`DispatchQueue.main`) already hop to the platform thread before `success`. Linux does not open this channel.
 * Add `flutter_driver` coverage for the example app. Run it on Windows with `flutter drive -d windows --target=test_driver/app.dart` (a webcam is fine). The same suite still passes on Linux with no camera. Gallery file pickers stay out of the driver run because Windows `GetOpenFileName` and the Linux GTK chooser block the platform thread.
 * Example row-stride action now decodes a padded Y plane through `decodeImageBytes` and reports failures in the status log.
