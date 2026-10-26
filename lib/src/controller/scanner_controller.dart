@@ -99,6 +99,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
         value = value.copyWith(
           isInitialized: true,
           isRunning: false,
+          torchState: TorchState.unavailable,
           errorMessage: e.toString(),
         );
       }

@@ -212,6 +212,18 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
             return Stack(
               fit: StackFit.expand,
               children: <Widget>[
+                if (state.isInitialized)
+                  const SizedBox.shrink(
+                    key: ValueKey<String>('xh_scanner_ready'),
+                  ),
+                if (state.isInitialized && !state.hasTorch)
+                  const SizedBox.shrink(
+                    key: ValueKey<String>('xh_scanner_no_torch'),
+                  ),
+                if (state.isInitialized && state.hasTorch)
+                  const SizedBox.shrink(
+                    key: ValueKey<String>('xh_scanner_has_torch'),
+                  ),
                 if (widget.cameraPreviewBuilder != null)
                   widget.cameraPreviewBuilder!(context, state)
                 else
@@ -315,19 +327,44 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   Future<void> _handleToggleTorch() async {
-    final bool supported = _controller.value.hasTorch;
-    if (!supported) {
-      if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        SnackBar(
-          content: Text(widget.texts.torchUnsupportedMessage),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    // Camera start is async. Until initialization finishes, torch capability is
+    // unknown (default unavailable) — ignore taps so we do not flash a false
+    // "unsupported" snackbar on phones that still have a flash.
+    if (!_controller.value.isInitialized) {
+      return;
+    }
+    if (!_controller.value.hasTorch) {
+      _showTorchUnsupportedMessage();
       return;
     }
     await _controller.toggleTorch();
+    if (!mounted) {
+      return;
+    }
+    // Desktop / failed cameras may flip to unavailable after the platform call.
+    if (!_controller.value.hasTorch) {
+      _showTorchUnsupportedMessage();
+    }
+  }
+
+  void _showTorchUnsupportedMessage() {
+    if (!mounted) {
+      return;
+    }
+    final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(
+      context,
+    );
+    messenger?.clearSnackBars();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.texts.torchUnsupportedMessage,
+          key: const ValueKey<String>('xh_torch_unsupported_snackbar'),
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _handleSwitchCamera() async {

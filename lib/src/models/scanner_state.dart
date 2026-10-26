@@ -11,7 +11,7 @@ class ScannerState {
     this.isInitialized = false,
     this.isRunning = false,
     this.isPaused = false,
-    this.torchState = TorchState.off,
+    this.torchState = TorchState.unavailable,
     this.cameraFacing = CameraFacing.back,
     this.availableCameraCount = 1,
     this.cameras = const <CameraInputSource>[],

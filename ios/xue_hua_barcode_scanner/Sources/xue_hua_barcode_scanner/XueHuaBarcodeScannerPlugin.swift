@@ -311,7 +311,6 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
 
                 self.captureSession = session
                 self.activeDevice = device
-                session.startRunning()
 
                 let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
                 let rawW = Int(dimensions.width > 0 ? dimensions.width : 1280)
@@ -322,6 +321,9 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 let payload = self.cameraPayload(devices: devices)
                 let cameraCount = max(payload.count, 1)
 
+                // Return to Dart before startRunning. On some Simulator builds
+                // startRunning can block the session queue indefinitely, which
+                // previously left the Flutter side waiting forever for ready.
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
                         self.textureId = registry.register(self)
@@ -338,6 +340,7 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                         "sensorOrientation": 0
                     ])
                 }
+                session.startRunning()
             } catch {
                 DispatchQueue.main.async {
                     result(

@@ -273,7 +273,6 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 session.commitConfiguration()
                 self.captureSession = session
                 self.activeDevice = device
-                session.startRunning()
 
                 let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
                 let previewW = Int(dimensions.width > 0 ? dimensions.width : 1280)
@@ -281,6 +280,8 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 let payload = self.cameraPayload(devices: devices)
                 let cameraCount = max(payload.count, 1)
 
+                // Return before startRunning so a hung capture session cannot
+                // block the Dart start() future indefinitely.
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
                         self.textureId = registry.register(self)
@@ -297,6 +298,7 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                         "sensorOrientation": 0
                     ])
                 }
+                session.startRunning()
             } catch {
                 DispatchQueue.main.async {
                     result(

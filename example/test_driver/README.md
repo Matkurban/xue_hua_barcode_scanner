@@ -2,7 +2,18 @@
 
 Classic `flutter_driver` smoke for the example app. The instrumented entry is `test_driver/app.dart` (`enableFlutterDriverExtension`). Everyday `flutter run` still uses `lib/main.dart` and does not install the extension.
 
-The acceptance target is **Windows desktop**. Linux stays runnable for machines without a camera.
+The acceptance target is **desktop** (Windows and macOS). Linux stays runnable for machines without a camera.
+
+## Run on macOS
+
+From the `example` directory, with the `macos` device:
+
+```bash
+cd example
+flutter drive -d macos --target=test_driver/app.dart
+```
+
+A built-in or Continuity camera is fine. Desktop flash is unavailable, so the torch control should show the unsupported snackbar (or leave the label unchanged only before camera init finishes; the suite retries). Gallery file pickers stay out of the driver run because `NSOpenPanel` blocks the platform thread.
 
 ## Run on Windows
 

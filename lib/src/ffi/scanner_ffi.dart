@@ -188,7 +188,8 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
 
     try {
       final Map<Object?, Object?>? reply = await _kCameraMethodChannel
-          .invokeMapMethod<Object?, Object?>('startCamera', args);
+          .invokeMapMethod<Object?, Object?>('startCamera', args)
+          .timeout(const Duration(seconds: 12));
 
       _frameSubscription = _kCameraFrameEventChannel
           .receiveBroadcastStream()
@@ -237,6 +238,15 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         cameras: cameras,
         running: false,
         errorMessage: e.message ?? e.code,
+      );
+    } on TimeoutException {
+      final List<CameraInputSource> cameras = await listCameras();
+      return _unboundCameraState(
+        facing: effectiveFacing,
+        cameraId: explicitDevice ? cameraId : null,
+        cameras: cameras,
+        running: false,
+        errorMessage: 'CAMERA_START_TIMEOUT',
       );
     } catch (_) {}
 
@@ -357,13 +367,13 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         }
       }
     }
-    final bool hasTorch =
-        running && !_isDesktop && active.facing == CameraFacing.back;
+    // Unbound / fallback sessions must not claim a flash — only a real
+    // startCamera reply may set TorchState.off/on via hasTorch.
     return ScannerState(
       isInitialized: true,
       isRunning: running,
       isPaused: false,
-      torchState: hasTorch ? TorchState.off : TorchState.unavailable,
+      torchState: TorchState.unavailable,
       cameraFacing: active.facing,
       availableCameraCount: resolved.length,
       cameras: resolved,
@@ -389,10 +399,9 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       return TorchState.unavailable;
     }
     try {
-      final bool? supported = await _kCameraMethodChannel.invokeMethod<bool>(
-        'setTorch',
-        <String, Object?>{'enabled': enabled},
-      );
+      final bool? supported = await _kCameraMethodChannel
+          .invokeMethod<bool>('setTorch', <String, Object?>{'enabled': enabled})
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
       if (supported == false) {
         return TorchState.unavailable;
       }

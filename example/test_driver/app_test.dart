@@ -280,65 +280,103 @@ Future<void> exerciseScanner(
   required String galleryFragment,
 }) async {
   await driver.runUnsynchronized(() async {
-    await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
-    await driver.waitFor(find.byValueKey('xh_scanner_hint'));
-    await driver.waitFor(find.byValueKey('xh_scanner_torch_button'));
-    await driver.waitFor(find.byValueKey('xh_scanner_gallery_button'));
-
-    final String hint = await textOf(driver, 'xh_scanner_hint');
-    expect(hint, contains(hintFragment), reason: hint);
-    final String torch = await textOf(driver, 'xh_scanner_torch_button');
-    expect(torch, contains(torchFragment), reason: torch);
-    final String gallery = await textOf(driver, 'xh_scanner_gallery_button');
-    expect(gallery, contains(galleryFragment), reason: gallery);
-
-    await dismissScanDialog(driver);
-    if (await exists(driver, 'xh_scanner_camera_status')) {
-      final String camera = await textOf(driver, 'xh_scanner_camera_status');
-      expect(camera.trim(), isNotEmpty);
-      expect(
-        camera.contains('相机不可用') ||
-            camera.contains('取景') ||
-            camera.contains('NO_CAMERA') ||
-            camera.contains('No V4L2') ||
-            camera.contains('webcam') ||
-            camera.contains('CAMERA'),
-        isTrue,
-        reason: 'Unexpected camera placeholder: $camera',
-      );
-    }
-
-    final String torchBefore = await textOf(driver, 'xh_scanner_torch_button');
-    await driver.tap(find.byValueKey('xh_scanner_torch_button'));
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    await dismissScanDialog(driver);
-    final bool unsupported =
-        await driver.requestData('existsText:不支持手电筒') == 'yes';
-    final String torchAfter = await textOf(driver, 'xh_scanner_torch_button');
-    expect(
-      unsupported || torchAfter != torchBefore,
-      isTrue,
-      reason: 'Torch tap had no effect. before=$torchBefore after=$torchAfter',
-    );
-    await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
-
-    if (await exists(driver, 'xh_scanner_switch_camera_button')) {
-      await dismissScanDialog(driver);
-      await driver.tap(find.byValueKey('xh_scanner_switch_camera_button'));
-      await driver.waitFor(find.byValueKey('xh_scanner_camera_menu'));
-      final String itemKey =
-          await exists(driver, 'xh_scanner_camera_menu_item_1')
-          ? 'xh_scanner_camera_menu_item_1'
-          : 'xh_scanner_camera_menu_item_0';
-      await driver.tap(find.byValueKey(itemKey));
-      await driver.waitForAbsent(find.byValueKey('xh_scanner_camera_menu'));
+    try {
       await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
-    }
+      await driver.waitFor(find.byValueKey('xh_scanner_hint'));
+      await driver.waitFor(find.byValueKey('xh_scanner_torch_button'));
+      await driver.waitFor(find.byValueKey('xh_scanner_gallery_button'));
 
-    await dismissScanDialog(driver);
-    await driver.tap(find.byValueKey('xh_scanner_back_button'));
-    await driver.waitForAbsent(find.byValueKey(pageKey));
+      final String hint = await textOf(driver, 'xh_scanner_hint');
+      expect(hint, contains(hintFragment), reason: hint);
+      final String torch = await textOf(driver, 'xh_scanner_torch_button');
+      expect(torch, contains(torchFragment), reason: torch);
+      final String gallery = await textOf(driver, 'xh_scanner_gallery_button');
+      expect(gallery, contains(galleryFragment), reason: gallery);
+
+      await dismissScanDialog(driver);
+      await waitForCameraSettled(driver);
+      if (await exists(driver, 'xh_scanner_camera_status')) {
+        final String camera = await textOf(driver, 'xh_scanner_camera_status');
+        expect(camera.trim(), isNotEmpty);
+        expect(
+          camera.contains('相机不可用') ||
+              camera.contains('取景') ||
+              camera.contains('NO_CAMERA') ||
+              camera.contains('No V4L2') ||
+              camera.contains('webcam') ||
+              camera.contains('CAMERA'),
+          isTrue,
+          reason: 'Unexpected camera placeholder: $camera',
+        );
+      }
+
+      await expectTorchFeedback(driver);
+      await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
+
+      if (await exists(driver, 'xh_scanner_switch_camera_button')) {
+        await dismissScanDialog(driver);
+        await driver.tap(find.byValueKey('xh_scanner_switch_camera_button'));
+        await driver.waitFor(find.byValueKey('xh_scanner_camera_menu'));
+        final String itemKey =
+            await exists(driver, 'xh_scanner_camera_menu_item_1')
+            ? 'xh_scanner_camera_menu_item_1'
+            : 'xh_scanner_camera_menu_item_0';
+        await driver.tap(find.byValueKey(itemKey));
+        await driver.waitForAbsent(find.byValueKey('xh_scanner_camera_menu'));
+        await driver.waitFor(find.byValueKey('xh_scanner_back_button'));
+      }
+    } finally {
+      await dismissScanDialog(driver);
+      if (await exists(driver, pageKey)) {
+        await driver.tap(find.byValueKey('xh_scanner_back_button'));
+        await driver.waitForAbsent(find.byValueKey(pageKey));
+      }
+    }
   });
   await driver.waitFor(find.byValueKey('xh_home_page'));
   expect(await exists(driver, pageKey), isFalse);
+}
+
+/// Wait until the scanner controller finishes start (ready marker).
+Future<void> waitForCameraSettled(FlutterDriver driver) async {
+  final DateTime deadline = DateTime.now().add(const Duration(seconds: 15));
+  while (DateTime.now().isBefore(deadline)) {
+    if (await exists(driver, 'xh_scanner_ready')) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+  fail('Scanner did not finish initializing (xh_scanner_ready missing)');
+}
+
+/// Accept either a torch-label change or the unsupported snackbar.
+///
+/// Retries while camera init is still racing: taps before [isInitialized] are
+/// ignored by the scanner view, and macOS session startup is often slower than
+/// Windows.
+Future<void> expectTorchFeedback(FlutterDriver driver) async {
+  final String torchBefore = await textOf(driver, 'xh_scanner_torch_button');
+  final bool claimsTorch = await exists(driver, 'xh_scanner_has_torch');
+  final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
+  String torchAfter = torchBefore;
+  var sawUnsupported = false;
+  while (DateTime.now().isBefore(deadline)) {
+    await dismissScanDialog(driver);
+    await driver.tap(find.byValueKey('xh_scanner_torch_button'));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await dismissScanDialog(driver);
+    sawUnsupported =
+        await exists(driver, 'xh_torch_unsupported_snackbar') ||
+        await driver.requestData('existsText:不支持手电筒') == 'yes';
+    torchAfter = await textOf(driver, 'xh_scanner_torch_button');
+    if (sawUnsupported || torchAfter != torchBefore) {
+      return;
+    }
+  }
+  fail(
+    'Torch tap had no effect. before=$torchBefore after=$torchAfter '
+    'unsupported=$sawUnsupported claimsTorch=$claimsTorch '
+    'ready=${await exists(driver, 'xh_scanner_ready')} '
+    'noTorch=${await exists(driver, 'xh_scanner_no_torch')}',
+  );
 }
