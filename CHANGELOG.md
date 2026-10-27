@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 1.0.8 - 2026-10-28
+
+* Add example iOS `integration_test` coverage, including a PHPicker test-side bypass and encode/decode round-trips.
+* Split the iOS scanner texture into ObjC `XHScannerTexture` so Xcode builds with zero FlutterTexture-related warnings.
+* Pass the integration suite on four Simulators: ios17, ios18, ios26, and ios27.
+
 ## 1.0.7 - 2026-10-27
 
 * Fix torch feedback before camera init finishes: default `TorchState` is now `unavailable`, start failures clear torch capability, and tapping torch after the platform reports no flash shows the unsupported snackbar (including when `setTorch` flips to unavailable). This unblocked macOS `flutter_driver` scanner coverage where the label previously stayed unchanged.
