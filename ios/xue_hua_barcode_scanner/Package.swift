@@ -11,7 +11,11 @@ let package = Package(
     products: [
         .library(
             name: "xue-hua-barcode-scanner",
-            targets: ["xue_hua_barcode_scanner", "xue_hua_barcode_scanner_ffi"]
+            targets: [
+                "xue_hua_barcode_scanner",
+                "xue_hua_barcode_scanner_ffi",
+                "xue_hua_barcode_scanner_texture",
+            ]
         )
     ],
     dependencies: [
@@ -43,9 +47,21 @@ let package = Package(
             ]
         ),
         .target(
+            name: "xue_hua_barcode_scanner_texture",
+            dependencies: [
+                .product(name: "FlutterFramework", package: "FlutterFramework")
+            ],
+            path: "Sources/xue_hua_barcode_scanner_texture",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedFramework("CoreVideo")
+            ]
+        ),
+        .target(
             name: "xue_hua_barcode_scanner",
             dependencies: [
                 "xue_hua_barcode_scanner_ffi",
+                "xue_hua_barcode_scanner_texture",
                 .product(name: "FlutterFramework", package: "FlutterFramework")
             ],
             path: "Sources/xue_hua_barcode_scanner",

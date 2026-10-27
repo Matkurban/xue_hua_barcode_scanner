@@ -2,6 +2,7 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 import Flutter
+import xue_hua_barcode_scanner_texture
 import UIKit
 
 #if canImport(xue_hua_barcode_scanner_ffi)
@@ -11,7 +12,6 @@ import xue_hua_barcode_scanner_ffi
 public final class XueHuaBarcodeScannerPlugin: NSObject,
     FlutterPlugin,
     FlutterStreamHandler,
-    FlutterTexture,
     AVCaptureVideoDataOutputSampleBufferDelegate,
     UIImagePickerControllerDelegate,
     UINavigationControllerDelegate
@@ -23,12 +23,11 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
 
     private let sessionQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.session")
     private let videoOutputQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.video_output")
-    private let pixelBufferLock = NSLock()
 
     private var captureSession: AVCaptureSession?
     private var activeDevice: AVCaptureDevice?
     private var textureId: Int64?
-    private var latestPixelBuffer: CVPixelBuffer?
+    private let scannerTexture = XHScannerTexture()
     private var lastFrameEmitTime: TimeInterval = 0
     private var pendingPickerResult: FlutterResult?
 
@@ -79,15 +78,6 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
         eventSink = nil
         return nil
-    }
-
-    public func copyPixelBuffer() -> Unmanaged<CVPixelBuffer>? {
-        pixelBufferLock.lock()
-        defer { pixelBufferLock.unlock() }
-        guard let buffer = latestPixelBuffer else {
-            return nil
-        }
-        return Unmanaged.passRetained(buffer)
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -326,7 +316,7 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 // previously left the Flutter side waiting forever for ready.
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
-                        self.textureId = registry.register(self)
+                        self.textureId = registry.register(self.scannerTexture)
                     }
                     result([
                         "textureId": self.textureId as Any,
@@ -381,9 +371,7 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         }
         captureSession = nil
         activeDevice = nil
-        pixelBufferLock.lock()
-        latestPixelBuffer = nil
-        pixelBufferLock.unlock()
+        scannerTexture.clearPixelBuffer()
     }
 
     private func setTorch(enabled: Bool, result: @escaping FlutterResult) {
@@ -418,9 +406,7 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
             return
         }
 
-        pixelBufferLock.lock()
-        latestPixelBuffer = pixelBuffer
-        pixelBufferLock.unlock()
+        scannerTexture.update(pixelBuffer)
 
         if let tid = textureId {
             DispatchQueue.main.async { [weak self] in

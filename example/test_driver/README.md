@@ -69,3 +69,19 @@ flutter test test/input_source_menu_demo_test.dart
 
 - Tapping **从相册选图解码** or the scanner gallery button. `pickImageFilePath` opens a modal file chooser on the platform thread (`GetOpenFileName` on Windows, GTK on Linux) and would block the driver. The buttons are still required to be present.
 - Forcing a specific barcode into a live camera frame. Detection depends on what the webcam sees.
+
+## Official integration_test (iOS / multi-simulator)
+
+The newer suite lives under `example/integration_test/` and is driven with:
+
+```bash
+cd example
+flutter test integration_test/plugin_integration_test.dart -d <simulator-id>
+# or
+flutter drive --driver=test_driver/integration_test.dart \
+  --target=integration_test/plugin_integration_test.dart -d <simulator-id>
+```
+
+It covers encode/decode, rowStride, camera list/init/error paths, torch,
+controller validation, and example UI smoke. Live camera barcode detection is
+not asserted (Simulator camera/permission variability).
