@@ -168,6 +168,100 @@ void main() {
     expect(engine.openedCameraId, 'front');
     expect(find.text('前置相机'), findsNothing);
   });
+
+  testWidgets(
+    'camera permission denied renders dedicated recovery view and supports retry',
+    (WidgetTester tester) async {
+      final _PermissionToggleCameraEngine engine =
+          _PermissionToggleCameraEngine(initiallyDenied: true);
+      final XueHuaScannerController controller = XueHuaScannerController(
+        engine: engine,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(controller.value.isPermissionDenied, isTrue);
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_permission_denied_view')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_open_settings_button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const ValueKey<String>('xh_scanner_retry_permission_button'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(
+          const ValueKey<String>('xh_scanner_permission_gallery_button'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_camera_status')),
+        findsOneWidget,
+      );
+
+      // Grant permission and tap retry button.
+      engine.initiallyDenied = false;
+      await tester.tap(
+        find.byKey(
+          const ValueKey<String>('xh_scanner_retry_permission_button'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(controller.value.isPermissionDenied, isFalse);
+      expect(controller.value.isRunning, isTrue);
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_permission_denied_view')),
+        findsNothing,
+      );
+    },
+  );
+}
+
+class _PermissionToggleCameraEngine extends _ScriptedCameraEngine {
+  _PermissionToggleCameraEngine({required this.initiallyDenied})
+    : super(const <CameraInputSource>[
+        CameraInputSource(id: 'back', label: '后置相机', facing: CameraFacing.back),
+      ]);
+
+  bool initiallyDenied;
+
+  @override
+  Future<ScannerState> startCamera({
+    required CameraFacing facing,
+    String? cameraId,
+    required void Function(CameraFramePacket frame) onFrame,
+    required void Function(List<BarcodeResult> results) onWebBarcodes,
+  }) async {
+    if (initiallyDenied) {
+      return const ScannerState(
+        isInitialized: true,
+        isRunning: false,
+        permissionStatus: CameraPermissionStatus.denied,
+        errorCode: 'CAMERA_PERMISSION_DENIED',
+        errorMessage: 'Camera permission was denied by the user.',
+      );
+    }
+    return super.startCamera(
+      facing: facing,
+      cameraId: cameraId,
+      onFrame: onFrame,
+      onWebBarcodes: onWebBarcodes,
+    );
+  }
 }
 
 class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
@@ -202,6 +296,7 @@ class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
       cameras: cameras,
       availableCameraCount: cameras.length,
       activeCameraId: active.id,
+      permissionStatus: CameraPermissionStatus.granted,
     );
   }
 

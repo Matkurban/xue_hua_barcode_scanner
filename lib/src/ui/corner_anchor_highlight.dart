@@ -1,8 +1,12 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:material_ui/material_ui.dart';
 
 import '../models/barcode_result.dart';
 
-/// Draws pulsing anchor points and corner polygons over detected barcodes.
+/// Draws pulsing AR target reticles and corner polygons over detected barcodes.
+///
+/// Uses `CustomPainter(repaint: _pulseController)` inside a [RepaintBoundary]
+/// so pulsing animations never rebuild the widget tree.
 class XueHuaCornerAnchorHighlight extends StatefulWidget {
   /// Creates a [XueHuaCornerAnchorHighlight].
   const XueHuaCornerAnchorHighlight({
@@ -44,7 +48,7 @@ class _XueHuaCornerAnchorHighlightState
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 650),
+      duration: const Duration(milliseconds: 700),
     )..repeat(reverse: true);
   }
 
@@ -54,21 +58,18 @@ class _XueHuaCornerAnchorHighlightState
       return const SizedBox.shrink();
     }
     return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (BuildContext context, Widget? _) {
-          return CustomPaint(
-            size: widget.viewportSize,
-            painter: _CornerAnchorPainter(
-              results: widget.results,
-              viewportSize: widget.viewportSize,
-              sensorOrientation: widget.sensorOrientation,
-              isFrontCamera: widget.isFrontCamera,
-              anchorColor: widget.anchorColor,
-              pulseValue: _pulseController.value,
-            ),
-          );
-        },
+      child: RepaintBoundary(
+        child: CustomPaint(
+          size: widget.viewportSize,
+          painter: _CornerAnchorPainter(
+            pulseAnimation: _pulseController,
+            results: widget.results,
+            viewportSize: widget.viewportSize,
+            sensorOrientation: widget.sensorOrientation,
+            isFrontCamera: widget.isFrontCamera,
+            anchorColor: widget.anchorColor,
+          ),
+        ),
       ),
     );
   }
@@ -81,24 +82,53 @@ class _XueHuaCornerAnchorHighlightState
 }
 
 class _CornerAnchorPainter extends CustomPainter {
-  const _CornerAnchorPainter({
+  _CornerAnchorPainter({
+    required this.pulseAnimation,
     required this.results,
     required this.viewportSize,
     required this.sensorOrientation,
     required this.isFrontCamera,
     required this.anchorColor,
-    required this.pulseValue,
-  });
+  }) : super(repaint: pulseAnimation);
 
+  final Animation<double> pulseAnimation;
   final List<BarcodeResult> results;
   final Size viewportSize;
   final int sensorOrientation;
   final bool isFrontCamera;
   final Color anchorColor;
-  final double pulseValue;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final double pulseValue = pulseAnimation.value;
+
+    final Paint polyFillPaint = Paint()
+      ..color = anchorColor.withValues(alpha: 0.16)
+      ..style = PaintingStyle.fill;
+    final Paint polyStrokePaint = Paint()
+      ..color = anchorColor.withValues(alpha: 0.90)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final Paint sonarPaint = Paint()
+      ..color = anchorColor.withValues(alpha: 0.36 * (1.0 - pulseValue * 0.55))
+      ..style = PaintingStyle.fill;
+    final Paint sonarRingPaint = Paint()
+      ..color = anchorColor.withValues(alpha: 0.55 * (1.0 - pulseValue * 0.45))
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final Paint coreFillPaint = Paint()
+      ..color = anchorColor
+      ..style = PaintingStyle.fill;
+    final Paint whiteRingPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+    final Paint centerDotPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
     for (final BarcodeResult result in results) {
       final List<Offset> mapped = result.mapCornersToViewport(
         viewportSize: viewportSize,
@@ -114,19 +144,8 @@ class _CornerAnchorPainter extends CustomPainter {
         }
         poly.close();
 
-        canvas.drawPath(
-          poly,
-          Paint()
-            ..color = anchorColor.withValues(alpha: 0.18)
-            ..style = PaintingStyle.fill,
-        );
-        canvas.drawPath(
-          poly,
-          Paint()
-            ..color = anchorColor
-            ..strokeWidth = 2.5
-            ..style = PaintingStyle.stroke,
-        );
+        canvas.drawPath(poly, polyFillPaint);
+        canvas.drawPath(poly, polyStrokePaint);
       }
 
       double sumX = 0;
@@ -137,39 +156,21 @@ class _CornerAnchorPainter extends CustomPainter {
       }
       final Offset center = Offset(sumX / mapped.length, sumY / mapped.length);
 
-      final double outerRadius = 18.0 + (pulseValue * 8.0);
-      canvas.drawCircle(
-        center,
-        outerRadius,
-        Paint()
-          ..color = anchorColor.withValues(
-            alpha: 0.35 * (1.0 - pulseValue * 0.5),
-          )
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawCircle(
-        center,
-        11.0,
-        Paint()
-          ..color = anchorColor
-          ..style = PaintingStyle.fill,
-      );
-      canvas.drawCircle(
-        center,
-        11.0,
-        Paint()
-          ..color = Colors.white
-          ..strokeWidth = 2.5
-          ..style = PaintingStyle.stroke,
-      );
+      final double outerRadius = 17.0 + (pulseValue * 9.0);
+      canvas.drawCircle(center, outerRadius, sonarPaint);
+      canvas.drawCircle(center, outerRadius, sonarRingPaint);
+      canvas.drawCircle(center, 11.5, coreFillPaint);
+      canvas.drawCircle(center, 11.5, whiteRingPaint);
+      canvas.drawCircle(center, 3.2, centerDotPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _CornerAnchorPainter oldDelegate) {
-    return oldDelegate.results != results ||
-        oldDelegate.pulseValue != pulseValue ||
+    return !listEquals(oldDelegate.results, results) ||
         oldDelegate.viewportSize != viewportSize ||
+        oldDelegate.sensorOrientation != sensorOrientation ||
+        oldDelegate.isFrontCamera != isFrontCamera ||
         oldDelegate.anchorColor != anchorColor;
   }
 }

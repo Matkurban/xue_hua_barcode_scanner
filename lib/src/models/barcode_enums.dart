@@ -13,6 +13,24 @@ enum GalleryScanStatus {
   invalidBarcode,
 }
 
+/// Camera authorization / permission state across mobile, desktop, and web.
+enum CameraPermissionStatus {
+  /// Permission status has not been determined yet.
+  unknown,
+
+  /// Camera access is authorized by the user / system.
+  granted,
+
+  /// Camera access was denied by the user (can request again or open settings).
+  denied,
+
+  /// Camera access is permanently denied and requires enabling in system settings.
+  permanentlyDenied,
+
+  /// Camera access is restricted by system policy (e.g. parental controls / MDM).
+  restricted,
+}
+
 /// Raw pixel buffer format passed to `decodeImageBytes`.
 ///
 /// Supports single-channel luminance (`lum` / Y-plane of YUV420 / NV21 for

@@ -99,12 +99,28 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
             let args = call.arguments as? [String: Any]
             let enabled = (args?["enabled"] as? Bool) ?? false
             setTorch(enabled: enabled, result: result)
+        case "openAppSettings":
+            openAppPermissionSettings(result: result)
         case "pickImageFromGallery":
             pickImageFromGallery(result: result)
         case "pickImageFilePath":
             result(nil)
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+
+    private func openAppPermissionSettings(result: @escaping FlutterResult) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString),
+                  UIApplication.shared.canOpenURL(url)
+            else {
+                result(false)
+                return
+            }
+            UIApplication.shared.open(url, options: [:]) { success in
+                result(success)
+            }
         }
     }
 
@@ -208,18 +224,26 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                             FlutterError(
                                 code: "CAMERA_PERMISSION_DENIED",
                                 message: "Camera permission was denied by the user.",
-                                details: nil
+                                details: "denied"
                             )
                         )
                     }
                 }
             }
+        case .restricted:
+            result(
+                FlutterError(
+                    code: "CAMERA_PERMISSION_RESTRICTED",
+                    message: "Camera access is restricted by system policy.",
+                    details: "restricted"
+                )
+            )
         default:
             result(
                 FlutterError(
                     code: "CAMERA_PERMISSION_DENIED",
                     message: "Camera access is not authorized. Please enable camera access in Settings.",
-                    details: nil
+                    details: "permanentlyDenied"
                 )
             )
         }
@@ -311,9 +335,6 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                 let payload = self.cameraPayload(devices: devices)
                 let cameraCount = max(payload.count, 1)
 
-                // Return to Dart before startRunning. On some Simulator builds
-                // startRunning can block the session queue indefinitely, which
-                // previously left the Flutter side waiting forever for ready.
                 DispatchQueue.main.async {
                     if self.textureId == nil, let registry = self.textureRegistry {
                         self.textureId = registry.register(self.scannerTexture)
@@ -433,18 +454,38 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let byteCount = bytesPerRow * height
-        guard width > 0, height > 0, byteCount > 0 else {
+        let pixelCount = width * height
+        guard width > 0, height > 0, bytesPerRow >= width * 4 else {
             return
         }
 
-        let data = Data(bytes: baseAddress, count: byteCount)
+        // Extract compact 1-channel luminance (Y) on the background video queue
+        // to cut main-thread EventChannel payload size by 75%.
+        var lumaData = Data(count: pixelCount)
+        let srcPtr = baseAddress.assumingMemoryBound(to: UInt8.self)
+        lumaData.withUnsafeMutableBytes { rawBuffer in
+            guard let dstPtr = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+            for row in 0..<height {
+                let srcRow = srcPtr.advanced(by: row * bytesPerRow)
+                let dstRow = dstPtr.advanced(by: row * width)
+                for col in 0..<width {
+                    let px = srcRow.advanced(by: col * 4)
+                    let b = UInt16(px[0])
+                    let g = UInt16(px[1])
+                    let r = UInt16(px[2])
+                    dstRow[col] = UInt8((r * 77 + g * 150 + b * 29) >> 8)
+                }
+            }
+        }
+
         let framePacket: [String: Any] = [
-            "bytes": FlutterStandardTypedData(bytes: data),
+            "bytes": FlutterStandardTypedData(bytes: lumaData),
             "width": width,
             "height": height,
-            "rowStride": bytesPerRow,
-            "format": 2,
+            "rowStride": width,
+            "format": 0,
             "sensorOrientation": 0
         ]
 

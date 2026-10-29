@@ -26,7 +26,7 @@ class XueHuaScannerView extends StatefulWidget {
     this.validator,
     this.texts = const XueHuaScannerTexts(),
     this.cutoutSize,
-    this.cutoutBorderRadius = 16.0,
+    this.cutoutBorderRadius = 20.0,
     this.maskColor = const Color(0x99000000),
     this.cornerColor = const Color(0xFF00E676),
     this.errorColor = const Color(0xFFFF5252),
@@ -41,6 +41,7 @@ class XueHuaScannerView extends StatefulWidget {
     this.bottomBarBuilder,
     this.torchButtonBuilder,
     this.galleryButtonBuilder,
+    this.permissionDeniedBuilder,
     this.cameraPreviewBuilder,
   });
 
@@ -108,6 +109,9 @@ class XueHuaScannerView extends StatefulWidget {
   /// Custom builder to replace the gallery picker button.
   final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
 
+  /// Custom builder to replace the camera permission-denied recovery view.
+  final XueHuaPermissionDeniedBuilder? permissionDeniedBuilder;
+
   /// Optional custom builder for overriding the underlying camera preview layer.
   final Widget Function(BuildContext context, ScannerState state)?
   cameraPreviewBuilder;
@@ -166,12 +170,19 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_controller.value.isInitialized) return;
+    final ScannerState current = _controller.value;
+    if (!current.isInitialized) return;
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
       unawaited(_controller.pause());
     } else if (state == AppLifecycleState.resumed) {
-      unawaited(_controller.resume());
+      if (current.isPermissionDenied ||
+          (current.hasCameraError && !current.isRunning)) {
+        // Automatically retry starting the camera when returning from OS Settings.
+        unawaited(_controller.retryCameraPermission());
+      } else {
+        unawaited(_controller.resume());
+      }
     }
   }
 
@@ -180,9 +191,11 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     return ValueListenableBuilder<ScannerState>(
       valueListenable: _controller,
       builder: (BuildContext context, ScannerState state, Widget? _) {
-        if (state.isPaused && _scanLineController.isAnimating) {
+        final bool shouldStopScanLine =
+            state.isPaused || state.isPermissionDenied || state.hasCameraError;
+        if (shouldStopScanLine && _scanLineController.isAnimating) {
           _scanLineController.stop();
-        } else if (!state.isPaused && !_scanLineController.isAnimating) {
+        } else if (!shouldStopScanLine && !_scanLineController.isAnimating) {
           _scanLineController.repeat(reverse: true);
         }
 
@@ -197,6 +210,8 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
         final Color activeScanLineColor = isError
             ? widget.errorColor
             : widget.scanLineColor;
+        final bool showDefaultCutoutOverlay =
+            !state.isPermissionDenied && !state.hasCameraError;
 
         return LayoutBuilder(
           builder: (BuildContext context, BoxConstraints constraints) {
@@ -208,6 +223,20 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
               viewportSize,
               customCutoutSize: widget.cutoutSize,
             );
+
+            final Widget previewLayer = widget.cameraPreviewBuilder != null
+                ? widget.cameraPreviewBuilder!(context, state)
+                : ScannerCameraPreview(
+                    isWeb: _controller.isWeb,
+                    state: state,
+                    texts: widget.texts,
+                    scanWindow: scanWindow,
+                    accentColor: widget.cornerColor,
+                    permissionDeniedBuilder: widget.permissionDeniedBuilder,
+                    onOpenSettings: _handleOpenSettings,
+                    onRetryPermission: _handleRetryPermission,
+                    onPickGallery: _handlePickGallery,
+                  );
 
             return Stack(
               fit: StackFit.expand,
@@ -224,18 +253,13 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                   const SizedBox.shrink(
                     key: ValueKey<String>('xh_scanner_has_torch'),
                   ),
-                if (widget.cameraPreviewBuilder != null)
-                  widget.cameraPreviewBuilder!(context, state)
-                else
-                  ScannerCameraPreview(
-                    isWeb: _controller.isWeb,
-                    state: state,
-                    texts: widget.texts,
-                  ),
+
+                // When live or standby (no permission/hardware error), preview sits below overlay.
+                if (showDefaultCutoutOverlay) previewLayer,
 
                 if (widget.overlayBuilder != null)
                   widget.overlayBuilder!(context, scanWindow, state)
-                else
+                else if (showDefaultCutoutOverlay)
                   XueHuaScannerOverlay(
                     scanWindow: scanWindow,
                     maskColor: widget.maskColor,
@@ -251,12 +275,17 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                     _scanLineAnimation,
                     scanWindow,
                   )
-                else
+                else if (showDefaultCutoutOverlay)
                   XueHuaScanLineAnimation(
                     animation: _scanLineAnimation,
                     scanWindow: scanWindow,
                     lineColor: activeScanLineColor,
                   ),
+
+                // When permission is denied or camera has a hardware error, render the
+                // interactive diagnostic surface above any custom overlay mask so its
+                // buttons and guide remain 100% legible and clickable.
+                if (!showDefaultCutoutOverlay) previewLayer,
 
                 if (widget.showCornerHighlights &&
                     state.latestResults.isNotEmpty)
@@ -326,10 +355,18 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     }
   }
 
+  Future<void> _handleOpenSettings() async {
+    final bool opened = await _controller.openAppSettings();
+    if (!opened && mounted) {
+      await _controller.retryCameraPermission();
+    }
+  }
+
+  Future<void> _handleRetryPermission() async {
+    await _controller.retryCameraPermission();
+  }
+
   Future<void> _handleToggleTorch() async {
-    // Camera start is async. Until initialization finishes, torch capability is
-    // unknown (default unavailable) — ignore taps so we do not flash a false
-    // "unsupported" snackbar on phones that still have a flash.
     if (!_controller.value.isInitialized) {
       return;
     }
@@ -341,7 +378,6 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     if (!mounted) {
       return;
     }
-    // Desktop / failed cameras may flip to unavailable after the platform call.
     if (!_controller.value.hasTorch) {
       _showTorchUnsupportedMessage();
     }

@@ -12,6 +12,7 @@
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
+#include <shellapi.h>
 
 #include <flutter/event_channel.h>
 #include <flutter/event_sink.h>
@@ -37,6 +38,7 @@
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
 #pragma comment(lib, "Comdlg32.lib")
+#pragma comment(lib, "Shell32.lib")
 
 namespace {
 
@@ -50,7 +52,7 @@ struct CameraFramePacket {
   int32_t width = 0;
   int32_t height = 0;
   int32_t row_stride = 0;
-  int32_t format = 1;
+  int32_t format = 0;
   int32_t sensor_orientation = 0;
 };
 
@@ -236,6 +238,16 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
       result->Success();
     } else if (method == "setTorch") {
       result->Success(flutter::EncodableValue(false));
+    } else if (method == "openAppSettings") {
+      HINSTANCE res = ShellExecuteW(
+          nullptr,
+          L"open",
+          L"ms-settings:privacy-webcam",
+          nullptr,
+          nullptr,
+          SW_SHOWNORMAL);
+      const bool opened = reinterpret_cast<INT_PTR>(res) > 32;
+      result->Success(flutter::EncodableValue(opened));
     } else if (method == "pickImageFromGallery") {
       result->Success();
     } else if (method == "pickImageFilePath") {
@@ -334,7 +346,14 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     CoTaskMemFree(devices);
 
     if (FAILED(hr) || media_source == nullptr) {
-      result->Error("CAMERA_OPEN_FAILED", "Failed to activate Windows webcam.");
+      if (hr == E_ACCESSDENIED) {
+        result->Error(
+            "CAMERA_PERMISSION_DENIED",
+            "Camera access is denied by Windows privacy settings.",
+            flutter::EncodableValue("permanentlyDenied"));
+      } else {
+        result->Error("CAMERA_OPEN_FAILED", "Failed to activate Windows webcam.");
+      }
       return;
     }
 
@@ -352,7 +371,14 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
     media_source->Release();
 
     if (FAILED(hr) || reader == nullptr) {
-      result->Error("READER_CREATE_FAILED", "Failed to create MediaFoundation SourceReader.");
+      if (hr == E_ACCESSDENIED) {
+        result->Error(
+            "CAMERA_PERMISSION_DENIED",
+            "Camera access is denied by Windows privacy settings.",
+            flutter::EncodableValue("permanentlyDenied"));
+      } else {
+        result->Error("READER_CREATE_FAILED", "Failed to create MediaFoundation SourceReader.");
+      }
       return;
     }
 
@@ -449,17 +475,19 @@ class XueHuaBarcodeScannerWindowsPlugin : public flutter::Plugin {
               auto now = std::chrono::steady_clock::now();
               if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_emit).count() >= 150) {
                 last_emit = now;
-                std::vector<uint8_t> copy;
-                {
-                  std::lock_guard<std::mutex> lock(frame_mutex_);
-                  copy = front_rgba_;
+                std::vector<uint8_t> luma(pixel_count);
+                for (size_t i = 0; i < pixel_count; ++i) {
+                  const uint32_t b = data[i * 4 + 0];
+                  const uint32_t g = data[i * 4 + 1];
+                  const uint32_t r = data[i * 4 + 2];
+                  luma[i] = static_cast<uint8_t>((r * 77 + g * 150 + b * 29) >> 8);
                 }
                 CameraFramePacket packet;
-                packet.bytes = std::move(copy);
+                packet.bytes = std::move(luma);
                 packet.width = static_cast<int32_t>(width);
                 packet.height = static_cast<int32_t>(height);
-                packet.row_stride = static_cast<int32_t>(width * 4);
-                packet.format = 1;
+                packet.row_stride = static_cast<int32_t>(width);
+                packet.format = 0;
                 packet.sensor_orientation = 0;
                 // EventChannel::Success must run on the platform thread.
                 PostFrameToPlatformThread(std::move(packet));

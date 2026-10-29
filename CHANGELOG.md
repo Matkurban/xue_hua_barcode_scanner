@@ -1,5 +1,19 @@
 ## Unreleased
 
+## 1.1.0 - 2026-10-30
+
+* Redesign the camera permission-denied and hardware-unavailable views (`ScannerCameraPreview`):
+  * Add a dedicated frosted glass permission recovery card (`xh_scanner_permission_denied_view`) with a layered security badge, 3-step recovery guide, system settings button (`xh_scanner_open_settings_button`), permission retry button (`xh_scanner_retry_permission_button`), and gallery fallback action (`xh_scanner_permission_gallery_button`).
+  * Distinguish between user-denied (`CameraPermissionStatus.denied` / `permanentlyDenied`), policy-restricted (`CameraPermissionStatus.restricted`), and missing hardware (`isNoCameraHardware` / `xh_scanner_hardware_error_view`) states on `ScannerState`.
+  * Add `openAppSettings` method channel support across Android (`ACTION_APPLICATION_DETAILS_SETTINGS`), iOS (`UIApplication.openSettingsURLString`), macOS (`Privacy_Camera`), and Windows (`ms-settings:privacy-webcam`), plus automatic camera recovery on `AppLifecycleState.resumed` via `XueHuaScannerController.retryCameraPermission()`.
+  * Add `permissionDeniedBuilder` to `XueHuaScannerView` and `XueHuaBarcodeScannerPage`, and localized permission/diagnostic fields to `XueHuaScannerTexts`.
+* Optimize UI rendering pipeline and frame decoding for zero-jank 60/120 FPS performance:
+  * Replace per-frame `Isolate.run` spawning in `ffi_isolate_worker.dart` with a persistent background worker Isolate (`_PersistentZxingWorker`) using cached `ZxingFfiBindings`, reusable native heap buffers, and zero-copy `TransferableTypedData` pixel transfer.
+  * Extract compact 1-channel luminance (`PixelFormat.lum`) on background capture threads in iOS, macOS, and Windows native plugins before emitting to `EventChannel`, reducing main-thread frame payload size by 75%.
+  * Refactor `XueHuaScanLineAnimation` and `XueHuaCornerAnchorHighlight` to drive `CustomPainter(repaint: animation)` directly inside isolated `RepaintBoundary` layers with zero per-frame widget rebuilds or layout passes, and automatically pause animation tickers when scanning is paused or in an error/permission state.
+  * Replace `Path.combine(PathOperation.difference, ...)` in `XueHuaScannerOverlay` with GPU-accelerated `PathFillType.evenOdd` and implement value equality (`==` and `hashCode`) on `ScannerState`, `BarcodeResult`, and `CameraInputSource`.
+* Polish scanner UI aesthetics across `XueHuaScannerOverlay`, `XueHuaScanLineAnimation`, `XueHuaCornerAnchorHighlight`, `ScannerTopBar`, `ScannerBottomBar`, `ScannerBottomActionButton`, `CircleGlassIconButton`, and `XueHuaCameraSourceButton`.
+
 ## 1.0.8 - 2026-10-28
 
 * Add example iOS `integration_test` coverage, including a PHPicker test-side bypass and encode/decode round-trips.
@@ -60,4 +74,3 @@
 * 100% customizable UI via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
 
 * Included Dart Package Skill (`skills/xue-hua-barcode-scanner/SKILL.md`).
-

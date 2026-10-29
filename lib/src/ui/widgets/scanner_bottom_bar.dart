@@ -64,13 +64,26 @@ class ScannerBottomBar extends StatelessWidget {
 
     final bool hideTorch = hideTorchWhenUnavailable && !state.hasTorch;
 
-    return Padding(
-      padding: const EdgeInsets.only(left: 48, right: 48, bottom: 36),
-      child: Row(
-        mainAxisAlignment: hideTorch
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.spaceBetween,
-        children: <Widget>[if (!hideTorch) torchButton, galleryButton],
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 40, right: 40, bottom: 28),
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 340),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0x660B0F19),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Row(
+              mainAxisAlignment: hideTorch
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.spaceBetween,
+              children: <Widget>[if (!hideTorch) torchButton, galleryButton],
+            ),
+          ),
+        ),
       ),
     );
   }

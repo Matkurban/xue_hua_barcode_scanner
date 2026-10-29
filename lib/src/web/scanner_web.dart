@@ -235,6 +235,10 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     String? activeCameraId = cameraId;
     const Size previewSize = Size(1280, 720);
     final bool explicitDevice = cameraId != null && cameraId.isNotEmpty;
+    CameraPermissionStatus permissionStatus = CameraPermissionStatus.unknown;
+    String? errorCode;
+    String? errorMessage;
+    bool streamStarted = false;
 
     try {
       final JSObject? mediaDevices = jsNavigator.getProperty<JSObject?>(
@@ -263,6 +267,8 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
             .callMethod<JSPromise<JSObject>>('getUserMedia'.toJS, constraints);
         final JSObject stream = await streamPromise.toDart;
         _activeMediaStream = stream;
+        streamStarted = true;
+        permissionStatus = CameraPermissionStatus.granted;
         video.setProperty('srcObject'.toJS, stream);
         video.callMethod<JSAny?>('play'.toJS);
 
@@ -308,7 +314,18 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
           ),
         );
       }
-    } catch (_) {}
+    } catch (e) {
+      final String errStr = e.toString();
+      final String errLower = errStr.toLowerCase();
+      if (errLower.contains('notallowederror') ||
+          errLower.contains('permissiondenied') ||
+          errLower.contains('permission dismissed') ||
+          errLower.contains('permission')) {
+        permissionStatus = CameraPermissionStatus.denied;
+        errorCode = 'CAMERA_PERMISSION_DENIED';
+        errorMessage = 'Camera permission was denied by the browser.';
+      }
+    }
 
     CameraFacing activeFacing = facing;
     String resolvedId = activeCameraId ?? '';
@@ -333,18 +350,24 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
       }
     }
 
+    final bool isPermissionError =
+        permissionStatus == CameraPermissionStatus.denied;
+
     return ScannerState(
       isInitialized: true,
-      isRunning: true,
+      isRunning: !isPermissionError,
       isPaused: false,
       torchState: hasTorch ? TorchState.off : TorchState.unavailable,
       cameraFacing: activeFacing,
       availableCameraCount: cameras.isEmpty ? 1 : cameras.length,
       cameras: cameras,
       activeCameraId: resolvedId.isEmpty ? 'default' : resolvedId,
-      webViewType: _currentViewType,
+      webViewType: streamStarted ? _currentViewType : null,
       previewSize: previewSize,
       sensorOrientation: 0,
+      permissionStatus: permissionStatus,
+      errorCode: errorCode,
+      errorMessage: errorMessage,
     );
   }
 

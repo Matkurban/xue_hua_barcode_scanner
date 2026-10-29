@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Rect, Size;
 
+import 'package:flutter/foundation.dart' show listEquals;
+
 import 'barcode_enums.dart';
 
 /// Validation callback used to verify whether a decoded [BarcodeResult] meets
@@ -126,6 +128,26 @@ class BarcodeResult {
         })
         .toList(growable: false);
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is BarcodeResult &&
+        other.text == text &&
+        other.format == format &&
+        other.isValid == isValid &&
+        other.frameSize == frameSize &&
+        listEquals(other.cornerPoints, cornerPoints);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    text,
+    format,
+    isValid,
+    frameSize,
+    Object.hashAll(cornerPoints),
+  );
 
   @override
   String toString() =>

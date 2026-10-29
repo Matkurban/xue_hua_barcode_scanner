@@ -63,4 +63,16 @@ class CameraInputSource {
         return CameraFacing.back;
     }
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CameraInputSource &&
+        other.id == id &&
+        other.label == label &&
+        other.facing == facing;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, label, facing);
 }

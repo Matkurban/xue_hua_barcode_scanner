@@ -39,18 +39,18 @@ class XueHuaCameraSourceButton extends StatelessWidget {
 
     return ChatContextMenuWrapper(
       topPadding: 0,
-      backgroundColor: const Color(0xFF1C1C1E),
-      borderRadius: BorderRadius.circular(12),
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      backgroundColor: const Color(0xF5141923),
+      borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       barrierColor: const Color(0x66000000),
       excludeAnchorFromBarrier: true,
       barrierAnchorBorderRadius: BorderRadius.circular(24),
-      menuConstraints: const BoxConstraints(minWidth: 196, maxWidth: 280),
+      menuConstraints: const BoxConstraints(minWidth: 210, maxWidth: 290),
       shadows: const <BoxShadow>[
         BoxShadow(
-          color: Color(0x66000000),
-          blurRadius: 24,
-          offset: Offset(0, 8),
+          color: Color(0x80000000),
+          blurRadius: 28,
+          offset: Offset(0, 10),
         ),
       ],
       menuBuilder: (BuildContext context, VoidCallback hideMenu) {
@@ -104,34 +104,61 @@ class _CameraSourceMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color color = selected ? const Color(0xFF00E676) : Colors.white;
+    const Color accentColor = Color(0xFF00E676);
+    final Color fgColor = selected ? accentColor : Colors.white;
     final IconData icon = switch (source.facing) {
-      CameraFacing.front => Icons.camera_front_outlined,
-      CameraFacing.external => Icons.videocam_outlined,
-      CameraFacing.back => Icons.camera_rear_outlined,
+      CameraFacing.front => Icons.camera_front_rounded,
+      CameraFacing.external => Icons.videocam_rounded,
+      CameraFacing.back => Icons.camera_rear_rounded,
     };
     return GestureDetector(
       key: ValueKey<String>('xh_scanner_camera_source_${source.id}'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected
+              ? accentColor.withValues(alpha: 0.14)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: selected
+                ? accentColor.withValues(alpha: 0.36)
+                : Colors.transparent,
+          ),
+        ),
         child: Row(
           children: <Widget>[
-            Icon(icon, color: color, size: 18),
-            const SizedBox(width: 8),
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: selected
+                    ? accentColor.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: fgColor, size: 17),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 source.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: color, fontSize: 14),
+                style: TextStyle(
+                  color: fgColor,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
             if (selected)
               const Icon(
-                Icons.check_rounded,
-                color: Color(0xFF00E676),
+                Icons.check_circle_rounded,
+                color: accentColor,
                 size: 18,
               ),
           ],

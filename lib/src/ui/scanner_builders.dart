@@ -52,3 +52,12 @@ typedef XueHuaGalleryButtonBuilder = Widget Function(
   ScannerState state,
   VoidCallback onPickGallery,
 );
+
+/// Builder signature for customizing the dedicated camera permission-denied view.
+typedef XueHuaPermissionDeniedBuilder = Widget Function(
+  BuildContext context,
+  ScannerState state,
+  VoidCallback onOpenSettings,
+  VoidCallback onRetryPermission,
+  VoidCallback onPickGallery,
+);

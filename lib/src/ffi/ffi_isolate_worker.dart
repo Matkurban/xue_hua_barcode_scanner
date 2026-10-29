@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' show Offset, Size;
 
@@ -81,6 +83,39 @@ ffi.DynamicLibrary? _tryOpenLibrary(String path) {
   return null;
 }
 
+ZxingFfiBindings? _cachedBindings;
+bool _didProbeDynamicLibrary = false;
+ffi.Pointer<ffi.Uint8> _reusableBuffer = ffi.nullptr;
+int _reusableBufferCapacity = 0;
+
+ZxingFfiBindings? _getCachedZxingBindings() {
+  if (_cachedBindings != null) {
+    return _cachedBindings;
+  }
+  if (_didProbeDynamicLibrary) {
+    return null;
+  }
+  _didProbeDynamicLibrary = true;
+  final ffi.DynamicLibrary? dylib = tryOpenZxingDynamicLibrary();
+  if (dylib != null) {
+    _cachedBindings = ZxingFfiBindings(dylib);
+  }
+  return _cachedBindings;
+}
+
+ffi.Pointer<ffi.Uint8> _acquireReusableNativeBuffer(int length) {
+  if (_reusableBufferCapacity < length || _reusableBuffer == ffi.nullptr) {
+    if (_reusableBuffer != ffi.nullptr) {
+      calloc.free(_reusableBuffer);
+      _reusableBuffer = ffi.nullptr;
+      _reusableBufferCapacity = 0;
+    }
+    _reusableBuffer = calloc<ffi.Uint8>(length);
+    _reusableBufferCapacity = length;
+  }
+  return _reusableBuffer;
+}
+
 /// Opens the platform-specific dynamic library containing `zxing-cpp` C symbols.
 ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
   try {
@@ -127,10 +162,9 @@ ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
 
 /// Reads the underlying native engine version string via FFI.
 String readNativeEngineVersion() {
-  final ffi.DynamicLibrary? dylib = tryOpenZxingDynamicLibrary();
-  if (dylib != null) {
+  final ZxingFfiBindings? bindings = _getCachedZxingBindings();
+  if (bindings != null) {
     try {
-      final ZxingFfiBindings bindings = ZxingFfiBindings(dylib);
       final ffi.Pointer<ffi.Char> ptr = bindings.zxing_engine_version();
       if (ptr != ffi.nullptr) {
         return ptr.cast<Utf8>().toDartString();
@@ -138,6 +172,192 @@ String readNativeEngineVersion() {
     } catch (_) {}
   }
   return 'zxing-cpp 3.1.1 (FFI Isolate Worker)';
+}
+
+/// Persistent background worker Isolate that eliminates per-frame Isolate
+/// creation/teardown overhead and uses zero-copy [TransferableTypedData]
+/// to prevent UI isolate frame drops.
+class _PersistentZxingWorker {
+  _PersistentZxingWorker._();
+
+  static final _PersistentZxingWorker instance = _PersistentZxingWorker._();
+
+  Isolate? _isolate;
+  SendPort? _commandPort;
+  Future<bool>? _initializing;
+  int _nextTaskId = 0;
+  final Map<int, Completer<List<BarcodeResult>>> _pending =
+      <int, Completer<List<BarcodeResult>>>{};
+
+  Future<bool> _ensureStarted() {
+    if (_commandPort != null && _isolate != null) {
+      return Future<bool>.value(true);
+    }
+    if (_initializing != null) {
+      return _initializing!;
+    }
+    final Completer<bool> completer = Completer<bool>();
+    _initializing = completer.future;
+
+    final ReceivePort receivePort = ReceivePort();
+
+    receivePort.listen((dynamic message) {
+      if (message is SendPort) {
+        _commandPort = message;
+        if (!completer.isCompleted) {
+          completer.complete(true);
+        }
+        return;
+      }
+      if (message is Map<String, Object?>) {
+        final int? id = message['id'] as int?;
+        if (id == null) return;
+        final Completer<List<BarcodeResult>>? task = _pending.remove(id);
+        if (task == null || task.isCompleted) return;
+        final List<BarcodeResult>? results =
+            message['results'] as List<BarcodeResult>?;
+        task.complete(results ?? const <BarcodeResult>[]);
+      }
+    });
+
+    Isolate.spawn<SendPort>(
+      _persistentWorkerEntryPoint,
+      receivePort.sendPort,
+      debugName: 'XueHuaZxingPersistentWorker',
+    ).then((Isolate spawned) {
+      _isolate = spawned;
+    }).catchError((Object _) {
+      receivePort.close();
+      _initializing = null;
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+    });
+
+    return completer.future;
+  }
+
+  Future<List<BarcodeResult>> decode({
+    required Uint8List rawPixelBytes,
+    required int width,
+    required int height,
+    required int rowStride,
+    required PixelFormat format,
+    required bool tryHarder,
+    required bool tryRotate,
+    required bool tryInvert,
+  }) async {
+    final bool ready = await _ensureStarted();
+    final SendPort? port = _commandPort;
+    if (!ready || port == null) {
+      return Isolate.run(
+        () => decodeInWorkerIsolate(
+          rawPixelBytes: rawPixelBytes,
+          width: width,
+          height: height,
+          rowStride: rowStride,
+          format: format,
+          tryHarder: tryHarder,
+          tryRotate: tryRotate,
+          tryInvert: tryInvert,
+        ),
+      );
+    }
+
+    final int taskId = ++_nextTaskId;
+    final Completer<List<BarcodeResult>> completer =
+        Completer<List<BarcodeResult>>();
+    _pending[taskId] = completer;
+
+    final TransferableTypedData transferable = TransferableTypedData.fromList(
+      <Uint8List>[rawPixelBytes],
+    );
+    port.send(<String, Object?>{
+      'id': taskId,
+      'bytes': transferable,
+      'width': width,
+      'height': height,
+      'rowStride': rowStride,
+      'format': format,
+      'tryHarder': tryHarder,
+      'tryRotate': tryRotate,
+      'tryInvert': tryInvert,
+    });
+
+    return completer.future;
+  }
+}
+
+void _persistentWorkerEntryPoint(SendPort hostPort) {
+  final ReceivePort commandPort = ReceivePort();
+  hostPort.send(commandPort.sendPort);
+
+  commandPort.listen((dynamic message) {
+    if (message is! Map<String, Object?>) return;
+    final int? id = message['id'] as int?;
+    if (id == null) return;
+    try {
+      final TransferableTypedData? transferable =
+          message['bytes'] as TransferableTypedData?;
+      if (transferable == null) {
+        hostPort.send(<String, Object?>{
+          'id': id,
+          'results': const <BarcodeResult>[],
+        });
+        return;
+      }
+      final Uint8List rawPixelBytes = transferable.materialize().asUint8List();
+      final int width = (message['width'] as int?) ?? 0;
+      final int height = (message['height'] as int?) ?? 0;
+      final int rowStride = (message['rowStride'] as int?) ?? 0;
+      final PixelFormat format =
+          (message['format'] as PixelFormat?) ?? PixelFormat.rgba8888;
+      final bool tryHarder = (message['tryHarder'] as bool?) ?? true;
+      final bool tryRotate = (message['tryRotate'] as bool?) ?? true;
+      final bool tryInvert = (message['tryInvert'] as bool?) ?? true;
+
+      final List<BarcodeResult> decoded = decodeInWorkerIsolate(
+        rawPixelBytes: rawPixelBytes,
+        width: width,
+        height: height,
+        rowStride: rowStride,
+        format: format,
+        tryHarder: tryHarder,
+        tryRotate: tryRotate,
+        tryInvert: tryInvert,
+      );
+      hostPort.send(<String, Object?>{'id': id, 'results': decoded});
+    } catch (_) {
+      hostPort.send(<String, Object?>{
+        'id': id,
+        'results': const <BarcodeResult>[],
+      });
+    }
+  });
+}
+
+/// Dispatches frame decoding to the persistent zero-copy background worker
+/// Isolate, eliminating per-frame Isolate spawn overhead on the UI thread.
+Future<List<BarcodeResult>> decodeWithPersistentWorker({
+  required Uint8List rawPixelBytes,
+  required int width,
+  required int height,
+  required int rowStride,
+  required PixelFormat format,
+  required bool tryHarder,
+  required bool tryRotate,
+  required bool tryInvert,
+}) {
+  return _PersistentZxingWorker.instance.decode(
+    rawPixelBytes: rawPixelBytes,
+    width: width,
+    height: height,
+    rowStride: rowStride,
+    format: format,
+    tryHarder: tryHarder,
+    tryRotate: tryRotate,
+    tryInvert: tryInvert,
+  );
 }
 
 /// Executes native `zxing_decode_image_bytes` inside a background worker `Isolate`
@@ -152,10 +372,9 @@ List<BarcodeResult> decodeInWorkerIsolate({
   required bool tryRotate,
   required bool tryInvert,
 }) {
-  final ffi.DynamicLibrary? dylib = tryOpenZxingDynamicLibrary();
-  if (dylib != null) {
+  final ZxingFfiBindings? bindings = _getCachedZxingBindings();
+  if (bindings != null) {
     try {
-      final ZxingFfiBindings bindings = ZxingFfiBindings(dylib);
       final int bpp = format.bytesPerPixel;
       final int effectiveStride = rowStride > 0 ? rowStride : (width * bpp);
       final int requiredBytes = effectiveStride * height;
@@ -173,7 +392,7 @@ List<BarcodeResult> decodeInWorkerIsolate({
           ? (width * bpp)
           : effectiveStride;
 
-      final ffi.Pointer<ffi.Uint8> nativePixels = calloc<ffi.Uint8>(
+      final ffi.Pointer<ffi.Uint8> nativePixels = _acquireReusableNativeBuffer(
         safePixels.length,
       );
       ffi.Pointer<CBarcodeResultList> resultListPtr = ffi.nullptr;
@@ -232,7 +451,6 @@ List<BarcodeResult> decodeInWorkerIsolate({
         if (resultListPtr != ffi.nullptr) {
           bindings.free_barcode_results(resultListPtr);
         }
-        calloc.free(nativePixels);
       }
     } catch (_) {
       // Fall through to deterministic fallback matrix decoder if FFI lookup fails.
@@ -257,10 +475,9 @@ Uint8List encodeRgbaInWorkerIsolate({
   required int margin,
   required BarcodeEccLevel eccLevel,
 }) {
-  final ffi.DynamicLibrary? dylib = tryOpenZxingDynamicLibrary();
-  if (dylib != null) {
+  final ZxingFfiBindings? bindings = _getCachedZxingBindings();
+  if (bindings != null) {
     try {
-      final ZxingFfiBindings bindings = ZxingFfiBindings(dylib);
       final ffi.Pointer<Utf8> contentPtr = content.toNativeUtf8(
         allocator: calloc,
       );

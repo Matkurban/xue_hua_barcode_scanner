@@ -24,6 +24,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.util.Size;
 import android.view.Surface;
 
@@ -181,6 +182,10 @@ public final class XueHuaBarcodeScannerPlugin implements
         result.success(setTorchInternal(target));
         break;
       }
+      case "openAppSettings": {
+        result.success(openAppSettingsInternal());
+        break;
+      }
       case "pickImageFromGallery": {
         handlePickImageFromGallery(result);
         break;
@@ -192,6 +197,22 @@ public final class XueHuaBarcodeScannerPlugin implements
       default:
         result.notImplemented();
         break;
+    }
+  }
+
+  private boolean openAppSettingsInternal() {
+    Context ctx = activity != null ? activity : applicationContext;
+    if (ctx == null) {
+      return false;
+    }
+    try {
+      Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+      intent.setData(Uri.fromParts("package", ctx.getPackageName(), null));
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      ctx.startActivity(intent);
+      return true;
+    } catch (Exception e) {
+      return false;
     }
   }
 
@@ -216,7 +237,7 @@ public final class XueHuaBarcodeScannerPlugin implements
         result.error(
             "CAMERA_PERMISSION_DENIED",
             "Camera permission is not granted and no Activity is attached.",
-            null);
+            "denied");
       }
       return;
     }
@@ -242,10 +263,13 @@ public final class XueHuaBarcodeScannerPlugin implements
       if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
         openCameraForFacing(facing, cameraId, callback);
       } else {
+        boolean showRationale =
+            activity != null
+                && activity.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA);
         callback.error(
             "CAMERA_PERMISSION_DENIED",
             "Camera permission was denied by the user.",
-            null);
+            showRationale ? "denied" : "permanentlyDenied");
       }
     }
     return true;

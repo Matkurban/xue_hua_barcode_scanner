@@ -106,12 +106,25 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
             }
         case "setTorch":
             result(false)
+        case "openAppSettings":
+            openPrivacyCameraSettings(result: result)
         case "pickImageFromGallery":
             pickImageFromDisk(result: result)
         case "pickImageFilePath":
             result(nil)
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+
+    private func openPrivacyCameraSettings(result: @escaping FlutterResult) {
+        DispatchQueue.main.async {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+                let opened = NSWorkspace.shared.open(url)
+                result(opened)
+            } else {
+                result(false)
+            }
         }
     }
 
@@ -170,18 +183,26 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
                             FlutterError(
                                 code: "CAMERA_PERMISSION_DENIED",
                                 message: "Camera permission was denied by the user.",
-                                details: nil
+                                details: "denied"
                             )
                         )
                     }
                 }
             }
+        case .restricted:
+            result(
+                FlutterError(
+                    code: "CAMERA_PERMISSION_RESTRICTED",
+                    message: "Camera access is restricted by system policy.",
+                    details: "restricted"
+                )
+            )
         default:
             result(
                 FlutterError(
                     code: "CAMERA_PERMISSION_DENIED",
                     message: "Camera access is not authorized. Please enable camera access in System Settings > Privacy & Security > Camera.",
-                    details: nil
+                    details: "permanentlyDenied"
                 )
             )
         }
@@ -377,18 +398,38 @@ public final class XueHuaBarcodeScannerPlugin: NSObject,
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let byteCount = bytesPerRow * height
-        guard width > 0, height > 0, byteCount > 0 else {
+        let pixelCount = width * height
+        guard width > 0, height > 0, bytesPerRow >= width * 4 else {
             return
         }
 
-        let data = Data(bytes: baseAddress, count: byteCount)
+        // Extract compact 1-channel luminance (Y) on the background video queue
+        // to cut main-thread EventChannel payload size by 75% (from ~3.7MB to ~0.9MB).
+        var lumaData = Data(count: pixelCount)
+        let srcPtr = baseAddress.assumingMemoryBound(to: UInt8.self)
+        lumaData.withUnsafeMutableBytes { rawBuffer in
+            guard let dstPtr = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+            for row in 0..<height {
+                let srcRow = srcPtr.advanced(by: row * bytesPerRow)
+                let dstRow = dstPtr.advanced(by: row * width)
+                for col in 0..<width {
+                    let px = srcRow.advanced(by: col * 4)
+                    let b = UInt16(px[0])
+                    let g = UInt16(px[1])
+                    let r = UInt16(px[2])
+                    dstRow[col] = UInt8((r * 77 + g * 150 + b * 29) >> 8)
+                }
+            }
+        }
+
         let framePacket: [String: Any] = [
-            "bytes": FlutterStandardTypedData(bytes: data),
+            "bytes": FlutterStandardTypedData(bytes: lumaData),
             "width": width,
             "height": height,
-            "rowStride": bytesPerRow,
-            "format": 2,
+            "rowStride": width,
+            "format": 0,
             "sensorOrientation": 0
         ]
 

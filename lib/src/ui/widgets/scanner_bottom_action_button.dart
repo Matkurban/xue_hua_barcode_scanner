@@ -1,7 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
-/// Circular action button with label used in the scanner bottom bar (Torch & Gallery).
-class ScannerBottomActionButton extends StatelessWidget {
+/// Tactile glassmorphic circular action button with label used in the scanner
+/// bottom bar (Torch & Gallery).
+class ScannerBottomActionButton extends StatefulWidget {
   const ScannerBottomActionButton({
     super.key,
     required this.icon,
@@ -20,53 +21,101 @@ class ScannerBottomActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<ScannerBottomActionButton> createState() =>
+      _ScannerBottomActionButtonState();
+}
+
+class _ScannerBottomActionButtonState extends State<ScannerBottomActionButton> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final Color bgColor = isActive
-        ? activeColor.withValues(alpha: 0.25)
-        : Colors.black.withValues(alpha: 0.50);
-    final Color borderColor = isActive
-        ? activeColor
-        : Colors.white.withValues(alpha: isEnabled ? 0.24 : 0.10);
-    final Color iconColor = isActive
-        ? activeColor
-        : Colors.white.withValues(alpha: isEnabled ? 0.95 : 0.40);
+    final bool active = widget.isActive;
+    final bool enabled = widget.isEnabled;
+    final Color accent = widget.activeColor;
+
+    final Color borderColor = active
+        ? accent
+        : Colors.white.withValues(alpha: enabled ? 0.24 : 0.12);
+    final Color iconColor = active
+        ? accent
+        : Colors.white.withValues(alpha: enabled ? 0.96 : 0.45);
 
     return GestureDetector(
-      onTap: onTap,
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: borderColor, width: 1.5),
-              boxShadow: isActive
-                  ? <BoxShadow>[
-                      BoxShadow(
-                        color: activeColor.withValues(alpha: 0.45),
-                        blurRadius: 14,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : null,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: active
+                      ? <Color>[
+                          accent.withValues(alpha: 0.34),
+                          accent.withValues(alpha: 0.16),
+                        ]
+                      : <Color>[
+                          const Color(0xA61E293B),
+                          const Color(0xCC090D16),
+                        ],
+                ),
+                border: Border.all(
+                  color: borderColor,
+                  width: active ? 1.8 : 1.2,
+                ),
+                boxShadow: <BoxShadow>[
+                  if (active)
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.42),
+                      blurRadius: 16,
+                      spreadRadius: 1.5,
+                    )
+                  else
+                    const BoxShadow(
+                      color: Color(0x59000000),
+                      blurRadius: 14,
+                      offset: Offset(0, 5),
+                    ),
+                ],
+              ),
+              child: Icon(widget.icon, color: iconColor, size: 26),
             ),
-            child: Icon(icon, color: iconColor, size: 28),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: isActive ? activeColor : iconColor,
-              fontSize: 13,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: active
+                    ? accent.withValues(alpha: 0.16)
+                    : Colors.black.withValues(alpha: 0.38),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                widget.label,
+                style: TextStyle(
+                  color: active ? accent : iconColor,
+                  fontSize: 12.5,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                  letterSpacing: 0.2,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

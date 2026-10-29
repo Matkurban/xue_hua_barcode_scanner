@@ -23,7 +23,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
     this.autoPopOnDetect = false,
     this.texts = const XueHuaScannerTexts(),
     this.cutoutSize,
-    this.cutoutBorderRadius = 16.0,
+    this.cutoutBorderRadius = 20.0,
     this.maskColor = const Color(0x99000000),
     this.cornerColor = const Color(0xFF00E676),
     this.errorColor = const Color(0xFFFF5252),
@@ -38,6 +38,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
     this.bottomBarBuilder,
     this.torchButtonBuilder,
     this.galleryButtonBuilder,
+    this.permissionDeniedBuilder,
     this.cameraPreviewBuilder,
   });
 
@@ -106,6 +107,9 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
   /// Custom builder for the gallery button.
   final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
 
+  /// Custom builder for the camera permission-denied recovery view.
+  final XueHuaPermissionDeniedBuilder? permissionDeniedBuilder;
+
   /// Custom builder for overriding the camera preview widget.
   final Widget Function(BuildContext context, ScannerState state)?
   cameraPreviewBuilder;
@@ -135,6 +139,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
         bottomBarBuilder: bottomBarBuilder,
         torchButtonBuilder: torchButtonBuilder,
         galleryButtonBuilder: galleryButtonBuilder,
+        permissionDeniedBuilder: permissionDeniedBuilder,
         cameraPreviewBuilder: cameraPreviewBuilder,
         onDetect: (List<BarcodeResult> results) {
           onDetect?.call(results);

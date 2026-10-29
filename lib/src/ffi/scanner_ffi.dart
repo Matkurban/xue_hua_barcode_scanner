@@ -23,7 +23,8 @@ const EventChannel _kCameraFrameEventChannel = EventChannel(
 );
 
 /// Native 5-platform (Android, iOS, macOS, Windows, Linux) implementation of
-/// [XueHuaScannerPlatformEngine] powered by `dart:ffi`, `zxing-cpp`, and `Isolate.run`.
+/// [XueHuaScannerPlatformEngine] powered by `dart:ffi`, `zxing-cpp`, and a
+/// persistent background worker `Isolate`.
 class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   /// Creates a native FFI scanner engine.
   XueHuaScannerFfiEngine();
@@ -39,6 +40,32 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   @override
   String get engineVersion => readNativeEngineVersion();
 
+  /// Opens the operating system's camera privacy / application permission settings page.
+  static Future<bool> openSystemSettings() async {
+    try {
+      final bool? opened = await _kCameraMethodChannel
+          .invokeMethod<bool>('openAppSettings')
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      return opened ?? false;
+    } on MissingPluginException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Pauses or resumes the native frame event stream subscription to eliminate
+  /// main-thread deserialization overhead while scanning is paused.
+  void setFrameStreamPaused(bool paused) {
+    final StreamSubscription<dynamic>? sub = _frameSubscription;
+    if (sub == null) return;
+    if (paused && !sub.isPaused) {
+      sub.pause();
+    } else if (!paused && sub.isPaused) {
+      sub.resume();
+    }
+  }
+
   @override
   Future<List<BarcodeResult>> decodeImageBytes(
     Uint8List rawPixelBytes, {
@@ -53,17 +80,15 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     if (rawPixelBytes.isEmpty || width <= 0 || height <= 0) {
       return const <BarcodeResult>[];
     }
-    return Isolate.run(
-      () => decodeInWorkerIsolate(
-        rawPixelBytes: rawPixelBytes,
-        width: width,
-        height: height,
-        rowStride: rowStride,
-        format: format,
-        tryHarder: tryHarder,
-        tryRotate: tryRotate,
-        tryInvert: tryInvert,
-      ),
+    return decodeWithPersistentWorker(
+      rawPixelBytes: rawPixelBytes,
+      width: width,
+      height: height,
+      rowStride: rowStride,
+      format: format,
+      tryHarder: tryHarder,
+      tryRotate: tryRotate,
+      tryInvert: tryInvert,
     );
   }
 
@@ -232,11 +257,16 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       // Graceful fallback when running without a native camera host channel bound (e.g. unit tests).
     } on PlatformException catch (e) {
       final List<CameraInputSource> cameras = await listCameras();
+      final CameraPermissionStatus permStatus = _permissionStatusFromException(
+        e,
+      );
       return _unboundCameraState(
         facing: effectiveFacing,
         cameraId: explicitDevice ? cameraId : null,
         cameras: cameras,
         running: false,
+        permissionStatus: permStatus,
+        errorCode: e.code,
         errorMessage: e.message ?? e.code,
       );
     } on TimeoutException {
@@ -246,6 +276,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         cameraId: explicitDevice ? cameraId : null,
         cameras: cameras,
         running: false,
+        errorCode: 'CAMERA_START_TIMEOUT',
         errorMessage: 'CAMERA_START_TIMEOUT',
       );
     } catch (_) {}
@@ -254,6 +285,30 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       facing: effectiveFacing,
       cameraId: explicitDevice ? cameraId : null,
     );
+  }
+
+  CameraPermissionStatus _permissionStatusFromException(PlatformException e) {
+    final String code = e.code.toUpperCase();
+    final String details = (e.details?.toString() ?? '').toLowerCase();
+    final String msg = (e.message ?? '').toLowerCase();
+    if (code == 'CAMERA_PERMISSION_RESTRICTED' ||
+        details.contains('restricted') ||
+        msg.contains('restricted')) {
+      return CameraPermissionStatus.restricted;
+    }
+    if (code.contains('PERMISSION') ||
+        code.contains('SECURITY') ||
+        msg.contains('permission') ||
+        msg.contains('not authorized') ||
+        msg.contains('authorization')) {
+      if (details.contains('permanent') ||
+          msg.contains('system settings') ||
+          msg.contains('enable camera access in settings')) {
+        return CameraPermissionStatus.permanentlyDenied;
+      }
+      return CameraPermissionStatus.denied;
+    }
+    return CameraPermissionStatus.unknown;
   }
 
   ScannerState _stateFromCameraReply(
@@ -303,6 +358,7 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       textureId: textureId,
       previewSize: Size(previewW, previewH),
       sensorOrientation: sensorOrientation,
+      permissionStatus: CameraPermissionStatus.granted,
     );
   }
 
@@ -332,6 +388,8 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
     String? cameraId,
     List<CameraInputSource>? cameras,
     bool running = true,
+    CameraPermissionStatus permissionStatus = CameraPermissionStatus.unknown,
+    String? errorCode,
     String? errorMessage,
   }) {
     final List<CameraInputSource> resolved = cameras ?? _unboundCameras();
@@ -348,6 +406,8 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
             : cameraId,
         previewSize: const Size(1280, 720),
         sensorOrientation: _isDesktop ? 0 : 90,
+        permissionStatus: permissionStatus,
+        errorCode: errorCode,
         errorMessage: errorMessage,
       );
     }
@@ -367,8 +427,6 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
         }
       }
     }
-    // Unbound / fallback sessions must not claim a flash — only a real
-    // startCamera reply may set TorchState.off/on via hasTorch.
     return ScannerState(
       isInitialized: true,
       isRunning: running,
@@ -380,6 +438,8 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
       activeCameraId: active.id,
       previewSize: const Size(1280, 720),
       sensorOrientation: _isDesktop ? 0 : 90,
+      permissionStatus: permissionStatus,
+      errorCode: errorCode,
       errorMessage: errorMessage,
     );
   }

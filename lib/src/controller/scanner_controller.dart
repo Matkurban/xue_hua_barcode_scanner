@@ -3,21 +3,27 @@ import 'dart:convert';
 import 'dart:ui' show Offset, Size;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
 import '../models/barcode_enums.dart';
 import '../models/barcode_result.dart';
-import '../models/camera_input_source.dart';
 import '../models/camera_frame_packet.dart';
+import '../models/camera_input_source.dart';
 import '../models/scanner_state.dart';
 import 'barcode_scanner.dart';
 
 export 'barcode_scanner.dart';
 
+const MethodChannel _kSettingsMethodChannel = MethodChannel(
+  'com.kurban.xue_hua_barcode_scanner/methods',
+);
+
 /// Controller for managing real-time camera scanning, hardware torch/flashlight,
 /// front/back/external camera switching, frame throttling, barcode validation,
-/// and gallery recognition across Android, iOS, macOS, Windows, Linux, and Web.
+/// permission recovery, and gallery recognition across Android, iOS, macOS,
+/// Windows, Linux, and Web.
 class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Creates a [XueHuaScannerController].
   XueHuaScannerController({
@@ -96,13 +102,54 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       }
     } catch (e) {
       if (!_isDisposed) {
+        final String errStr = e.toString();
+        final bool isPerm =
+            errStr.toLowerCase().contains('permission') ||
+            errStr.toLowerCase().contains('not authorized') ||
+            errStr.contains('权限') ||
+            errStr.contains('未授权');
         value = value.copyWith(
           isInitialized: true,
           isRunning: false,
           torchState: TorchState.unavailable,
-          errorMessage: e.toString(),
+          permissionStatus: isPerm
+              ? CameraPermissionStatus.denied
+              : CameraPermissionStatus.unknown,
+          errorCode: isPerm ? 'CAMERA_PERMISSION_DENIED' : 'CAMERA_START_ERROR',
+          errorMessage: errStr,
         );
       }
+    }
+  }
+
+  /// Retries camera permission authorization and restarts the camera session.
+  Future<void> retryCameraPermission() async {
+    if (_isDisposed) return;
+    value = value.copyWith(
+      isInitialized: false,
+      clearError: true,
+      permissionStatus: CameraPermissionStatus.unknown,
+    );
+    await start();
+  }
+
+  /// Opens the operating system's application / camera privacy settings page.
+  ///
+  /// Returns `true` if the system settings page was opened, or `false` if the
+  /// platform does not support direct settings deep-linking.
+  Future<bool> openAppSettings() async {
+    if (_isDisposed || isWeb) {
+      return false;
+    }
+    try {
+      final bool? opened = await _kSettingsMethodChannel
+          .invokeMethod<bool>('openAppSettings')
+          .timeout(const Duration(seconds: 3), onTimeout: () => false);
+      return opened ?? false;
+    } on MissingPluginException {
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
