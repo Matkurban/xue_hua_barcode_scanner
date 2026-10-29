@@ -53,6 +53,9 @@ if(XH_FETCH_ZXING_CPP)
 endif()
 
 add_library(xue_hua_barcode_scanner SHARED
+  "zxing_ffi_bridge.h"
+  "zxing_image_preprocess.h"
+  "zxing_fallback_codec.h"
   "zxing_ffi_bridge.cpp"
 )
 

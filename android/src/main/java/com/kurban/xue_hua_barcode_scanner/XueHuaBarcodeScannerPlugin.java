@@ -1,41 +1,7 @@
 package com.kurban.xue_hua_barcode_scanner;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.graphics.ImageFormat;
-import android.graphics.SurfaceTexture;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.params.OutputConfiguration;
-import android.hardware.camera2.params.SessionConfiguration;
-import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.Image;
-import android.media.ImageReader;
-import android.net.Uri;
-import android.os.Build;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.SystemClock;
-import android.provider.Settings;
-import android.util.Size;
-import android.view.Surface;
-
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
@@ -44,50 +10,41 @@ import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.PluginRegistry;
-import io.flutter.view.TextureRegistry;
 
+/**
+ * Main Flutter plugin entry point on Android. Delegates camera session management,
+ * permission handling, luminance extraction, and gallery picking to modular helpers.
+ */
 public final class XueHuaBarcodeScannerPlugin implements
     FlutterPlugin,
     MethodChannel.MethodCallHandler,
     EventChannel.StreamHandler,
     ActivityAware,
-    PluginRegistry.RequestPermissionsResultListener,
-    PluginRegistry.ActivityResultListener {
-
-  private static final int REQUEST_CAMERA_PERMISSION = 9201;
-  private static final int REQUEST_PICK_IMAGE = 9202;
+    PluginRegistry.RequestPermissionsResultListener {
 
   private Context applicationContext;
   private Activity activity;
   private ActivityPluginBinding activityBinding;
-  private TextureRegistry textureRegistry;
   private MethodChannel methodChannel;
   private EventChannel eventChannel;
   private EventChannel.EventSink eventSink;
-  private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-  private HandlerThread backgroundThread;
-  private Handler backgroundHandler;
+  private final CameraSessionManager cameraSessionManager;
+  private final PermissionAndSettingsHelper permissionHelper;
+  private final GalleryImagePickerHandler galleryPickerHandler;
 
-  private TextureRegistry.SurfaceTextureEntry surfaceTextureEntry;
-  private Surface previewSurface;
-  private ImageReader imageReader;
-  private CameraDevice cameraDevice;
-  private CameraCaptureSession captureSession;
-  private CaptureRequest.Builder previewRequestBuilder;
-  private boolean hasFlashAvailable = false;
-  private int currentSensorOrientation = 90;
-  private long lastFrameTimestampMs = 0L;
-
-  private String pendingCameraFacing;
-  private String pendingCameraId;
-  private MethodChannel.Result pendingCameraResult;
-  private MethodChannel.Result pendingGalleryResult;
+  public XueHuaBarcodeScannerPlugin() {
+    this.cameraSessionManager = new CameraSessionManager(() -> eventSink);
+    this.permissionHelper = new PermissionAndSettingsHelper(
+        (facing, cameraId, result) -> cameraSessionManager.openCamera(facing, cameraId, result));
+    this.galleryPickerHandler = new GalleryImagePickerHandler();
+  }
 
   @Override
   public void onAttachedToEngine(FlutterPluginBinding binding) {
     applicationContext = binding.getApplicationContext();
-    textureRegistry = binding.getTextureRegistry();
+    cameraSessionManager.attach(applicationContext, binding.getTextureRegistry());
+    galleryPickerHandler.setApplicationContext(applicationContext);
 
     methodChannel = new MethodChannel(
         binding.getBinaryMessenger(),
@@ -102,7 +59,7 @@ public final class XueHuaBarcodeScannerPlugin implements
 
   @Override
   public void onDetachedFromEngine(FlutterPluginBinding binding) {
-    stopCameraInternal(true);
+    cameraSessionManager.stopCamera(true);
     if (methodChannel != null) {
       methodChannel.setMethodCallHandler(null);
       methodChannel = null;
@@ -118,7 +75,7 @@ public final class XueHuaBarcodeScannerPlugin implements
     activity = binding.getActivity();
     activityBinding = binding;
     binding.addRequestPermissionsResultListener(this);
-    binding.addActivityResultListener(this);
+    binding.addActivityResultListener(galleryPickerHandler);
   }
 
   @Override
@@ -139,7 +96,7 @@ public final class XueHuaBarcodeScannerPlugin implements
   private void detachActivityListeners() {
     if (activityBinding != null) {
       activityBinding.removeRequestPermissionsResultListener(this);
-      activityBinding.removeActivityResultListener(this);
+      activityBinding.removeActivityResultListener(galleryPickerHandler);
       activityBinding = null;
     }
     activity = null;
@@ -159,7 +116,7 @@ public final class XueHuaBarcodeScannerPlugin implements
   public void onMethodCall(MethodCall call, MethodChannel.Result result) {
     switch (call.method) {
       case "listCameras": {
-        result.success(listCameras());
+        result.success(cameraSessionManager.listCameras());
         break;
       }
       case "startCamera": {
@@ -172,22 +129,22 @@ public final class XueHuaBarcodeScannerPlugin implements
         break;
       }
       case "stopCamera": {
-        stopCameraInternal(false);
+        cameraSessionManager.stopCamera(false);
         result.success(null);
         break;
       }
       case "setTorch": {
         Boolean enabled = call.argument("enabled");
         boolean target = enabled != null && enabled;
-        result.success(setTorchInternal(target));
+        result.success(cameraSessionManager.setTorch(target));
         break;
       }
       case "openAppSettings": {
-        result.success(openAppSettingsInternal());
+        result.success(permissionHelper.openAppSettings(activity, applicationContext));
         break;
       }
       case "pickImageFromGallery": {
-        handlePickImageFromGallery(result);
+        galleryPickerHandler.pickImageFromGallery(activity, result);
         break;
       }
       case "pickImageFilePath": {
@@ -200,22 +157,6 @@ public final class XueHuaBarcodeScannerPlugin implements
     }
   }
 
-  private boolean openAppSettingsInternal() {
-    Context ctx = activity != null ? activity : applicationContext;
-    if (ctx == null) {
-      return false;
-    }
-    try {
-      Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-      intent.setData(Uri.fromParts("package", ctx.getPackageName(), null));
-      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      ctx.startActivity(intent);
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
-  }
-
   private void handleStartCamera(
       String facing,
       String cameraId,
@@ -224,24 +165,11 @@ public final class XueHuaBarcodeScannerPlugin implements
       result.error("NO_CONTEXT", "Application context is unavailable.", null);
       return;
     }
-    if (applicationContext.checkSelfPermission(Manifest.permission.CAMERA)
-        != PackageManager.PERMISSION_GRANTED) {
-      if (activity != null) {
-        pendingCameraFacing = facing;
-        pendingCameraId = cameraId;
-        pendingCameraResult = result;
-        activity.requestPermissions(
-            new String[] {Manifest.permission.CAMERA},
-            REQUEST_CAMERA_PERMISSION);
-      } else {
-        result.error(
-            "CAMERA_PERMISSION_DENIED",
-            "Camera permission is not granted and no Activity is attached.",
-            "denied");
-      }
+    if (!permissionHelper.hasCameraPermission(applicationContext)) {
+      permissionHelper.requestCameraPermission(activity, facing, cameraId, result);
       return;
     }
-    openCameraForFacing(facing, cameraId, result);
+    cameraSessionManager.openCamera(facing, cameraId, result);
   }
 
   @Override
@@ -249,555 +177,6 @@ public final class XueHuaBarcodeScannerPlugin implements
       int requestCode,
       String[] permissions,
       int[] grantResults) {
-    if (requestCode != REQUEST_CAMERA_PERMISSION) {
-      return false;
-    }
-    MethodChannel.Result callback = pendingCameraResult;
-    String facing = pendingCameraFacing != null ? pendingCameraFacing : "back";
-    String cameraId = pendingCameraId;
-    pendingCameraResult = null;
-    pendingCameraFacing = null;
-    pendingCameraId = null;
-
-    if (callback != null) {
-      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-        openCameraForFacing(facing, cameraId, callback);
-      } else {
-        boolean showRationale =
-            activity != null
-                && activity.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA);
-        callback.error(
-            "CAMERA_PERMISSION_DENIED",
-            "Camera permission was denied by the user.",
-            showRationale ? "denied" : "permanentlyDenied");
-      }
-    }
-    return true;
-  }
-
-  private void openCameraForFacing(
-      String facing,
-      String cameraId,
-      MethodChannel.Result result) {
-    stopCameraInternal(false);
-    startBackgroundThread();
-
-    CameraManager manager =
-        (CameraManager) applicationContext.getSystemService(Context.CAMERA_SERVICE);
-    if (manager == null) {
-      result.error("NO_CAMERA_MANAGER", "CameraManager is unavailable.", null);
-      return;
-    }
-
-    try {
-      String[] cameraIds = manager.getCameraIdList();
-      if (cameraIds == null || cameraIds.length == 0) {
-        result.error("NO_CAMERA", "No camera devices found on this Android device.", null);
-        return;
-      }
-
-      List<Map<String, Object>> cameras = describeCameras(manager, cameraIds);
-      int desiredLens = CameraCharacteristics.LENS_FACING_BACK;
-      if ("front".equalsIgnoreCase(facing)) {
-        desiredLens = CameraCharacteristics.LENS_FACING_FRONT;
-      } else if ("external".equalsIgnoreCase(facing)) {
-        desiredLens = CameraCharacteristics.LENS_FACING_EXTERNAL;
-      }
-
-      String selectedCameraId = null;
-      CameraCharacteristics selectedCharacteristics = null;
-      if (cameraId != null && !cameraId.isEmpty()) {
-        for (String id : cameraIds) {
-          if (cameraId.equals(id)) {
-            selectedCameraId = id;
-            selectedCharacteristics = manager.getCameraCharacteristics(id);
-            break;
-          }
-        }
-      }
-      if (selectedCameraId == null) {
-        for (String id : cameraIds) {
-          CameraCharacteristics chars = manager.getCameraCharacteristics(id);
-          Integer lensFacing = chars.get(CameraCharacteristics.LENS_FACING);
-          if (lensFacing != null && lensFacing == desiredLens) {
-            selectedCameraId = id;
-            selectedCharacteristics = chars;
-            break;
-          }
-        }
-      }
-      if (selectedCameraId == null) {
-        selectedCameraId = cameraIds[0];
-        selectedCharacteristics = manager.getCameraCharacteristics(selectedCameraId);
-      }
-      final String activeCameraId = selectedCameraId;
-      final String activeFacing = facingName(
-          selectedCharacteristics.get(CameraCharacteristics.LENS_FACING));
-      final List<Map<String, Object>> cameraList = cameras;
-
-      Boolean flashInfo =
-          selectedCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-      hasFlashAvailable = Boolean.TRUE.equals(flashInfo);
-      Integer sensorOrientationObj =
-          selectedCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-      currentSensorOrientation = sensorOrientationObj != null ? sensorOrientationObj : 90;
-
-      StreamConfigurationMap map = selectedCharacteristics.get(
-          CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-      Size chosenSize = chooseOptimalSize(
-          map != null ? map.getOutputSizes(SurfaceTexture.class) : null,
-          1280,
-          720);
-
-      if (surfaceTextureEntry == null) {
-        surfaceTextureEntry = textureRegistry.createSurfaceTexture();
-      }
-      SurfaceTexture surfaceTexture = surfaceTextureEntry.surfaceTexture();
-      surfaceTexture.setDefaultBufferSize(chosenSize.getWidth(), chosenSize.getHeight());
-      previewSurface = new Surface(surfaceTexture);
-
-      imageReader = ImageReader.newInstance(
-          chosenSize.getWidth(),
-          chosenSize.getHeight(),
-          ImageFormat.YUV_420_888,
-          2);
-      imageReader.setOnImageAvailableListener(this::onImageAvailable, backgroundHandler);
-
-      final int cameraCount = cameraIds.length;
-      final int previewW = chosenSize.getWidth();
-      final int previewH = chosenSize.getHeight();
-      final long textureId = surfaceTextureEntry.id();
-
-      manager.openCamera(
-          selectedCameraId,
-          new CameraDevice.StateCallback() {
-            private boolean replied = false;
-
-            @Override
-            public void onOpened(CameraDevice device) {
-              cameraDevice = device;
-              createCaptureSession(device, new Runnable() {
-                @Override
-                public void run() {
-                  if (!replied) {
-                    replied = true;
-                    Map<String, Object> reply = new HashMap<>();
-                    reply.put("textureId", textureId);
-                    reply.put("hasTorch", hasFlashAvailable);
-                    reply.put("availableCameraCount", cameraCount);
-                    reply.put("cameras", cameraList);
-                    reply.put("activeCameraId", activeCameraId);
-                    reply.put("cameraFacing", activeFacing);
-                    reply.put("previewWidth", previewW);
-                    reply.put("previewHeight", previewH);
-                    reply.put("sensorOrientation", currentSensorOrientation);
-                    mainHandler.post(() -> result.success(reply));
-                  }
-                }
-              }, new Runnable() {
-                @Override
-                public void run() {
-                  if (!replied) {
-                    replied = true;
-                    mainHandler.post(() -> result.error(
-                        "SESSION_CONFIG_FAILED",
-                        "Failed to configure camera capture session.",
-                        null));
-                  }
-                }
-              });
-            }
-
-            @Override
-            public void onDisconnected(CameraDevice device) {
-              device.close();
-              if (cameraDevice == device) {
-                cameraDevice = null;
-              }
-            }
-
-            @Override
-            public void onError(CameraDevice device, int error) {
-              device.close();
-              if (cameraDevice == device) {
-                cameraDevice = null;
-              }
-              if (!replied) {
-                replied = true;
-                mainHandler.post(() -> result.error(
-                    "CAMERA_OPEN_ERROR",
-                    "CameraDevice error code: " + error,
-                    null));
-              }
-            }
-          },
-          backgroundHandler);
-    } catch (CameraAccessException | SecurityException e) {
-      result.error("CAMERA_ACCESS_ERROR", e.getMessage(), null);
-    }
-  }
-
-  private List<Map<String, Object>> listCameras() {
-    if (applicationContext == null) {
-      return new ArrayList<>();
-    }
-    CameraManager manager =
-        (CameraManager) applicationContext.getSystemService(Context.CAMERA_SERVICE);
-    if (manager == null) {
-      return new ArrayList<>();
-    }
-    try {
-      String[] cameraIds = manager.getCameraIdList();
-      if (cameraIds == null || cameraIds.length == 0) {
-        return new ArrayList<>();
-      }
-      return describeCameras(manager, cameraIds);
-    } catch (CameraAccessException | SecurityException e) {
-      return new ArrayList<>();
-    }
-  }
-
-  private List<Map<String, Object>> describeCameras(
-      CameraManager manager,
-      String[] cameraIds) throws CameraAccessException {
-    List<String> facings = new ArrayList<>();
-    List<String> baseLabels = new ArrayList<>();
-    Map<String, Integer> labelCounts = new HashMap<>();
-    for (String id : cameraIds) {
-      CameraCharacteristics chars = manager.getCameraCharacteristics(id);
-      String facing = facingName(chars.get(CameraCharacteristics.LENS_FACING));
-      String baseLabel = baseLabelForFacing(facing);
-      facings.add(facing);
-      baseLabels.add(baseLabel);
-      Integer count = labelCounts.get(baseLabel);
-      labelCounts.put(baseLabel, count == null ? 1 : count + 1);
-    }
-    Map<String, Integer> seen = new HashMap<>();
-    List<Map<String, Object>> cameras = new ArrayList<>();
-    for (int i = 0; i < cameraIds.length; i++) {
-      String baseLabel = baseLabels.get(i);
-      int ordinal = seen.containsKey(baseLabel) ? seen.get(baseLabel) + 1 : 1;
-      seen.put(baseLabel, ordinal);
-      Integer total = labelCounts.get(baseLabel);
-      String label = total != null && total > 1 ? baseLabel + " " + ordinal : baseLabel;
-      Map<String, Object> item = new HashMap<>();
-      item.put("id", cameraIds[i]);
-      item.put("label", label);
-      item.put("facing", facings.get(i));
-      cameras.add(item);
-    }
-    return cameras;
-  }
-
-  private static String facingName(Integer lensFacing) {
-    if (lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-      return "front";
-    }
-    if (lensFacing != null && lensFacing == CameraCharacteristics.LENS_FACING_EXTERNAL) {
-      return "external";
-    }
-    return "back";
-  }
-
-  private static String baseLabelForFacing(String facing) {
-    if ("front".equals(facing)) {
-      return "前置相机";
-    }
-    if ("external".equals(facing)) {
-      return "外接相机";
-    }
-    return "后置相机";
-  }
-
-  private void createCaptureSession(
-      CameraDevice device,
-      Runnable onConfiguredCallback,
-      Runnable onFailedCallback) {
-    try {
-      if (previewSurface == null || imageReader == null) {
-        onFailedCallback.run();
-        return;
-      }
-      previewRequestBuilder = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-      previewRequestBuilder.addTarget(previewSurface);
-      previewRequestBuilder.addTarget(imageReader.getSurface());
-      previewRequestBuilder.set(
-          CaptureRequest.CONTROL_AF_MODE,
-          CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-      previewRequestBuilder.set(
-          CaptureRequest.CONTROL_AE_MODE,
-          CaptureRequest.CONTROL_AE_MODE_ON);
-
-      CameraCaptureSession.StateCallback stateCallback =
-          new CameraCaptureSession.StateCallback() {
-            @Override
-            public void onConfigured(CameraCaptureSession session) {
-              if (cameraDevice == null) {
-                onFailedCallback.run();
-                return;
-              }
-              captureSession = session;
-              try {
-                session.setRepeatingRequest(
-                    previewRequestBuilder.build(),
-                    null,
-                    backgroundHandler);
-                onConfiguredCallback.run();
-              } catch (CameraAccessException e) {
-                onFailedCallback.run();
-              }
-            }
-
-            @Override
-            public void onConfigureFailed(CameraCaptureSession session) {
-              onFailedCallback.run();
-            }
-          };
-
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        OutputConfiguration previewOutput = new OutputConfiguration(previewSurface);
-        OutputConfiguration imageOutput = new OutputConfiguration(imageReader.getSurface());
-        SessionConfiguration sessionConfig = new SessionConfiguration(
-            SessionConfiguration.SESSION_REGULAR,
-            Arrays.asList(previewOutput, imageOutput),
-            command -> {
-              Handler handler = backgroundHandler;
-              if (handler != null) {
-                handler.post(command);
-              }
-            },
-            stateCallback);
-        device.createCaptureSession(sessionConfig);
-      } else {
-        createLegacyCaptureSession(device, stateCallback);
-      }
-    } catch (CameraAccessException e) {
-      onFailedCallback.run();
-    }
-  }
-
-  @SuppressWarnings("deprecation")
-  private void createLegacyCaptureSession(
-      CameraDevice device,
-      CameraCaptureSession.StateCallback stateCallback) throws CameraAccessException {
-    device.createCaptureSession(
-        Arrays.asList(previewSurface, imageReader.getSurface()),
-        stateCallback,
-        backgroundHandler);
-  }
-
-  private void onImageAvailable(ImageReader reader) {
-    Image image = null;
-    try {
-      image = reader.acquireLatestImage();
-      if (image == null || eventSink == null) {
-        return;
-      }
-      long now = SystemClock.elapsedRealtime();
-      if (now - lastFrameTimestampMs < 140L) {
-        return;
-      }
-      lastFrameTimestampMs = now;
-
-      Image.Plane[] planes = image.getPlanes();
-      if (planes == null || planes.length == 0) {
-        return;
-      }
-      Image.Plane yPlane = planes[0];
-      ByteBuffer buffer = yPlane.getBuffer();
-      int rowStride = yPlane.getRowStride();
-      int pixelStride = yPlane.getPixelStride();
-      int width = image.getWidth();
-      int height = image.getHeight();
-      int remaining = buffer.remaining();
-      if (width <= 0 || height <= 0 || remaining <= 0) {
-        return;
-      }
-
-      byte[] yBytes = new byte[width * height];
-      if (pixelStride == 1 && rowStride == width && remaining >= width * height) {
-        buffer.get(yBytes, 0, width * height);
-      } else {
-        for (int row = 0; row < height; row++) {
-          int rowStart = row * rowStride;
-          if (pixelStride == 1) {
-            int copyLen = Math.min(width, remaining - rowStart);
-            if (copyLen > 0) {
-              buffer.position(rowStart);
-              buffer.get(yBytes, row * width, copyLen);
-            }
-          } else {
-            for (int col = 0; col < width; col++) {
-              int idx = rowStart + col * pixelStride;
-              if (idx < remaining) {
-                yBytes[row * width + col] = buffer.get(idx);
-              }
-            }
-          }
-        }
-      }
-
-      final Map<String, Object> packet = new HashMap<>();
-      packet.put("bytes", yBytes);
-      packet.put("width", width);
-      packet.put("height", height);
-      packet.put("rowStride", width);
-      packet.put("format", 0);
-      packet.put("sensorOrientation", currentSensorOrientation);
-
-      mainHandler.post(() -> {
-        if (eventSink != null) {
-          eventSink.success(packet);
-        }
-      });
-    } catch (Exception ignored) {
-    } finally {
-      if (image != null) {
-        image.close();
-      }
-    }
-  }
-
-  private boolean setTorchInternal(boolean enabled) {
-    if (!hasFlashAvailable || captureSession == null || previewRequestBuilder == null) {
-      return false;
-    }
-    try {
-      previewRequestBuilder.set(
-          CaptureRequest.FLASH_MODE,
-          enabled ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_OFF);
-      captureSession.setRepeatingRequest(
-          previewRequestBuilder.build(),
-          null,
-          backgroundHandler);
-      return true;
-    } catch (CameraAccessException e) {
-      return false;
-    }
-  }
-
-  private void stopCameraInternal(boolean releaseTexture) {
-    if (captureSession != null) {
-      try {
-        captureSession.close();
-      } catch (Exception ignored) {
-      }
-      captureSession = null;
-    }
-    if (cameraDevice != null) {
-      try {
-        cameraDevice.close();
-      } catch (Exception ignored) {
-      }
-      cameraDevice = null;
-    }
-    if (imageReader != null) {
-      try {
-        imageReader.close();
-      } catch (Exception ignored) {
-      }
-      imageReader = null;
-    }
-    if (previewSurface != null) {
-      try {
-        previewSurface.release();
-      } catch (Exception ignored) {
-      }
-      previewSurface = null;
-    }
-    if (releaseTexture && surfaceTextureEntry != null) {
-      try {
-        surfaceTextureEntry.release();
-      } catch (Exception ignored) {
-      }
-      surfaceTextureEntry = null;
-    }
-    previewRequestBuilder = null;
-    stopBackgroundThread();
-  }
-
-  private void startBackgroundThread() {
-    if (backgroundThread != null) {
-      return;
-    }
-    backgroundThread = new HandlerThread("XueHuaScannerCameraThread");
-    backgroundThread.start();
-    backgroundHandler = new Handler(backgroundThread.getLooper());
-  }
-
-  private void stopBackgroundThread() {
-    if (backgroundThread == null) {
-      return;
-    }
-    backgroundThread.quitSafely();
-    try {
-      backgroundThread.join(300);
-    } catch (InterruptedException ignored) {
-    }
-    backgroundThread = null;
-    backgroundHandler = null;
-  }
-
-  private static Size chooseOptimalSize(Size[] choices, int targetWidth, int targetHeight) {
-    if (choices == null || choices.length == 0) {
-      return new Size(targetWidth, targetHeight);
-    }
-    Size bestMatch = choices[0];
-    int bestDiff = Integer.MAX_VALUE;
-    for (Size size : choices) {
-      int diff = Math.abs(size.getWidth() - targetWidth) + Math.abs(size.getHeight() - targetHeight);
-      if (diff < bestDiff) {
-        bestDiff = diff;
-        bestMatch = size;
-      }
-    }
-    return bestMatch;
-  }
-
-  private void handlePickImageFromGallery(MethodChannel.Result result) {
-    if (activity == null) {
-      result.success(null);
-      return;
-    }
-    pendingGalleryResult = result;
-    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-    intent.setType("image/*");
-    intent.addCategory(Intent.CATEGORY_OPENABLE);
-    activity.startActivityForResult(
-        Intent.createChooser(intent, "选择图片"),
-        REQUEST_PICK_IMAGE);
-  }
-
-  @Override
-  public boolean onActivityResult(int requestCode, int resultCode, Intent data) {
-    if (requestCode != REQUEST_PICK_IMAGE) {
-      return false;
-    }
-    MethodChannel.Result callback = pendingGalleryResult;
-    pendingGalleryResult = null;
-    if (callback == null) {
-      return true;
-    }
-    if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
-      callback.success(null);
-      return true;
-    }
-    Uri uri = data.getData();
-    try (InputStream is = applicationContext.getContentResolver().openInputStream(uri)) {
-      if (is == null) {
-        callback.success(null);
-        return true;
-      }
-      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-      byte[] chunk = new byte[8192];
-      int read;
-      while ((read = is.read(chunk)) != -1) {
-        buffer.write(chunk, 0, read);
-      }
-      callback.success(buffer.toByteArray());
-    } catch (Exception e) {
-      callback.success(null);
-    }
-    return true;
+    return permissionHelper.handlePermissionsResult(requestCode, grantResults, activity);
   }
 }

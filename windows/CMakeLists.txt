@@ -8,6 +8,13 @@ set(PLUGIN_NAME "xue_hua_barcode_scanner_plugin")
 add_library(${PLUGIN_NAME} SHARED
   "include/xue_hua_barcode_scanner/xue_hua_barcode_scanner_plugin_c_api.h"
   "xue_hua_barcode_scanner_plugin_c_api.cpp"
+  "xue_hua_barcode_scanner_windows_plugin.h"
+  "xue_hua_barcode_scanner_windows_plugin.cpp"
+  "windows_camera_types.h"
+  "windows_camera_capture.h"
+  "windows_camera_capture.cpp"
+  "windows_system_dialogs.h"
+  "windows_system_dialogs.cpp"
 )
 
 apply_standard_settings(${PLUGIN_NAME})

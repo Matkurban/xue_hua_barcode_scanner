@@ -1,15 +1,11 @@
 #include "include/xue_hua_barcode_scanner/xue_hua_barcode_scanner_plugin.h"
 
+#include "linux_file_chooser.h"
+#include "linux_v4l2_enumerator.h"
+
 #include <flutter_linux/flutter_linux.h>
-#include <gtk/gtk.h>
 
-#include <dirent.h>
-
-#include <algorithm>
 #include <cstring>
-#include <fstream>
-#include <string>
-#include <vector>
 
 #define XUE_HUA_BARCODE_SCANNER_PLUGIN(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), xue_hua_barcode_scanner_plugin_get_type(), \
@@ -25,81 +21,32 @@ G_DEFINE_TYPE(XueHuaBarcodeScannerPlugin,
               xue_hua_barcode_scanner_plugin,
               g_object_get_type())
 
-static FlValue* list_video_devices() {
-  FlValue* list = fl_value_new_list();
-  DIR* dir = opendir("/sys/class/video4linux");
-  if (dir == nullptr) {
-    return list;
-  }
-  std::vector<std::string> names;
-  struct dirent* entry = nullptr;
-  while ((entry = readdir(dir)) != nullptr) {
-    if (std::strncmp(entry->d_name, "video", 5) != 0) {
-      continue;
-    }
-    names.emplace_back(entry->d_name);
-  }
-  closedir(dir);
-  std::sort(names.begin(), names.end());
-  for (const std::string& name : names) {
-    const std::string sys_name =
-        std::string("/sys/class/video4linux/") + name + "/name";
-    std::ifstream input(sys_name);
-    std::string label;
-    if (input) {
-      std::getline(input, label);
-    }
-    if (label.empty()) {
-      label = "摄像头 " + name;
-    }
-    FlValue* item = fl_value_new_map();
-    fl_value_set_string_take(item, "id", fl_value_new_string(name.c_str()));
-    fl_value_set_string_take(item, "label", fl_value_new_string(label.c_str()));
-    fl_value_set_string_take(item, "facing", fl_value_new_string("external"));
-    fl_value_append_take(list, item);
-  }
-  return list;
-}
-
 static void xue_hua_barcode_scanner_plugin_handle_method_call(
     XueHuaBarcodeScannerPlugin* self,
     FlMethodCall* method_call) {
   g_autoptr(FlMethodResponse) response = nullptr;
   const gchar* method = fl_method_call_get_name(method_call);
 
-  if (strcmp(method, "listCameras") == 0) {
-    g_autoptr(FlValue) cameras = list_video_devices();
+  if (std::strcmp(method, "listCameras") == 0) {
+    g_autoptr(FlValue) cameras =
+        xue_hua_barcode_scanner::ListV4l2VideoDevices();
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(cameras));
-  } else if (strcmp(method, "startCamera") == 0) {
+  } else if (std::strcmp(method, "startCamera") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_error_response_new(
         "NO_CAMERA",
         "No V4L2 camera stream active.",
         nullptr));
-  } else if (strcmp(method, "stopCamera") == 0) {
+  } else if (std::strcmp(method, "stopCamera") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
-  } else if (strcmp(method, "setTorch") == 0) {
+  } else if (std::strcmp(method, "setTorch") == 0 ||
+             std::strcmp(method, "openAppSettings") == 0) {
     g_autoptr(FlValue) res = fl_value_new_bool(FALSE);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(res));
-  } else if (strcmp(method, "pickImageFromGallery") == 0) {
+  } else if (std::strcmp(method, "pickImageFromGallery") == 0) {
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
-  } else if (strcmp(method, "pickImageFilePath") == 0) {
-    FlView* view = fl_plugin_registrar_get_view(self->registrar);
-    GtkWindow* window = view != nullptr ? GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(view))) : nullptr;
-    GtkFileChooserNative* dialog = gtk_file_chooser_native_new(
-        "选择图片",
-        window,
-        GTK_FILE_CHOOSER_ACTION_OPEN,
-        "_打开",
-        "_取消");
-    gint res = gtk_native_dialog_run(GTK_NATIVE_DIALOG(dialog));
-    if (res == GTK_RESPONSE_ACCEPT) {
-      g_autofree gchar* filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-      g_autoptr(FlValue) path_val = fl_value_new_string(filename != nullptr ? filename : "");
-      response = FL_METHOD_RESPONSE(fl_method_success_response_new(path_val));
-    } else {
-      response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
-    }
-    g_object_unref(dialog);
+  } else if (std::strcmp(method, "pickImageFilePath") == 0) {
+    response =
+        xue_hua_barcode_scanner::PickImageFileWithGtkDialog(self->registrar);
   } else {
     response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
   }

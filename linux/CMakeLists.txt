@@ -7,6 +7,10 @@ set(PLUGIN_NAME "xue_hua_barcode_scanner_plugin")
 
 add_library(${PLUGIN_NAME} SHARED
   "xue_hua_barcode_scanner_plugin.cc"
+  "linux_v4l2_enumerator.h"
+  "linux_v4l2_enumerator.cc"
+  "linux_file_chooser.h"
+  "linux_file_chooser.cc"
 )
 
 apply_standard_settings(${PLUGIN_NAME})
