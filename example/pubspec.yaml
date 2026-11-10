@@ -12,8 +12,8 @@ dependencies:
     sdk: flutter
   xue_hua_barcode_scanner:
     path: ../
-  xue_hua_qr_code: ^2.0.2
-  material_ui: ^1.8.0
+  xue_hua_qr_code: ^2.0.3
+  material_ui: ^1.11.0
   cupertino_icons: ^2.0.0
 
 dev_dependencies:
