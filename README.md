@@ -81,7 +81,7 @@ Add the following inside `android/app/src/main/AndroidManifest.xml` (above `<app
 </manifest>
 ```
 
-- **SDK & NDK Requirements**: `minSdk >= 24`, CMake `3.16+` with C++20 support (configured automatically by the plugin's `android/build.gradle`, including Android 15+ 16KB page size alignment).
+- **SDK & NDK Requirements**: `minSdk >= 24`, CMake `3.16+` with C++20 support (configured automatically by the plugin's `android/build.gradle.kts`, including Android 15+ 16KB page size alignment).
 
 #### 2. iOS (`ios/Runner/Info.plist`)
 

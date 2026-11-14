@@ -57,10 +57,13 @@ add_library(xue_hua_barcode_scanner SHARED
   "zxing_image_preprocess.h"
   "zxing_fallback_codec.h"
   "zxing_ffi_bridge.cpp"
+  "scanner_host_ffi.h"
+  "scanner_host_ffi.cpp"
+  $<$<BOOL:${ANDROID}>:scanner_host_jni.cpp>
 )
 
 set_target_properties(xue_hua_barcode_scanner PROPERTIES
-  PUBLIC_HEADER zxing_ffi_bridge.h
+  PUBLIC_HEADER "zxing_ffi_bridge.h;scanner_host_ffi.h"
   OUTPUT_NAME "xue_hua_barcode_scanner"
 )
 
@@ -76,6 +79,10 @@ if(NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 target_compile_definitions(xue_hua_barcode_scanner PUBLIC DART_SHARED_LIB)
+target_compile_definitions(xue_hua_barcode_scanner PRIVATE XH_HOST_BUILD_DLL)
+target_compile_definitions(xue_hua_barcode_scanner INTERFACE XH_HOST_USE_DLL)
+target_include_directories(xue_hua_barcode_scanner INTERFACE
+  "${CMAKE_CURRENT_SOURCE_DIR}")
 
 if(TARGET ZXing::ZXing)
   target_link_libraries(xue_hua_barcode_scanner PRIVATE ZXing::ZXing)

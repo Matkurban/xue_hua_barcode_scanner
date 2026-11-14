@@ -1,11 +1,19 @@
 import CoreVideo
-import Flutter
 import Foundation
 
-/// Extracts compact 1-channel 8-bit luminance (`PixelFormat.lum`) buffers from
-/// iOS `CVPixelBuffer` (`kCVPixelFormatType_32BGRA`) frames on the background queue.
+/// Compact 1-channel 8-bit luminance buffer extracted from an iOS `CVPixelBuffer`.
+struct IOSLuminanceFrame {
+    let data: Data
+    let width: Int
+    let height: Int
+    let rowStride: Int
+    let sensorOrientation: Int
+}
+
+/// Extracts compact 1-channel 8-bit luminance (`C_PIXEL_FORMAT_LUM`) buffers from
+/// iOS `CVPixelBuffer` (`kCVPixelFormatType_32BGRA`) frames on the video output queue.
 enum IOSFrameLuminanceExtractor {
-    static func extractFramePacket(from pixelBuffer: CVPixelBuffer) -> [String: Any]? {
+    static func extractLuminanceFrame(from pixelBuffer: CVPixelBuffer) -> IOSLuminanceFrame? {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
 
@@ -39,13 +47,12 @@ enum IOSFrameLuminanceExtractor {
             }
         }
 
-        return [
-            "bytes": FlutterStandardTypedData(bytes: lumaData),
-            "width": width,
-            "height": height,
-            "rowStride": width,
-            "format": 0,
-            "sensorOrientation": 0
-        ]
+        return IOSLuminanceFrame(
+            data: lumaData,
+            width: width,
+            height: height,
+            rowStride: width,
+            sensorOrientation: 0
+        )
     }
 }

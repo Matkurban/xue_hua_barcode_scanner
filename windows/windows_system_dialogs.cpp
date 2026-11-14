@@ -1,24 +1,20 @@
 #include "windows_system_dialogs.h"
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#include <windows.h>
 #include <commdlg.h>
 #include <shellapi.h>
 
+#ifdef _MSC_VER
 #pragma comment(lib, "Comdlg32.lib")
 #pragma comment(lib, "Shell32.lib")
+#endif
 
 namespace xue_hua_barcode_scanner {
 
 std::string WideToUtf8(const std::wstring& wstr) {
-  if (wstr.empty()) return {};
-  int size_needed = WideCharToMultiByte(
+  if (wstr.empty()) {
+    return {};
+  }
+  const int size_needed = WideCharToMultiByte(
       CP_UTF8,
       0,
       wstr.data(),
@@ -27,7 +23,10 @@ std::string WideToUtf8(const std::wstring& wstr) {
       0,
       nullptr,
       nullptr);
-  std::string result(size_needed, '\0');
+  if (size_needed <= 0) {
+    return {};
+  }
+  std::string result(static_cast<size_t>(size_needed), '\0');
   WideCharToMultiByte(
       CP_UTF8,
       0,
@@ -40,10 +39,11 @@ std::string WideToUtf8(const std::wstring& wstr) {
   return result;
 }
 
-std::string OpenImageFileDialog() {
+std::string OpenImageFileDialog(HWND owner_hwnd) {
   wchar_t file_name[MAX_PATH] = {0};
   OPENFILENAMEW ofn = {};
   ofn.lStructSize = sizeof(ofn);
+  ofn.hwndOwner = owner_hwnd;
   ofn.lpstrFile = file_name;
   ofn.nMaxFile = MAX_PATH;
   ofn.lpstrFilter =

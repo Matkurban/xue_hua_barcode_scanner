@@ -625,6 +625,12 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     }
     return completer.future;
   }
+
+  @override
+  Future<bool> openAppSettings() async => false;
+
+  @override
+  Future<void> dispose() async {}
 }
 
 /// Factory function exported for conditional imports on Web.

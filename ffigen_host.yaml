@@ -1,0 +1,13 @@
+# Run with `dart run ffigen --config ffigen_host.yaml`.
+name: ScannerHostFfiBindings
+description: |
+  Auto-generated FFI bindings for `src/scanner_host_ffi.h` (pure FFI host bridge).
+output: 'lib/src/ffi/scanner_host_ffi_bindings.dart'
+headers:
+  entry-points:
+    - 'src/scanner_host_ffi.h'
+  include-directives:
+    - 'src/scanner_host_ffi.h'
+comments:
+  style: any
+  length: full

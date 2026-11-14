@@ -2,16 +2,24 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 import Flutter
+
+#if canImport(xue_hua_barcode_scanner_ffi)
+import xue_hua_barcode_scanner_ffi
+#endif
+#if canImport(xue_hua_barcode_scanner_texture)
 import xue_hua_barcode_scanner_texture
+#endif
 
 /// Manages the iOS `AVCaptureSession`, video device discovery, hardware torch,
-/// `XHScannerTexture` updates, and throttled frame emission.
+/// `XHScannerTexture` updates, and direct capture-queue FFI frame emission.
 final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private static let pixelFormatLum: Int32 = 0 // C_PIXEL_FORMAT_LUM
+
     private weak var textureRegistry: FlutterTextureRegistry?
-    private let eventSinkProvider: () -> FlutterEventSink?
 
     private let sessionQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.session")
     private let videoOutputQueue = DispatchQueue(label: "com.kurban.xue_hua_barcode_scanner.video_output")
+    private let frameStateLock = NSLock()
 
     private var captureSession: AVCaptureSession?
     private var activeDevice: AVCaptureDevice?
@@ -19,44 +27,80 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
     private let scannerTexture = XHScannerTexture()
     private var lastFrameEmitTime: TimeInterval = 0
 
-    init(
-        textureRegistry: FlutterTextureRegistry?,
-        eventSinkProvider: @escaping () -> FlutterEventSink?
-    ) {
+    private var activeSessionGeneration: UInt64 = 0
+    private var frameStreamPaused: Bool = false
+    private var cachedTextureId: Int64 = -1
+
+    init(textureRegistry: FlutterTextureRegistry?) {
         self.textureRegistry = textureRegistry
-        self.eventSinkProvider = eventSinkProvider
         super.init()
     }
 
     func unregisterTextureOnDetach() {
-        stopCameraSession { [weak self] in
-            guard let self else { return }
+        frameStateLock.lock()
+        activeSessionGeneration = 0
+        cachedTextureId = -1
+        frameStateLock.unlock()
+
+        let registry = textureRegistry
+        sessionQueue.async {
+            self.stopSessionInternal()
             DispatchQueue.main.async {
                 if let tid = self.textureId {
-                    self.textureRegistry?.unregisterTexture(tid)
+                    registry?.unregisterTexture(tid)
                     self.textureId = nil
                 }
             }
         }
     }
 
-    func listCameras(result: @escaping FlutterResult) {
+    func setFrameStreamPaused(_ paused: Bool) {
+        frameStateLock.lock()
+        frameStreamPaused = paused
+        frameStateLock.unlock()
+    }
+
+    func listCameras(requestId: Int64) {
         sessionQueue.async { [weak self] in
-            guard let self else { return }
-            let payload = self.cameraPayload(devices: self.discoverVideoDevices())
-            DispatchQueue.main.async {
-                result(payload)
+            guard let self else {
+                xh_host_complete_camera_list(requestId, 1, nil, nil, nil, 0)
+                return
+            }
+            let rows = self.cameraRows(devices: self.discoverVideoDevices())
+            self.withCStringCameraInfos(rows) { ptr, count in
+                xh_host_complete_camera_list(requestId, 1, nil, nil, ptr, count)
             }
         }
     }
 
     func configureAndStartSession(
+        requestId: Int64,
+        sessionGeneration: UInt64,
         facing: String,
-        cameraId: String?,
-        result: @escaping FlutterResult
+        cameraId: String?
     ) {
         sessionQueue.async { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                xh_host_complete_start_camera(
+                    requestId,
+                    0,
+                    "NO_HOST",
+                    "Camera controller was released.",
+                    nil,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    facing,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    0
+                )
+                return
+            }
             self.stopSessionInternal()
 
             var devices = self.discoverVideoDevices()
@@ -65,15 +109,24 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
                 facing: facing,
                 cameraId: cameraId
             ) else {
-                DispatchQueue.main.async {
-                    result(
-                        FlutterError(
-                            code: "NO_CAMERA",
-                            message: "No camera device found on this iOS device.",
-                            details: nil
-                        )
-                    )
-                }
+                xh_host_complete_start_camera(
+                    requestId,
+                    0,
+                    "NO_CAMERA",
+                    "No camera device found on this iOS device.",
+                    nil,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    facing,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    0
+                )
                 return
             }
 
@@ -127,76 +180,137 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
                 self.captureSession = session
                 self.activeDevice = device
 
+                self.frameStateLock.lock()
+                self.activeSessionGeneration = sessionGeneration
+                self.frameStreamPaused = false
+                self.lastFrameEmitTime = 0
+                self.frameStateLock.unlock()
+
                 let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
                 let rawW = Int(dimensions.width > 0 ? dimensions.width : 1280)
                 let rawH = Int(dimensions.height > 0 ? dimensions.height : 720)
                 let previewW = min(rawW, rawH)
                 let previewH = max(rawW, rawH)
                 let hasTorch = device.hasTorch && device.isTorchAvailable
-                let payload = self.cameraPayload(devices: devices)
-                let cameraCount = max(payload.count, 1)
+                let rows = self.cameraRows(devices: devices)
+                let cameraCount = max(rows.count, 1)
+                let activeId = device.uniqueID
+                let activeFacing = self.facingName(device)
 
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else {
+                        xh_host_complete_start_camera(
+                            requestId,
+                            0,
+                            "NO_HOST",
+                            "Camera controller was released.",
+                            nil,
+                            -1,
+                            0,
+                            0,
+                            0,
+                            nil,
+                            facing,
+                            0,
+                            0,
+                            0,
+                            nil,
+                            0
+                        )
+                        return
+                    }
                     if self.textureId == nil, let registry = self.textureRegistry {
                         self.textureId = registry.register(self.scannerTexture)
                     }
-                    result([
-                        "textureId": self.textureId as Any,
-                        "hasTorch": hasTorch,
-                        "availableCameraCount": cameraCount,
-                        "cameras": payload,
-                        "activeCameraId": device.uniqueID,
-                        "cameraFacing": self.facingName(device),
-                        "previewWidth": previewW,
-                        "previewHeight": previewH,
-                        "sensorOrientation": 0
-                    ])
-                }
-                session.startRunning()
-            } catch {
-                DispatchQueue.main.async {
-                    result(
-                        FlutterError(
-                            code: "CAMERA_INIT_FAILED",
-                            message: error.localizedDescription,
-                            details: nil
+                    let registeredTextureId = self.textureId ?? -1
+                    self.frameStateLock.lock()
+                    self.cachedTextureId = registeredTextureId
+                    self.frameStateLock.unlock()
+
+                    self.withCStringCameraInfos(rows) { ptr, count in
+                        xh_host_complete_start_camera(
+                            requestId,
+                            1,
+                            nil,
+                            nil,
+                            nil,
+                            registeredTextureId,
+                            hasTorch ? 1 : 0,
+                            0,
+                            Int32(cameraCount),
+                            activeId,
+                            activeFacing,
+                            Int32(previewW),
+                            Int32(previewH),
+                            0,
+                            ptr,
+                            count
                         )
-                    )
+                    }
+
+                    self.sessionQueue.async { [weak self] in
+                        guard let self, self.captureSession === session else {
+                            return
+                        }
+                        session.startRunning()
+                    }
                 }
+            } catch {
+                self.frameStateLock.lock()
+                self.activeSessionGeneration = 0
+                self.frameStateLock.unlock()
+                xh_host_complete_start_camera(
+                    requestId,
+                    0,
+                    "CAMERA_INIT_FAILED",
+                    error.localizedDescription,
+                    nil,
+                    -1,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    facing,
+                    0,
+                    0,
+                    0,
+                    nil,
+                    0
+                )
             }
         }
     }
 
-    func stopCameraSession(completion: @escaping () -> Void) {
+    func stopCameraSession(requestId: Int64) {
+        frameStateLock.lock()
+        activeSessionGeneration = 0
+        frameStateLock.unlock()
+
         sessionQueue.async { [weak self] in
             self?.stopSessionInternal()
-            completion()
+            if requestId != 0 {
+                xh_host_complete_bool(requestId, 1, 1, nil, nil)
+            }
         }
     }
 
-    func setTorch(enabled: Bool, result: @escaping FlutterResult) {
+    func setTorch(enabled: Bool, requestId: Int64) {
         sessionQueue.async { [weak self] in
             guard let self,
                   let device = self.activeDevice,
                   device.hasTorch,
                   device.isTorchAvailable
             else {
-                DispatchQueue.main.async {
-                    result(false)
-                }
+                xh_host_complete_bool(requestId, 1, 0, nil, nil)
                 return
             }
             do {
                 try device.lockForConfiguration()
                 device.torchMode = enabled ? .on : .off
                 device.unlockForConfiguration()
-                DispatchQueue.main.async {
-                    result(true)
-                }
+                xh_host_complete_bool(requestId, 1, 1, nil, nil)
             } catch {
-                DispatchQueue.main.async {
-                    result(false)
-                }
+                xh_host_complete_bool(requestId, 1, 0, nil, nil)
             }
         }
     }
@@ -212,13 +326,19 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
 
         scannerTexture.update(pixelBuffer)
 
-        if let tid = textureId {
+        frameStateLock.lock()
+        let tid = cachedTextureId
+        let generation = activeSessionGeneration
+        let paused = frameStreamPaused
+        frameStateLock.unlock()
+
+        if tid >= 0 {
             DispatchQueue.main.async { [weak self] in
                 self?.textureRegistry?.textureFrameAvailable(tid)
             }
         }
 
-        guard eventSinkProvider() != nil else {
+        if generation == 0 || paused {
             return
         }
 
@@ -228,12 +348,26 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
         }
         lastFrameEmitTime = now
 
-        guard let framePacket = IOSFrameLuminanceExtractor.extractFramePacket(from: pixelBuffer) else {
+        guard let frame = IOSFrameLuminanceExtractor.extractLuminanceFrame(from: pixelBuffer),
+              !frame.data.isEmpty
+        else {
             return
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.eventSinkProvider()?(framePacket)
+        frame.data.withUnsafeBytes { rawBuffer in
+            guard let base = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                return
+            }
+            xh_host_emit_camera_frame(
+                generation,
+                base,
+                Int32(frame.data.count),
+                Int32(frame.width),
+                Int32(frame.height),
+                Int32(frame.rowStride),
+                Self.pixelFormatLum,
+                Int32(frame.sensorOrientation)
+            )
         }
     }
 
@@ -267,7 +401,7 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
         }
     }
 
-    private func cameraPayload(devices: [AVCaptureDevice]) -> [[String: String]] {
+    private func cameraRows(devices: [AVCaptureDevice]) -> [(id: String, label: String, facing: String)] {
         var counts: [String: Int] = [:]
         var rows: [(id: String, facing: String, base: String)] = []
         for device in devices {
@@ -281,7 +415,36 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
             let next = (seen[row.base] ?? 0) + 1
             seen[row.base] = next
             let label = (counts[row.base] ?? 1) > 1 ? "\(row.base) \(next)" : row.base
-            return ["id": row.id, "label": label, "facing": row.facing]
+            return (row.id, label, row.facing)
+        }
+    }
+
+    private func withCStringCameraInfos(
+        _ rows: [(id: String, label: String, facing: String)],
+        _ body: (UnsafePointer<XHHostCameraInfo>?, Int32) -> Void
+    ) {
+        if rows.isEmpty {
+            body(nil, 0)
+            return
+        }
+        var infos: [XHHostCameraInfo] = []
+        infos.reserveCapacity(rows.count)
+        for row in rows {
+            infos.append(XHHostCameraInfo(
+                id: strdup(row.id),
+                label: strdup(row.label),
+                facing: strdup(row.facing)
+            ))
+        }
+        defer {
+            for info in infos {
+                free(info.id)
+                free(info.label)
+                free(info.facing)
+            }
+        }
+        infos.withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, Int32(buffer.count))
         }
     }
 
@@ -312,6 +475,10 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
     }
 
     private func stopSessionInternal() {
+        frameStateLock.lock()
+        activeSessionGeneration = 0
+        frameStateLock.unlock()
+
         if let device = activeDevice, device.hasTorch, device.torchMode != .off {
             try? device.lockForConfiguration()
             device.torchMode = .off

@@ -2,8 +2,6 @@ package com.kurban.xue_hua_barcode_scanner;
 
 import android.media.Image;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Extracts compact 1-channel 8-bit luminance (Y-plane) buffers from Android
@@ -11,9 +9,30 @@ import java.util.Map;
  */
 final class FrameLuminanceExtractor {
 
+  static final class LuminanceFrame {
+    final byte[] bytes;
+    final int width;
+    final int height;
+    final int rowStride;
+    final int sensorOrientation;
+
+    LuminanceFrame(
+        byte[] bytes,
+        int width,
+        int height,
+        int rowStride,
+        int sensorOrientation) {
+      this.bytes = bytes;
+      this.width = width;
+      this.height = height;
+      this.rowStride = rowStride;
+      this.sensorOrientation = sensorOrientation;
+    }
+  }
+
   private FrameLuminanceExtractor() {}
 
-  static Map<String, Object> extractFramePacket(Image image, int sensorOrientation) {
+  static LuminanceFrame extractLuminanceFrame(Image image, int sensorOrientation) {
     Image.Plane[] planes = image.getPlanes();
     if (planes == null || planes.length == 0) {
       return null;
@@ -52,13 +71,6 @@ final class FrameLuminanceExtractor {
       }
     }
 
-    Map<String, Object> packet = new HashMap<>();
-    packet.put("bytes", yBytes);
-    packet.put("width", width);
-    packet.put("height", height);
-    packet.put("rowStride", width);
-    packet.put("format", 0);
-    packet.put("sensorOrientation", sensorOrientation);
-    return packet;
+    return new LuminanceFrame(yBytes, width, height, width, sensorOrientation);
   }
 }

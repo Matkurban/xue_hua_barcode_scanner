@@ -5,6 +5,8 @@ project(${PROJECT_NAME} LANGUAGES C CXX)
 
 set(PLUGIN_NAME "xue_hua_barcode_scanner_plugin")
 
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/shared")
+
 add_library(${PLUGIN_NAME} SHARED
   "include/xue_hua_barcode_scanner/xue_hua_barcode_scanner_plugin_c_api.h"
   "xue_hua_barcode_scanner_plugin_c_api.cpp"
@@ -32,9 +34,18 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 
 target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
-
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_BINARY_DIR}/shared")
+target_link_libraries(${PLUGIN_NAME} PRIVATE
+  flutter
+  flutter_wrapper_plugin
+  xue_hua_barcode_scanner
+  comdlg32
+  shell32
+  ole32
+  mf
+  mfplat
+  mfreadwrite
+  mfuuid
+)
 
 set(xue_hua_barcode_scanner_bundled_libraries
   $<TARGET_FILE:xue_hua_barcode_scanner>

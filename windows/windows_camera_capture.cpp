@@ -1,22 +1,39 @@
 #include "windows_camera_capture.h"
 
+#include "scanner_host_ffi.h"
 #include "windows_system_dialogs.h"
 
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
+#include <objbase.h>
 
 #include <chrono>
 #include <utility>
 
+#ifdef _MSC_VER
+#pragma comment(lib, "Ole32.lib")
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "mfuuid.lib")
+#endif
 
 namespace xue_hua_barcode_scanner {
 
 namespace {
+
+constexpr int32_t kPixelFormatLum = 0;  // C_PIXEL_FORMAT_LUM
+
+struct ScopedComMta {
+  HRESULT hr = E_FAIL;
+  ScopedComMta() { hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED); }
+  ~ScopedComMta() {
+    if (hr == S_OK || hr == S_FALSE) {
+      CoUninitialize();
+    }
+  }
+};
 
 VideoInput ReadVideoInput(IMFActivate* device, UINT32 index) {
   VideoInput input;
@@ -49,15 +66,28 @@ VideoInput ReadVideoInput(IMFActivate* device, UINT32 index) {
   return input;
 }
 
+std::vector<XHHostCameraInfo> BuildCameraInfoVector(
+    std::vector<VideoInput>& inputs,
+    char* external_facing) {
+  std::vector<XHHostCameraInfo> out;
+  out.reserve(inputs.size());
+  for (VideoInput& input : inputs) {
+    XHHostCameraInfo info{};
+    info.id = const_cast<char*>(input.id.c_str());
+    info.label = const_cast<char*>(input.label.c_str());
+    info.facing = external_facing;
+    out.push_back(info);
+  }
+  return out;
+}
+
 }  // namespace
 
 WindowsCameraCapture::WindowsCameraCapture(
     flutter::TextureRegistrar* texture_registrar,
-    int64_t texture_id,
-    FrameReadyCallback on_frame_ready)
+    int64_t texture_id)
     : texture_registrar_(texture_registrar),
-      texture_id_(texture_id),
-      on_frame_ready_(std::move(on_frame_ready)) {
+      texture_id_(texture_id) {
   pixel_buffer_.width = 1;
   pixel_buffer_.height = 1;
   front_rgba_.assign(4, 0);
@@ -75,20 +105,8 @@ const FlutterDesktopPixelBuffer* WindowsCameraCapture::CopyPixelBuffer() {
   return &pixel_buffer_;
 }
 
-flutter::EncodableList WindowsCameraCapture::CameraListValue(
-    const std::vector<VideoInput>& inputs) {
-  flutter::EncodableList cameras;
-  cameras.reserve(inputs.size());
-  for (const VideoInput& input : inputs) {
-    flutter::EncodableMap item;
-    item[flutter::EncodableValue("id")] = flutter::EncodableValue(input.id);
-    item[flutter::EncodableValue("label")] =
-        flutter::EncodableValue(input.label);
-    item[flutter::EncodableValue("facing")] =
-        flutter::EncodableValue("external");
-    cameras.push_back(flutter::EncodableValue(item));
-  }
-  return cameras;
+void WindowsCameraCapture::SetFrameStreamPaused(bool paused) {
+  frame_stream_paused_.store(paused, std::memory_order_release);
 }
 
 std::vector<VideoInput> WindowsCameraCapture::EnumerateVideoInputs() {
@@ -123,9 +141,24 @@ std::vector<VideoInput> WindowsCameraCapture::EnumerateVideoInputs() {
   return inputs;
 }
 
+void WindowsCameraCapture::ListCamerasFfi(int64_t request_id) {
+  std::vector<VideoInput> inputs = EnumerateVideoInputs();
+  char kExternal[] = "external";
+  std::vector<XHHostCameraInfo> infos =
+      BuildCameraInfoVector(inputs, kExternal);
+  xh_host_complete_camera_list(
+      request_id,
+      1,
+      nullptr,
+      nullptr,
+      infos.empty() ? nullptr : infos.data(),
+      static_cast<int32_t>(infos.size()));
+}
+
 void WindowsCameraCapture::StartCapture(
-    const std::string& camera_id,
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+    int64_t request_id,
+    uint64_t session_generation,
+    const std::string& camera_id) {
   StopCapture();
 
   IMFAttributes* attributes = nullptr;
@@ -148,7 +181,23 @@ void WindowsCameraCapture::StartCapture(
     if (devices != nullptr) {
       CoTaskMemFree(devices);
     }
-    result->Error("NO_CAMERA", "No webcam found on this Windows device.");
+    xh_host_complete_start_camera(
+        request_id,
+        0,
+        "NO_CAMERA",
+        "No webcam found on this Windows device.",
+        nullptr,
+        -1,
+        0,
+        0,
+        0,
+        nullptr,
+        "external",
+        0,
+        0,
+        0,
+        nullptr,
+        0);
     return;
   }
 
@@ -176,12 +225,41 @@ void WindowsCameraCapture::StartCapture(
 
   if (FAILED(hr) || media_source == nullptr) {
     if (hr == E_ACCESSDENIED) {
-      result->Error(
+      xh_host_complete_start_camera(
+          request_id,
+          0,
           "CAMERA_PERMISSION_DENIED",
           "Camera access is denied by Windows privacy settings.",
-          flutter::EncodableValue("permanentlyDenied"));
+          "permanentlyDenied",
+          -1,
+          0,
+          0,
+          0,
+          nullptr,
+          "external",
+          0,
+          0,
+          0,
+          nullptr,
+          0);
     } else {
-      result->Error("CAMERA_OPEN_FAILED", "Failed to activate Windows webcam.");
+      xh_host_complete_start_camera(
+          request_id,
+          0,
+          "CAMERA_OPEN_FAILED",
+          "Failed to activate Windows webcam.",
+          nullptr,
+          -1,
+          0,
+          0,
+          0,
+          nullptr,
+          "external",
+          0,
+          0,
+          0,
+          nullptr,
+          0);
     }
     return;
   }
@@ -201,14 +279,41 @@ void WindowsCameraCapture::StartCapture(
 
   if (FAILED(hr) || reader == nullptr) {
     if (hr == E_ACCESSDENIED) {
-      result->Error(
+      xh_host_complete_start_camera(
+          request_id,
+          0,
           "CAMERA_PERMISSION_DENIED",
           "Camera access is denied by Windows privacy settings.",
-          flutter::EncodableValue("permanentlyDenied"));
+          "permanentlyDenied",
+          -1,
+          0,
+          0,
+          0,
+          nullptr,
+          "external",
+          0,
+          0,
+          0,
+          nullptr,
+          0);
     } else {
-      result->Error(
+      xh_host_complete_start_camera(
+          request_id,
+          0,
           "READER_CREATE_FAILED",
-          "Failed to create MediaFoundation SourceReader.");
+          "Failed to create MediaFoundation SourceReader.",
+          nullptr,
+          -1,
+          0,
+          0,
+          0,
+          nullptr,
+          "external",
+          0,
+          0,
+          0,
+          nullptr,
+          0);
     }
     return;
   }
@@ -236,38 +341,42 @@ void WindowsCameraCapture::StartCapture(
     current_type->Release();
   }
 
-  running_ = true;
+  active_session_generation_.store(session_generation, std::memory_order_release);
+  frame_stream_paused_.store(false, std::memory_order_release);
+  running_.store(true, std::memory_order_release);
   capture_thread_ = std::thread([this, reader, width, height]() {
     CaptureLoop(reader, width, height);
   });
 
-  flutter::EncodableMap reply;
-  reply[flutter::EncodableValue("textureId")] =
-      flutter::EncodableValue(texture_id_);
-  reply[flutter::EncodableValue("hasTorch")] = flutter::EncodableValue(false);
-  reply[flutter::EncodableValue("availableCameraCount")] =
-      flutter::EncodableValue(static_cast<int32_t>(count));
-  reply[flutter::EncodableValue("cameras")] =
-      flutter::EncodableValue(CameraListValue(inputs));
-  reply[flutter::EncodableValue("activeCameraId")] =
-      flutter::EncodableValue(inputs[selected].id);
-  reply[flutter::EncodableValue("cameraFacing")] =
-      flutter::EncodableValue("external");
-  reply[flutter::EncodableValue("previewWidth")] =
-      flutter::EncodableValue(static_cast<int32_t>(width));
-  reply[flutter::EncodableValue("previewHeight")] =
-      flutter::EncodableValue(static_cast<int32_t>(height));
-  reply[flutter::EncodableValue("sensorOrientation")] =
-      flutter::EncodableValue(0);
-  result->Success(flutter::EncodableValue(reply));
+  char kExternal[] = "external";
+  std::vector<XHHostCameraInfo> infos =
+      BuildCameraInfoVector(inputs, kExternal);
+  xh_host_complete_start_camera(
+      request_id,
+      1,
+      nullptr,
+      nullptr,
+      nullptr,
+      texture_id_,
+      0,
+      0,
+      static_cast<int32_t>(count),
+      inputs[selected].id.c_str(),
+      "external",
+      static_cast<int32_t>(width),
+      static_cast<int32_t>(height),
+      0,
+      infos.empty() ? nullptr : infos.data(),
+      static_cast<int32_t>(infos.size()));
 }
 
 void WindowsCameraCapture::CaptureLoop(
     IMFSourceReader* reader,
     UINT32 width,
     UINT32 height) {
+  ScopedComMta com_scope;
   auto last_emit = std::chrono::steady_clock::now();
-  while (running_) {
+  while (running_.load(std::memory_order_acquire)) {
     DWORD stream_index = 0;
     DWORD flags = 0;
     LONGLONG timestamp = 0;
@@ -310,27 +419,31 @@ void WindowsCameraCapture::CaptureLoop(
               texture_registrar_->MarkTextureFrameAvailable(texture_id_);
             }
 
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now - last_emit)
-                    .count() >= 150) {
-              last_emit = now;
-              std::vector<uint8_t> luma(pixel_count);
-              for (size_t i = 0; i < pixel_count; ++i) {
-                const uint32_t b = data[i * 4 + 0];
-                const uint32_t g = data[i * 4 + 1];
-                const uint32_t r = data[i * 4 + 2];
-                luma[i] = static_cast<uint8_t>((r * 77 + g * 150 + b * 29) >> 8);
-              }
-              CameraFramePacket packet;
-              packet.bytes = std::move(luma);
-              packet.width = static_cast<int32_t>(width);
-              packet.height = static_cast<int32_t>(height);
-              packet.row_stride = static_cast<int32_t>(width);
-              packet.format = 0;
-              packet.sensor_orientation = 0;
-              if (on_frame_ready_) {
-                on_frame_ready_(std::move(packet));
+            const uint64_t generation =
+                active_session_generation_.load(std::memory_order_acquire);
+            if (generation != 0 &&
+                !frame_stream_paused_.load(std::memory_order_acquire)) {
+              const auto now = std::chrono::steady_clock::now();
+              if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                      now - last_emit)
+                      .count() >= 150) {
+                last_emit = now;
+                std::vector<uint8_t> luma(pixel_count);
+                for (size_t i = 0; i < pixel_count; ++i) {
+                  const uint32_t b = data[i * 4 + 0];
+                  const uint32_t g = data[i * 4 + 1];
+                  const uint32_t r = data[i * 4 + 2];
+                  luma[i] = static_cast<uint8_t>((r * 77 + g * 150 + b * 29) >> 8);
+                }
+                xh_host_emit_camera_frame(
+                    generation,
+                    luma.data(),
+                    static_cast<int32_t>(luma.size()),
+                    static_cast<int32_t>(width),
+                    static_cast<int32_t>(height),
+                    static_cast<int32_t>(width),
+                    kPixelFormatLum,
+                    0);
               }
             }
           }
@@ -345,7 +458,8 @@ void WindowsCameraCapture::CaptureLoop(
 }
 
 void WindowsCameraCapture::StopCapture() {
-  running_ = false;
+  active_session_generation_.store(0, std::memory_order_release);
+  running_.store(false, std::memory_order_release);
   if (capture_thread_.joinable()) {
     capture_thread_.join();
   }

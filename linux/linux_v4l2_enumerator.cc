@@ -5,16 +5,14 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
-#include <string>
-#include <vector>
 
 namespace xue_hua_barcode_scanner {
 
-FlValue* ListV4l2VideoDevices() {
-  FlValue* list = fl_value_new_list();
+std::vector<V4l2VideoDevice> ListV4l2VideoDevices() {
+  std::vector<V4l2VideoDevice> devices;
   DIR* dir = opendir("/sys/class/video4linux");
   if (dir == nullptr) {
-    return list;
+    return devices;
   }
   std::vector<std::string> names;
   struct dirent* entry = nullptr;
@@ -26,6 +24,8 @@ FlValue* ListV4l2VideoDevices() {
   }
   closedir(dir);
   std::sort(names.begin(), names.end());
+
+  devices.reserve(names.size());
   for (const std::string& name : names) {
     const std::string sys_name =
         std::string("/sys/class/video4linux/") + name + "/name";
@@ -33,17 +33,16 @@ FlValue* ListV4l2VideoDevices() {
     std::string label;
     if (input) {
       std::getline(input, label);
+      if (!label.empty() && label.back() == '\r') {
+        label.pop_back();
+      }
     }
     if (label.empty()) {
       label = "摄像头 " + name;
     }
-    FlValue* item = fl_value_new_map();
-    fl_value_set_string_take(item, "id", fl_value_new_string(name.c_str()));
-    fl_value_set_string_take(item, "label", fl_value_new_string(label.c_str()));
-    fl_value_set_string_take(item, "facing", fl_value_new_string("external"));
-    fl_value_append_take(list, item);
+    devices.push_back(V4l2VideoDevice{name, label, "external"});
   }
-  return list;
+  return devices;
 }
 
 }  // namespace xue_hua_barcode_scanner

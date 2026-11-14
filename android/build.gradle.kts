@@ -1,8 +1,5 @@
 // The Android Gradle Plugin builds the native code with the Android NDK.
 
-group = "com.kurban.xue_hua_barcode_scanner"
-version = "1.0.0"
-
 buildscript {
     repositories {
         google()
@@ -11,9 +8,16 @@ buildscript {
 
     dependencies {
         // The Android Gradle Plugin knows how to build native code with the NDK.
-        classpath("com.android.tools.build:gradle:9.1.0")
+        classpath("com.android.tools.build:gradle:9.1.1")
     }
 }
+
+plugins {
+    id("com.android.library")
+}
+
+group = "com.kurban.xue_hua_barcode_scanner"
+version = "1.2.0"
 
 rootProject.allprojects {
     repositories {
@@ -22,16 +26,13 @@ rootProject.allprojects {
     }
 }
 
-apply plugin: "com.android.library"
-
 android {
     namespace = "com.kurban.xue_hua_barcode_scanner"
     compileSdk = 36
-    ndkVersion = android.ndkVersion
 
     externalNativeBuild {
         cmake {
-            path = "../src/CMakeLists.txt"
+            path = file("../src/CMakeLists.txt")
         }
     }
 
@@ -42,5 +43,6 @@ android {
 
     defaultConfig {
         minSdk = 24
+        consumerProguardFiles("consumer-rules.pro")
     }
 }

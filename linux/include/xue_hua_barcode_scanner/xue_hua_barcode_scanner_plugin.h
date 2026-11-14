@@ -16,7 +16,7 @@ typedef struct {
   GObjectClass parent_class;
 } XueHuaBarcodeScannerPluginClass;
 
-FLUTTER_PLUGIN_EXPORT GType xue_hua_barcode_scanner_plugin_get_type();
+FLUTTER_PLUGIN_EXPORT GType xue_hua_barcode_scanner_plugin_get_type(void);
 
 FLUTTER_PLUGIN_EXPORT void xue_hua_barcode_scanner_plugin_register_with_registrar(
     FlPluginRegistrar* registrar);

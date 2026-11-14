@@ -81,4 +81,10 @@ abstract class XueHuaScannerPlatformEngine {
 
   /// Opens the platform gallery / file picker and returns the selected image's encoded bytes.
   Future<Uint8List?> pickImageFromGallery();
+
+  /// Opens the operating system's application / camera privacy settings page.
+  Future<bool> openAppSettings();
+
+  /// Releases engine-level resources and active native listeners if any.
+  Future<void> dispose() async {}
 }

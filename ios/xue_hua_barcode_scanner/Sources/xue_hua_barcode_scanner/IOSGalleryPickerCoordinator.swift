@@ -1,27 +1,35 @@
-import Flutter
 import UIKit
 
+#if canImport(xue_hua_barcode_scanner_ffi)
+import xue_hua_barcode_scanner_ffi
+#endif
+
 /// Coordinates presenting the iOS photo library picker (`UIImagePickerController`),
-/// normalizing EXIF orientation, and returning PNG/JPEG bytes to Flutter.
+/// normalizing EXIF orientation, and returning PNG/JPEG bytes through the Pure FFI bridge.
 final class IOSGalleryPickerCoordinator: NSObject,
     UIImagePickerControllerDelegate,
     UINavigationControllerDelegate
 {
-    private var pendingPickerResult: FlutterResult?
+    private var pendingRequestId: Int64 = 0
 
-    func pickImageFromGallery(result: @escaping FlutterResult) {
+    func pickImageFromGallery(requestId: Int64) {
         DispatchQueue.main.async { [weak self] in
             guard let self else {
-                result(nil)
+                xh_host_complete_pick_image(requestId, 1, 0, nil, 0, nil, nil, nil)
                 return
+            }
+            if self.pendingRequestId != 0 {
+                let superseded = self.pendingRequestId
+                self.pendingRequestId = 0
+                xh_host_complete_pick_image(superseded, 1, 0, nil, 0, nil, nil, nil)
             }
             guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary),
                   let presenter = Self.topViewController()
             else {
-                result(nil)
+                xh_host_complete_pick_image(requestId, 1, 0, nil, 0, nil, nil, nil)
                 return
             }
-            self.pendingPickerResult = result
+            self.pendingRequestId = requestId
             let picker = UIImagePickerController()
             picker.sourceType = .photoLibrary
             picker.delegate = self
@@ -34,12 +42,13 @@ final class IOSGalleryPickerCoordinator: NSObject,
         didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
     ) {
         picker.dismiss(animated: true)
-        guard let callback = pendingPickerResult else {
+        let reqId = pendingRequestId
+        pendingRequestId = 0
+        guard reqId != 0 else {
             return
         }
-        pendingPickerResult = nil
         guard let image = info[.originalImage] as? UIImage else {
-            callback(nil)
+            xh_host_complete_pick_image(reqId, 1, 0, nil, 0, nil, nil, nil)
             return
         }
 
@@ -53,18 +62,40 @@ final class IOSGalleryPickerCoordinator: NSObject,
             }
         }
 
-        if let pngData = normalizedImage.pngData() ?? normalizedImage.jpegData(compressionQuality: 0.95) {
-            callback(FlutterStandardTypedData(bytes: pngData))
-        } else {
-            callback(nil)
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let imageData = normalizedImage.pngData()
+                ?? normalizedImage.jpegData(compressionQuality: 0.95),
+                  !imageData.isEmpty
+            else {
+                xh_host_complete_pick_image(reqId, 1, 0, nil, 0, nil, nil, nil)
+                return
+            }
+            imageData.withUnsafeBytes { rawBuffer in
+                guard let base = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
+                    xh_host_complete_pick_image(reqId, 1, 0, nil, 0, nil, nil, nil)
+                    return
+                }
+                xh_host_complete_pick_image(
+                    reqId,
+                    1,
+                    1,
+                    base,
+                    Int32(imageData.count),
+                    nil,
+                    nil,
+                    nil
+                )
+            }
         }
     }
 
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
         picker.dismiss(animated: true)
-        let callback = pendingPickerResult
-        pendingPickerResult = nil
-        callback?(nil)
+        let reqId = pendingRequestId
+        pendingRequestId = 0
+        if reqId != 0 {
+            xh_host_complete_pick_image(reqId, 1, 0, nil, 0, nil, nil, nil)
+        }
     }
 
     private static func topViewController() -> UIViewController? {

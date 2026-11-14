@@ -1,3 +1,13 @@
+## 1.2.0 - 2026-11-14
+
+* Migrate all five native platforms (Android, iOS, macOS, Windows, and Linux) from hybrid `MethodChannel` / `EventChannel` messaging to a 100% Pure `dart:ffi` host control and camera-frame architecture:
+  * Introduce the shared C-ABI host bridge (`src/scanner_host_ffi.h`, `src/scanner_host_ffi.cpp`) with `XHHostPlatformOps` platform driver registration, `xh_host_*` command/completion/heap-free functions, `session_generation` frame-epoch filtering, and `xh_host_unregister_callbacks` teardown synchronization for Hot Restart safety.
+  * Generate Dart C-ABI bindings (`lib/src/ffi/scanner_host_ffi_bindings.dart` via `ffigen_host.yaml`) and update `XueHuaScannerFfiEngine` (`lib/src/ffi/scanner_ffi.dart`) to communicate exclusively through `dart:ffi` calls and `ffi.NativeCallable.listener` callbacks for `listCameras`, `startCamera`, `stopCamera`, `setTorch`, `openAppSettings`, `pickImage`, and live luminance frame delivery.
+  * Remove the `plugin_platform_interface` dependency from `pubspec.yaml`, add `ffiPlugin: true` across Android, iOS, macOS, Windows, and Linux plugin declarations, and preserve the `XueHuaScannerPlatformEngine` contract (`XueHuaBarcodeScannerWeb` remains unchanged for Web).
+  * Add the Android JNI host adapter (`src/scanner_host_jni.cpp`) and keep native JNI/C-ABI symbols protected against R8/ProGuard stripping (`android/consumer-rules.pro`); export C-ABI host and `zxing_*` symbols explicitly in `ios/xue_hua_barcode_scanner.podspec` and `macos/xue_hua_barcode_scanner.podspec`.
+  * Refactor Windows (`XueHuaBarcodeScannerWindowsPlugin`, `WindowsCameraCapture`, `windows_system_dialogs`) and Linux (`XueHuaBarcodeScannerPlugin`, `linux_file_chooser`, `linux_v4l2_enumerator`) to dispatch camera operations onto worker/GTK contexts, emit Windows Media Foundation luminance frames directly via `xh_host_emit_camera_frame` without platform-thread channel hops, and present Linux gallery selection non-blockingly via `gtk_file_chooser_native_new` and `gtk_native_dialog_show`.
+  * Harden Windows and Linux C/C++ Clang compilation compatibility: guard MSVC `#pragma comment(lib, ...)` pragmas with `#ifdef _MSC_VER`, explicitly declare system libraries (`comdlg32`, `shell32`, `ole32`, `mf`, `mfplat`, `mfreadwrite`, `mfuuid`) in `windows/CMakeLists.txt`, and use a strict C prototype `(void)` for `xue_hua_barcode_scanner_plugin_get_type(void)` in `linux/include/xue_hua_barcode_scanner/xue_hua_barcode_scanner_plugin.h`.
+
 ## 1.1.0 - 2026-10-30
 
 * Redesign the camera permission-denied and hardware-unavailable views (`ScannerCameraPreview`):

@@ -1,34 +1,123 @@
 #include "xue_hua_barcode_scanner_windows_plugin.h"
 
+#include "scanner_host_ffi.h"
 #include "windows_system_dialogs.h"
 
-#include <flutter/event_stream_handler_functions.h>
-#include <flutter/standard_method_codec.h>
 #include <mfapi.h>
+#include <objbase.h>
 
-#include <optional>
-#include <string>
 #include <utility>
+
+#ifdef _MSC_VER
+#pragma comment(lib, "Ole32.lib")
+#endif
 
 namespace xue_hua_barcode_scanner {
 
 namespace {
 
-std::string ArgumentString(
-    const flutter::MethodCall<flutter::EncodableValue>& call,
-    const char* key) {
-  const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
-  if (args == nullptr) {
-    return {};
+constexpr UINT kRunUiTaskMessage = WM_APP + 0x486;
+
+void OnFfiListCameras(void* user_data, int64_t request_id) {
+  if (user_data == nullptr) {
+    xh_host_complete_camera_list(request_id, 1, nullptr, nullptr, nullptr, 0);
+    return;
   }
-  const auto it = args->find(flutter::EncodableValue(key));
-  if (it == args->end()) {
-    return {};
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->PostMfTask([plugin, request_id]() {
+    plugin->HandleListCameras(request_id);
+  });
+}
+
+void OnFfiStartCamera(
+    void* user_data,
+    int64_t request_id,
+    uint64_t session_generation,
+    const char* facing,
+    const char* camera_id) {
+  (void)facing;
+  std::string camera_id_copy = camera_id != nullptr ? camera_id : "";
+  if (user_data == nullptr) {
+    xh_host_complete_start_camera(
+        request_id,
+        0,
+        "NO_HOST",
+        "Native Windows host is not attached.",
+        nullptr,
+        -1,
+        0,
+        0,
+        0,
+        nullptr,
+        "external",
+        0,
+        0,
+        0,
+        nullptr,
+        0);
+    return;
   }
-  if (const auto* value = std::get_if<std::string>(&it->second)) {
-    return *value;
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->PostMfTask([plugin,
+                      request_id,
+                      session_generation,
+                      id = std::move(camera_id_copy)]() {
+    plugin->HandleStartCamera(request_id, session_generation, id);
+  });
+}
+
+void OnFfiStopCamera(void* user_data, int64_t request_id) {
+  if (user_data == nullptr) {
+    if (request_id != 0) {
+      xh_host_complete_bool(request_id, 1, 1, nullptr, nullptr);
+    }
+    return;
   }
-  return {};
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->PostMfTask([plugin, request_id]() {
+    plugin->HandleStopCamera(request_id);
+  });
+}
+
+void OnFfiSetTorch(void* user_data, int64_t request_id, int32_t enabled) {
+  (void)user_data;
+  (void)enabled;
+  xh_host_complete_bool(request_id, 1, 0, nullptr, nullptr);
+}
+
+void OnFfiOpenAppSettings(void* user_data, int64_t request_id) {
+  if (user_data == nullptr) {
+    xh_host_complete_bool(request_id, 1, 0, nullptr, nullptr);
+    return;
+  }
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->PostUiTask([plugin, request_id]() {
+    plugin->HandleOpenAppSettings(request_id);
+  });
+}
+
+void OnFfiPickImage(
+    void* user_data,
+    int64_t request_id,
+    int32_t prefer_file_path) {
+  (void)prefer_file_path;
+  if (user_data == nullptr) {
+    xh_host_complete_pick_image(
+        request_id, 1, 0, nullptr, 0, nullptr, nullptr, nullptr);
+    return;
+  }
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->PostUiTask([plugin, request_id]() {
+    plugin->HandlePickImage(request_id);
+  });
+}
+
+void OnFfiSetFrameStreamPaused(void* user_data, int32_t paused) {
+  if (user_data == nullptr) {
+    return;
+  }
+  auto* plugin = static_cast<XueHuaBarcodeScannerWindowsPlugin*>(user_data);
+  plugin->HandleSetFrameStreamPaused(paused != 0);
 }
 
 }  // namespace
@@ -36,71 +125,37 @@ std::string ArgumentString(
 void XueHuaBarcodeScannerWindowsPlugin::RegisterWithRegistrar(
     flutter::PluginRegistrarWindows* registrar) {
   auto plugin = std::make_unique<XueHuaBarcodeScannerWindowsPlugin>(registrar);
-
-  auto method_channel =
-      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-          registrar->messenger(),
-          "com.kurban.xue_hua_barcode_scanner/methods",
-          &flutter::StandardMethodCodec::GetInstance());
-
-  auto* raw_plugin = plugin.get();
-  method_channel->SetMethodCallHandler(
-      [raw_plugin](const auto& call, auto result) {
-        raw_plugin->HandleMethodCall(call, std::move(result));
-      });
-  plugin->method_channel_ = std::move(method_channel);
-
-  auto event_channel =
-      std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
-          registrar->messenger(),
-          "com.kurban.xue_hua_barcode_scanner/frames",
-          &flutter::StandardMethodCodec::GetInstance());
-  event_channel->SetStreamHandler(
-      std::make_unique<flutter::StreamHandlerFunctions<flutter::EncodableValue>>(
-          [raw_plugin](
-              const flutter::EncodableValue*,
-              std::unique_ptr<flutter::EventSink<flutter::EncodableValue>>&&
-                  events)
-              -> std::unique_ptr<
-                  flutter::StreamHandlerError<flutter::EncodableValue>> {
-            std::lock_guard<std::mutex> lock(raw_plugin->sink_mutex_);
-            raw_plugin->event_sink_ = std::move(events);
-            return nullptr;
-          },
-          [raw_plugin](const flutter::EncodableValue*)
-              -> std::unique_ptr<
-                  flutter::StreamHandlerError<flutter::EncodableValue>> {
-            std::lock_guard<std::mutex> lock(raw_plugin->sink_mutex_);
-            raw_plugin->event_sink_.reset();
-            return nullptr;
-          }));
-  plugin->event_channel_ = std::move(event_channel);
-
   registrar->AddPlugin(std::move(plugin));
 }
 
 XueHuaBarcodeScannerWindowsPlugin::XueHuaBarcodeScannerWindowsPlugin(
     flutter::PluginRegistrarWindows* registrar)
-    : registrar_(registrar),
-      texture_registrar_(registrar->texture_registrar()) {
+    : texture_registrar_(registrar->texture_registrar()) {
   if (flutter::FlutterView* view = registrar->GetView()) {
     view_hwnd_ = view->GetNativeWindow();
   }
-  window_proc_delegate_id_ = registrar_->RegisterTopLevelWindowProcDelegate(
-      [this](HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
-          -> std::optional<LRESULT> {
-        (void)wparam;
-        (void)lparam;
-        if (message != kDeliverCameraFrameMessage) {
-          return std::nullopt;
-        }
-        if (!IsOurTopLevelWindow(hwnd)) {
-          return std::nullopt;
-        }
-        DeliverPendingFrames();
-        return 0;
-      });
-  MFStartup(MF_VERSION);
+
+  msg_hwnd_ = CreateWindowExW(
+      0,
+      L"STATIC",
+      L"",
+      0,
+      0,
+      0,
+      0,
+      0,
+      HWND_MESSAGE,
+      nullptr,
+      nullptr,
+      nullptr);
+  if (msg_hwnd_ != nullptr) {
+    SetWindowLongPtrW(
+        msg_hwnd_, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+    original_wnd_proc_ = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
+        msg_hwnd_,
+        GWLP_WNDPROC,
+        reinterpret_cast<LONG_PTR>(&MessageWndProc)));
+  }
 
   texture_variant_ = std::make_unique<flutter::TextureVariant>(
       flutter::PixelBufferTexture(
@@ -112,73 +167,132 @@ XueHuaBarcodeScannerWindowsPlugin::XueHuaBarcodeScannerWindowsPlugin(
   texture_id_ = texture_registrar_->RegisterTexture(texture_variant_.get());
 
   camera_capture_ = std::make_unique<WindowsCameraCapture>(
-      texture_registrar_,
-      texture_id_,
-      [this](CameraFramePacket packet) {
-        PostFrameToPlatformThread(std::move(packet));
-      });
+      texture_registrar_, texture_id_);
+
+  mf_thread_ = std::thread([this]() { MfWorkerLoop(); });
+
+  XHHostPlatformOps ops{};
+  ops.user_data = this;
+  ops.list_cameras = &OnFfiListCameras;
+  ops.start_camera = &OnFfiStartCamera;
+  ops.stop_camera = &OnFfiStopCamera;
+  ops.set_torch = &OnFfiSetTorch;
+  ops.open_app_settings = &OnFfiOpenAppSettings;
+  ops.pick_image = &OnFfiPickImage;
+  ops.set_frame_stream_paused = &OnFfiSetFrameStreamPaused;
+  xh_host_register_platform(&ops);
 }
 
 XueHuaBarcodeScannerWindowsPlugin::~XueHuaBarcodeScannerWindowsPlugin() {
+  xh_host_unregister_platform(this);
+
+  {
+    std::lock_guard<std::mutex> lock(mf_mutex_);
+    mf_shutting_down_ = true;
+  }
+  mf_cv_.notify_all();
+  if (mf_thread_.joinable()) {
+    mf_thread_.join();
+  }
+
+  if (msg_hwnd_ != nullptr) {
+    if (original_wnd_proc_ != nullptr) {
+      SetWindowLongPtrW(
+          msg_hwnd_,
+          GWLP_WNDPROC,
+          reinterpret_cast<LONG_PTR>(original_wnd_proc_));
+      original_wnd_proc_ = nullptr;
+    }
+    SetWindowLongPtrW(msg_hwnd_, GWLP_USERDATA, 0);
+    DestroyWindow(msg_hwnd_);
+    msg_hwnd_ = nullptr;
+  }
+  {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    ui_tasks_.clear();
+  }
+
   if (camera_capture_ != nullptr) {
     camera_capture_->StopCapture();
     camera_capture_.reset();
-  }
-  if (registrar_ != nullptr && window_proc_delegate_id_ != 0) {
-    registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_delegate_id_);
-    window_proc_delegate_id_ = 0;
   }
   if (texture_id_ >= 0 && texture_registrar_ != nullptr) {
     texture_registrar_->UnregisterTexture(texture_id_);
     texture_id_ = -1;
   }
-  MFShutdown();
 }
 
-void XueHuaBarcodeScannerWindowsPlugin::HandleMethodCall(
-    const flutter::MethodCall<flutter::EncodableValue>& call,
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-  const std::string& method = call.method_name();
-  if (method == "listCameras") {
-    result->Success(flutter::EncodableValue(
-        WindowsCameraCapture::CameraListValue(
-            camera_capture_->EnumerateVideoInputs())));
-  } else if (method == "startCamera") {
-    camera_capture_->StartCapture(
-        ArgumentString(call, "cameraId"), std::move(result));
-  } else if (method == "stopCamera") {
-    camera_capture_->StopCapture();
-    result->Success();
-  } else if (method == "setTorch") {
-    result->Success(flutter::EncodableValue(false));
-  } else if (method == "openAppSettings") {
-    result->Success(flutter::EncodableValue(OpenPrivacyWebcamSettings()));
-  } else if (method == "pickImageFromGallery") {
-    result->Success();
-  } else if (method == "pickImageFilePath") {
-    std::string path = OpenImageFileDialog();
-    if (path.empty()) {
-      result->Success();
-    } else {
-      result->Success(flutter::EncodableValue(path));
+void XueHuaBarcodeScannerWindowsPlugin::PostMfTask(std::function<void()> task) {
+  {
+    std::lock_guard<std::mutex> lock(mf_mutex_);
+    if (mf_shutting_down_) {
+      return;
     }
-  } else {
-    result->NotImplemented();
+    mf_tasks_.push_back(std::move(task));
+  }
+  mf_cv_.notify_one();
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::PostUiTask(std::function<void()> task) {
+  HWND target = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    target = msg_hwnd_;
+    if (target == nullptr) {
+      return;
+    }
+    ui_tasks_.push_back(std::move(task));
+  }
+  if (PostMessageW(target, kRunUiTaskMessage, 0, 0) == FALSE) {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    ui_tasks_.clear();
   }
 }
 
-bool XueHuaBarcodeScannerWindowsPlugin::IsOurTopLevelWindow(HWND hwnd) const {
-  if (view_hwnd_ == nullptr || hwnd == nullptr) {
-    return false;
+void XueHuaBarcodeScannerWindowsPlugin::MfWorkerLoop() {
+  const HRESULT com_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  const HRESULT mf_hr = MFStartup(MF_VERSION);
+
+  for (;;) {
+    std::function<void()> task;
+    {
+      std::unique_lock<std::mutex> lock(mf_mutex_);
+      mf_cv_.wait(lock, [this]() {
+        return mf_shutting_down_ || !mf_tasks_.empty();
+      });
+      if (mf_shutting_down_ && mf_tasks_.empty()) {
+        break;
+      }
+      task = std::move(mf_tasks_.front());
+      mf_tasks_.pop_front();
+    }
+    if (task) {
+      task();
+    }
   }
-  HWND top = GetAncestor(view_hwnd_, GA_ROOT);
-  if (top == nullptr) {
-    top = view_hwnd_;
+
+  if (SUCCEEDED(mf_hr)) {
+    MFShutdown();
   }
-  return hwnd == top;
+  if (com_hr == S_OK || com_hr == S_FALSE) {
+    CoUninitialize();
+  }
 }
 
-HWND XueHuaBarcodeScannerWindowsPlugin::PlatformWindow() const {
+void XueHuaBarcodeScannerWindowsPlugin::DrainUiTasks() {
+  std::deque<std::function<void()>> tasks;
+  {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    tasks.swap(ui_tasks_);
+  }
+  for (std::function<void()>& task : tasks) {
+    if (task) {
+      task();
+    }
+  }
+}
+
+HWND XueHuaBarcodeScannerWindowsPlugin::OwnerWindow() const {
   if (view_hwnd_ == nullptr) {
     return nullptr;
   }
@@ -186,50 +300,91 @@ HWND XueHuaBarcodeScannerWindowsPlugin::PlatformWindow() const {
   return top != nullptr ? top : view_hwnd_;
 }
 
-void XueHuaBarcodeScannerWindowsPlugin::PostFrameToPlatformThread(
-    CameraFramePacket packet) {
-  HWND target = PlatformWindow();
-  if (target == nullptr) {
+LRESULT CALLBACK XueHuaBarcodeScannerWindowsPlugin::MessageWndProc(
+    HWND hwnd,
+    UINT message,
+    WPARAM wparam,
+    LPARAM lparam) {
+  auto* plugin = reinterpret_cast<XueHuaBarcodeScannerWindowsPlugin*>(
+      GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+  if (message == kRunUiTaskMessage && plugin != nullptr) {
+    plugin->DrainUiTasks();
+    return 0;
+  }
+  if (plugin != nullptr && plugin->original_wnd_proc_ != nullptr) {
+    return CallWindowProcW(
+        plugin->original_wnd_proc_, hwnd, message, wparam, lparam);
+  }
+  return DefWindowProcW(hwnd, message, wparam, lparam);
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::HandleListCameras(int64_t request_id) {
+  if (camera_capture_ == nullptr) {
+    xh_host_complete_camera_list(request_id, 1, nullptr, nullptr, nullptr, 0);
     return;
   }
-  {
-    std::lock_guard<std::mutex> lock(pending_frames_mutex_);
-    pending_frames_.push_back(std::move(packet));
-    if (pending_frames_.size() > 2) {
-      pending_frames_.pop_front();
-    }
+  camera_capture_->ListCamerasFfi(request_id);
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::HandleStartCamera(
+    int64_t request_id,
+    uint64_t session_generation,
+    std::string camera_id) {
+  if (camera_capture_ == nullptr) {
+    xh_host_complete_start_camera(
+        request_id,
+        0,
+        "NO_HOST",
+        "Windows camera controller is unavailable.",
+        nullptr,
+        -1,
+        0,
+        0,
+        0,
+        nullptr,
+        "external",
+        0,
+        0,
+        0,
+        nullptr,
+        0);
+    return;
   }
-  if (PostMessage(target, kDeliverCameraFrameMessage, 0, 0) == FALSE) {
-    std::lock_guard<std::mutex> lock(pending_frames_mutex_);
-    pending_frames_.clear();
+  camera_capture_->StartCapture(request_id, session_generation, camera_id);
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::HandleStopCamera(int64_t request_id) {
+  if (camera_capture_ != nullptr) {
+    camera_capture_->StopCapture();
+  }
+  if (request_id != 0) {
+    xh_host_complete_bool(request_id, 1, 1, nullptr, nullptr);
   }
 }
 
-void XueHuaBarcodeScannerWindowsPlugin::DeliverPendingFrames() {
-  std::deque<CameraFramePacket> frames;
-  {
-    std::lock_guard<std::mutex> lock(pending_frames_mutex_);
-    frames.swap(pending_frames_);
-  }
-  std::lock_guard<std::mutex> sink_lock(sink_mutex_);
-  if (!event_sink_) {
-    return;
-  }
-  for (CameraFramePacket& frame : frames) {
-    flutter::EncodableMap packet;
-    packet[flutter::EncodableValue("bytes")] =
-        flutter::EncodableValue(frame.bytes);
-    packet[flutter::EncodableValue("width")] =
-        flutter::EncodableValue(frame.width);
-    packet[flutter::EncodableValue("height")] =
-        flutter::EncodableValue(frame.height);
-    packet[flutter::EncodableValue("rowStride")] =
-        flutter::EncodableValue(frame.row_stride);
-    packet[flutter::EncodableValue("format")] =
-        flutter::EncodableValue(frame.format);
-    packet[flutter::EncodableValue("sensorOrientation")] =
-        flutter::EncodableValue(frame.sensor_orientation);
-    event_sink_->Success(flutter::EncodableValue(packet));
+void XueHuaBarcodeScannerWindowsPlugin::HandleOpenAppSettings(
+    int64_t request_id) {
+  const bool opened = OpenPrivacyWebcamSettings();
+  xh_host_complete_bool(request_id, 1, opened ? 1 : 0, nullptr, nullptr);
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::HandlePickImage(int64_t request_id) {
+  const std::string path = OpenImageFileDialog(OwnerWindow());
+  xh_host_complete_pick_image(
+      request_id,
+      1,
+      path.empty() ? 0 : 1,
+      nullptr,
+      0,
+      path.empty() ? nullptr : path.c_str(),
+      nullptr,
+      nullptr);
+}
+
+void XueHuaBarcodeScannerWindowsPlugin::HandleSetFrameStreamPaused(
+    bool paused) {
+  if (camera_capture_ != nullptr) {
+    camera_capture_->SetFrameStreamPaused(paused);
   }
 }
 

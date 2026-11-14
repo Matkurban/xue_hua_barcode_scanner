@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' show Offset, Size;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import '../core/barcode_matrix_codec.dart';
 import '../core/scanner_engine_interface.dart';
@@ -14,10 +14,6 @@ import '../models/scanner_state.dart';
 import 'barcode_scanner.dart';
 
 export 'barcode_scanner.dart';
-
-const MethodChannel _kSettingsMethodChannel = MethodChannel(
-  'com.kurban.xue_hua_barcode_scanner/methods',
-);
 
 /// Controller for managing real-time camera scanning, hardware torch/flashlight,
 /// front/back/external camera switching, frame throttling, barcode validation,
@@ -141,12 +137,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       return false;
     }
     try {
-      final bool? opened = await _kSettingsMethodChannel
-          .invokeMethod<bool>('openAppSettings')
-          .timeout(const Duration(seconds: 3), onTimeout: () => false);
-      return opened ?? false;
-    } on MissingPluginException {
-      return false;
+      return await _engine.openAppSettings().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => false,
+      );
     } catch (_) {
       return false;
     }
@@ -520,7 +514,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   void dispose() {
     _isDisposed = true;
     _validationResetTimer?.cancel();
-    unawaited(_engine.stopCamera());
+    unawaited(_engine.dispose());
     unawaited(_barcodesStreamController.close());
     super.dispose();
   }

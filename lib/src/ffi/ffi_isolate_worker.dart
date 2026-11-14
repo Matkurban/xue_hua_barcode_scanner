@@ -116,16 +116,18 @@ ffi.Pointer<ffi.Uint8> _acquireReusableNativeBuffer(int length) {
   return _reusableBuffer;
 }
 
-/// Opens the platform-specific dynamic library containing `zxing-cpp` C symbols.
-ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
+/// Opens the platform-specific dynamic library containing `zxing-cpp` and FFI host C symbols.
+ffi.DynamicLibrary? tryOpenZxingDynamicLibrary({
+  String requiredSymbol = 'zxing_decode_image_bytes',
+}) {
   try {
     if (Platform.isMacOS || Platform.isIOS) {
       final ffi.DynamicLibrary processLib = ffi.DynamicLibrary.process();
-      if (processLib.providesSymbol('zxing_decode_image_bytes')) {
+      if (processLib.providesSymbol(requiredSymbol)) {
         return processLib;
       }
       final ffi.DynamicLibrary execLib = ffi.DynamicLibrary.executable();
-      if (execLib.providesSymbol('zxing_decode_image_bytes')) {
+      if (execLib.providesSymbol(requiredSymbol)) {
         return execLib;
       }
       final String debugDylibPath =
@@ -134,7 +136,7 @@ ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
         final ffi.DynamicLibrary debugLib = ffi.DynamicLibrary.open(
           debugDylibPath,
         );
-        if (debugLib.providesSymbol('zxing_decode_image_bytes')) {
+        if (debugLib.providesSymbol(requiredSymbol)) {
           return debugLib;
         }
       }
@@ -142,17 +144,25 @@ ffi.DynamicLibrary? tryOpenZxingDynamicLibrary() {
         final ffi.DynamicLibrary frameworkLib = ffi.DynamicLibrary.open(
           '$_kLibName.framework/$_kLibName',
         );
-        if (frameworkLib.providesSymbol('zxing_decode_image_bytes')) {
+        if (frameworkLib.providesSymbol(requiredSymbol)) {
           return frameworkLib;
         }
       } catch (_) {}
       return null;
     }
     if (Platform.isAndroid || Platform.isLinux) {
-      return _openAndroidOrLinuxLibrary();
+      final ffi.DynamicLibrary? lib = _openAndroidOrLinuxLibrary();
+      if (lib != null && lib.providesSymbol(requiredSymbol)) {
+        return lib;
+      }
+      return null;
     }
     if (Platform.isWindows) {
-      return _openWindowsLibrary();
+      final ffi.DynamicLibrary? lib = _openWindowsLibrary();
+      if (lib != null && lib.providesSymbol(requiredSymbol)) {
+        return lib;
+      }
+      return null;
     }
   } catch (_) {
     return null;

@@ -1,6 +1,6 @@
 name: xue_hua_barcode_scanner
 description: "Flutter barcode and QR recognition, generation, and real-time camera scanner for Android, iOS, macOS, Windows, Linux, and Web, powered by zxing-cpp."
-version: 1.1.0
+version: 1.2.0
 homepage: https://github.com/Matkurban/xue_hua_barcode_scanner
 repository: https://github.com/Matkurban/xue_hua_barcode_scanner
 issue_tracker: https://github.com/Matkurban/xue_hua_barcode_scanner/issues
@@ -24,7 +24,6 @@ dependencies:
   ffi: ^2.2.0
   material_ui: ^1.11.0
   chat_context_menu: ^4.2.0
-  plugin_platform_interface: ^2.1.8
 
 dev_dependencies:
   ffigen: ^23.0.0

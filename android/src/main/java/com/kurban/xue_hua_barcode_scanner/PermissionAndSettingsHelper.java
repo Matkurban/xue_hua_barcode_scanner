@@ -8,24 +8,27 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.provider.Settings;
 
-import io.flutter.plugin.common.MethodChannel;
-
 /**
  * Handles runtime camera permission requests, rationale checks, and deep-linking
- * to the Android application permission settings screen.
+ * to the Android application permission settings screen without MethodChannel.
  */
 final class PermissionAndSettingsHelper {
 
   static final int REQUEST_CAMERA_PERMISSION = 9201;
 
   interface PermissionGrantedCallback {
-    void onPermissionGranted(String facing, String cameraId, MethodChannel.Result result);
+    void onPermissionGranted(
+        long requestId,
+        long sessionGeneration,
+        String facing,
+        String cameraId);
   }
 
   private final PermissionGrantedCallback grantedCallback;
+  private long pendingRequestId = 0L;
+  private long pendingSessionGeneration = 0L;
   private String pendingCameraFacing;
   private String pendingCameraId;
-  private MethodChannel.Result pendingCameraResult;
 
   PermissionAndSettingsHelper(PermissionGrantedCallback grantedCallback) {
     this.grantedCallback = grantedCallback;
@@ -39,19 +42,55 @@ final class PermissionAndSettingsHelper {
 
   void requestCameraPermission(
       Activity activity,
+      long requestId,
+      long sessionGeneration,
       String facing,
-      String cameraId,
-      MethodChannel.Result result) {
+      String cameraId) {
     if (activity == null) {
-      result.error(
+      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+          requestId,
+          false,
           "CAMERA_PERMISSION_DENIED",
           "Camera permission is not granted and no Activity is attached.",
-          "denied");
+          "denied",
+          -1L,
+          false,
+          false,
+          0,
+          null,
+          facing != null ? facing : "back",
+          0,
+          0,
+          0,
+          null,
+          null,
+          null);
       return;
     }
+    if (pendingRequestId != 0L) {
+      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+          pendingRequestId,
+          false,
+          "CAMERA_PERMISSION_DENIED",
+          "Superseded by a newer camera start request.",
+          "denied",
+          -1L,
+          false,
+          false,
+          0,
+          null,
+          pendingCameraFacing != null ? pendingCameraFacing : "back",
+          0,
+          0,
+          0,
+          null,
+          null,
+          null);
+    }
+    pendingRequestId = requestId;
+    pendingSessionGeneration = sessionGeneration;
     pendingCameraFacing = facing;
     pendingCameraId = cameraId;
-    pendingCameraResult = result;
     activity.requestPermissions(
         new String[] {Manifest.permission.CAMERA},
         REQUEST_CAMERA_PERMISSION);
@@ -80,24 +119,40 @@ final class PermissionAndSettingsHelper {
     if (requestCode != REQUEST_CAMERA_PERMISSION) {
       return false;
     }
-    MethodChannel.Result callback = pendingCameraResult;
-    String facing = pendingCameraFacing != null ? pendingCameraFacing : "back";
-    String cameraId = pendingCameraId;
-    pendingCameraResult = null;
+    final long requestId = pendingRequestId;
+    final long sessionGeneration = pendingSessionGeneration;
+    final String facing = pendingCameraFacing != null ? pendingCameraFacing : "back";
+    final String cameraId = pendingCameraId;
+    pendingRequestId = 0L;
+    pendingSessionGeneration = 0L;
     pendingCameraFacing = null;
     pendingCameraId = null;
 
-    if (callback != null) {
+    if (requestId != 0L) {
       if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-        grantedCallback.onPermissionGranted(facing, cameraId, callback);
+        grantedCallback.onPermissionGranted(requestId, sessionGeneration, facing, cameraId);
       } else {
         boolean showRationale =
             activity != null
                 && activity.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA);
-        callback.error(
+        XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+            requestId,
+            false,
             "CAMERA_PERMISSION_DENIED",
             "Camera permission was denied by the user.",
-            showRationale ? "denied" : "permanentlyDenied");
+            showRationale ? "denied" : "permanentlyDenied",
+            -1L,
+            false,
+            false,
+            0,
+            null,
+            facing,
+            0,
+            0,
+            0,
+            null,
+            null,
+            null);
       }
     }
     return true;

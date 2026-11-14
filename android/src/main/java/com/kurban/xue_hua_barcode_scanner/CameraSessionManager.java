@@ -17,7 +17,6 @@ import android.media.ImageReader;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Size;
 import android.view.Surface;
@@ -28,22 +27,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.flutter.plugin.common.EventChannel;
-import io.flutter.plugin.common.MethodChannel;
 import io.flutter.view.TextureRegistry;
 
 /**
  * Manages the Android Camera2 session lifecycle, device enumeration, SurfaceTexture
- * preview rendering, hardware flashlight control, and frame emission.
+ * preview rendering, hardware flashlight control, and direct FFI/JNI frame emission.
  */
 final class CameraSessionManager {
 
-  interface FrameSinkProvider {
-    EventChannel.EventSink getEventSink();
-  }
+  private static final int PIXEL_FORMAT_LUM = 0; // C_PIXEL_FORMAT_LUM
 
-  private final Handler mainHandler = new Handler(Looper.getMainLooper());
-  private final FrameSinkProvider frameSinkProvider;
+  private static final class CameraDescriptions {
+    final String[] ids;
+    final String[] labels;
+    final String[] facings;
+
+    CameraDescriptions(String[] ids, String[] labels, String[] facings) {
+      this.ids = ids;
+      this.labels = labels;
+      this.facings = facings;
+    }
+  }
 
   private Context applicationContext;
   private TextureRegistry textureRegistry;
@@ -59,64 +63,132 @@ final class CameraSessionManager {
   private boolean hasFlashAvailable = false;
   private int currentSensorOrientation = 90;
   private long lastFrameTimestampMs = 0L;
+  private volatile long activeSessionGeneration = 0L;
+  private volatile boolean frameStreamPaused = false;
 
-  CameraSessionManager(FrameSinkProvider frameSinkProvider) {
-    this.frameSinkProvider = frameSinkProvider;
-  }
+  CameraSessionManager() {}
 
   void attach(Context context, TextureRegistry registry) {
     this.applicationContext = context;
     this.textureRegistry = registry;
   }
 
-  List<Map<String, Object>> listCameras() {
+  void setFrameStreamPaused(boolean paused) {
+    this.frameStreamPaused = paused;
+  }
+
+  void listCameras(long requestId) {
     if (applicationContext == null) {
-      return new ArrayList<>();
+      XueHuaBarcodeScannerPlugin.nativeOnCameraListResult(
+          requestId, true, null, null, new String[0], new String[0], new String[0]);
+      return;
     }
     CameraManager manager =
         (CameraManager) applicationContext.getSystemService(Context.CAMERA_SERVICE);
     if (manager == null) {
-      return new ArrayList<>();
+      XueHuaBarcodeScannerPlugin.nativeOnCameraListResult(
+          requestId, true, null, null, new String[0], new String[0], new String[0]);
+      return;
     }
     try {
       String[] cameraIds = manager.getCameraIdList();
       if (cameraIds == null || cameraIds.length == 0) {
-        return new ArrayList<>();
+        XueHuaBarcodeScannerPlugin.nativeOnCameraListResult(
+            requestId, true, null, null, new String[0], new String[0], new String[0]);
+        return;
       }
-      return describeCameras(manager, cameraIds);
+      CameraDescriptions desc = describeCameras(manager, cameraIds);
+      XueHuaBarcodeScannerPlugin.nativeOnCameraListResult(
+          requestId, true, null, null, desc.ids, desc.labels, desc.facings);
     } catch (CameraAccessException | SecurityException e) {
-      return new ArrayList<>();
+      XueHuaBarcodeScannerPlugin.nativeOnCameraListResult(
+          requestId, true, null, null, new String[0], new String[0], new String[0]);
     }
   }
 
-  void openCamera(String facing, String cameraId, MethodChannel.Result result) {
+  void openCamera(long requestId, long sessionGeneration, String facing, String cameraId) {
     stopCamera(false);
+    activeSessionGeneration = sessionGeneration;
+    frameStreamPaused = false;
     startBackgroundThread();
 
+    final String requestedFacing = facing != null ? facing : "back";
+
     if (applicationContext == null || textureRegistry == null) {
-      result.error("NO_CONTEXT", "Application context or TextureRegistry is unavailable.", null);
+      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+          requestId,
+          false,
+          "NO_CONTEXT",
+          "Application context or TextureRegistry is unavailable.",
+          null,
+          -1L,
+          false,
+          false,
+          0,
+          null,
+          requestedFacing,
+          0,
+          0,
+          0,
+          null,
+          null,
+          null);
       return;
     }
 
     CameraManager manager =
         (CameraManager) applicationContext.getSystemService(Context.CAMERA_SERVICE);
     if (manager == null) {
-      result.error("NO_CAMERA_MANAGER", "CameraManager is unavailable.", null);
+      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+          requestId,
+          false,
+          "NO_CAMERA_MANAGER",
+          "CameraManager is unavailable.",
+          null,
+          -1L,
+          false,
+          false,
+          0,
+          null,
+          requestedFacing,
+          0,
+          0,
+          0,
+          null,
+          null,
+          null);
       return;
     }
 
     try {
       String[] cameraIds = manager.getCameraIdList();
       if (cameraIds == null || cameraIds.length == 0) {
-        result.error("NO_CAMERA", "No camera devices found on this Android device.", null);
+        XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+            requestId,
+            false,
+            "NO_CAMERA",
+            "No camera devices found on this Android device.",
+            null,
+            -1L,
+            false,
+            false,
+            0,
+            null,
+            requestedFacing,
+            0,
+            0,
+            0,
+            null,
+            null,
+            null);
         return;
       }
 
-      List<Map<String, Object>> cameras = describeCameras(manager, cameraIds);
+      final CameraDescriptions cameras = describeCameras(manager, cameraIds);
       int desiredLens = CameraCharacteristics.LENS_FACING_BACK;
-      if ("front".equalsIgnoreCase(facing)) {
+      if ("front".equalsIgnoreCase(requestedFacing)) {
         desiredLens = CameraCharacteristics.LENS_FACING_FRONT;
-      } else if ("external".equalsIgnoreCase(facing)) {
+      } else if ("external".equalsIgnoreCase(requestedFacing)) {
         desiredLens = CameraCharacteristics.LENS_FACING_EXTERNAL;
       }
 
@@ -149,7 +221,6 @@ final class CameraSessionManager {
       final String activeCameraId = selectedCameraId;
       final String activeFacing = facingName(
           selectedCharacteristics.get(CameraCharacteristics.LENS_FACING));
-      final List<Map<String, Object>> cameraList = cameras;
 
       Boolean flashInfo =
           selectedCharacteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
@@ -183,6 +254,8 @@ final class CameraSessionManager {
       final int previewW = chosenSize.getWidth();
       final int previewH = chosenSize.getHeight();
       final long textureId = surfaceTextureEntry.id();
+      final boolean hasTorch = hasFlashAvailable;
+      final int sensorOrient = currentSensorOrientation;
 
       manager.openCamera(
           selectedCameraId,
@@ -197,26 +270,47 @@ final class CameraSessionManager {
                   () -> {
                     if (!replied) {
                       replied = true;
-                      Map<String, Object> reply = new HashMap<>();
-                      reply.put("textureId", textureId);
-                      reply.put("hasTorch", hasFlashAvailable);
-                      reply.put("availableCameraCount", cameraCount);
-                      reply.put("cameras", cameraList);
-                      reply.put("activeCameraId", activeCameraId);
-                      reply.put("cameraFacing", activeFacing);
-                      reply.put("previewWidth", previewW);
-                      reply.put("previewHeight", previewH);
-                      reply.put("sensorOrientation", currentSensorOrientation);
-                      mainHandler.post(() -> result.success(reply));
+                      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+                          requestId,
+                          true,
+                          null,
+                          null,
+                          null,
+                          textureId,
+                          hasTorch,
+                          false,
+                          cameraCount,
+                          activeCameraId,
+                          activeFacing,
+                          previewW,
+                          previewH,
+                          sensorOrient,
+                          cameras.ids,
+                          cameras.labels,
+                          cameras.facings);
                     }
                   },
                   () -> {
                     if (!replied) {
                       replied = true;
-                      mainHandler.post(() -> result.error(
+                      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+                          requestId,
+                          false,
                           "SESSION_CONFIG_FAILED",
                           "Failed to configure camera capture session.",
-                          null));
+                          null,
+                          -1L,
+                          false,
+                          false,
+                          0,
+                          null,
+                          activeFacing,
+                          0,
+                          0,
+                          0,
+                          null,
+                          null,
+                          null);
                     }
                   });
             }
@@ -237,16 +331,47 @@ final class CameraSessionManager {
               }
               if (!replied) {
                 replied = true;
-                mainHandler.post(() -> result.error(
+                XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+                    requestId,
+                    false,
                     "CAMERA_OPEN_ERROR",
                     "CameraDevice error code: " + error,
-                    null));
+                    null,
+                    -1L,
+                    false,
+                    false,
+                    0,
+                    null,
+                    activeFacing,
+                    0,
+                    0,
+                    0,
+                    null,
+                    null,
+                    null);
               }
             }
           },
           backgroundHandler);
     } catch (CameraAccessException | SecurityException e) {
-      result.error("CAMERA_ACCESS_ERROR", e.getMessage(), null);
+      XueHuaBarcodeScannerPlugin.nativeOnStartCameraResult(
+          requestId,
+          false,
+          "CAMERA_ACCESS_ERROR",
+          e.getMessage(),
+          null,
+          -1L,
+          false,
+          false,
+          0,
+          null,
+          requestedFacing,
+          0,
+          0,
+          0,
+          null,
+          null,
+          null);
     }
   }
 
@@ -269,6 +394,8 @@ final class CameraSessionManager {
   }
 
   void stopCamera(boolean releaseTexture) {
+    activeSessionGeneration = 0L;
+    hasFlashAvailable = false;
     if (captureSession != null) {
       try {
         captureSession.close();
@@ -312,8 +439,8 @@ final class CameraSessionManager {
     Image image = null;
     try {
       image = reader.acquireLatestImage();
-      EventChannel.EventSink sink = frameSinkProvider.getEventSink();
-      if (image == null || sink == null) {
+      final long generation = activeSessionGeneration;
+      if (image == null || generation == 0L || frameStreamPaused) {
         return;
       }
       long now = SystemClock.elapsedRealtime();
@@ -322,18 +449,21 @@ final class CameraSessionManager {
       }
       lastFrameTimestampMs = now;
 
-      final Map<String, Object> packet =
-          FrameLuminanceExtractor.extractFramePacket(image, currentSensorOrientation);
-      if (packet == null) {
+      final FrameLuminanceExtractor.LuminanceFrame frame =
+          FrameLuminanceExtractor.extractLuminanceFrame(image, currentSensorOrientation);
+      if (frame == null) {
         return;
       }
 
-      mainHandler.post(() -> {
-        EventChannel.EventSink activeSink = frameSinkProvider.getEventSink();
-        if (activeSink != null) {
-          activeSink.success(packet);
-        }
-      });
+      XueHuaBarcodeScannerPlugin.nativeOnCameraFrame(
+          generation,
+          frame.bytes,
+          frame.bytes.length,
+          frame.width,
+          frame.height,
+          frame.rowStride,
+          PIXEL_FORMAT_LUM,
+          frame.sensorOrientation);
     } catch (Exception ignored) {
     } finally {
       if (image != null) {
@@ -419,7 +549,7 @@ final class CameraSessionManager {
         backgroundHandler);
   }
 
-  private List<Map<String, Object>> describeCameras(
+  private CameraDescriptions describeCameras(
       CameraManager manager,
       String[] cameraIds) throws CameraAccessException {
     List<String> facings = new ArrayList<>();
@@ -435,20 +565,20 @@ final class CameraSessionManager {
       labelCounts.put(baseLabel, count == null ? 1 : count + 1);
     }
     Map<String, Integer> seen = new HashMap<>();
-    List<Map<String, Object>> cameras = new ArrayList<>();
+    String[] ids = new String[cameraIds.length];
+    String[] labels = new String[cameraIds.length];
+    String[] facingArray = new String[cameraIds.length];
     for (int i = 0; i < cameraIds.length; i++) {
       String baseLabel = baseLabels.get(i);
       int ordinal = seen.containsKey(baseLabel) ? seen.get(baseLabel) + 1 : 1;
       seen.put(baseLabel, ordinal);
       Integer total = labelCounts.get(baseLabel);
       String label = total != null && total > 1 ? baseLabel + " " + ordinal : baseLabel;
-      Map<String, Object> item = new HashMap<>();
-      item.put("id", cameraIds[i]);
-      item.put("label", label);
-      item.put("facing", facings.get(i));
-      cameras.add(item);
+      ids[i] = cameraIds[i];
+      labels[i] = label;
+      facingArray[i] = facings.get(i);
     }
-    return cameras;
+    return new CameraDescriptions(ids, labels, facingArray);
   }
 
   private static String facingName(Integer lensFacing) {

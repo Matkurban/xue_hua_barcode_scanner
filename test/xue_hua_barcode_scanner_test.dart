@@ -342,6 +342,12 @@ class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
   Future<Uint8List?> pickImageFromGallery() async => null;
 
   @override
+  Future<bool> openAppSettings() async => false;
+
+  @override
+  Future<void> dispose() async {}
+
+  @override
   Future<List<BarcodeResult>> decodeImageBytes(
     Uint8List rawPixelBytes, {
     required int width,
