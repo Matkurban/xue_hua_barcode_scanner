@@ -1,5 +1,3 @@
-## Unreleased
-
 ## 1.1.0 - 2026-10-30
 
 * Redesign the camera permission-denied and hardware-unavailable views (`ScannerCameraPreview`):
