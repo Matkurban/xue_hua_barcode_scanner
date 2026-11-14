@@ -17,8 +17,10 @@ class XueHuaScannerTexts {
     this.frontCameraPreviewText = '前置相机取景中',
     this.backCameraPreviewText = '后置相机取景中',
     this.permissionDeniedTitle = '未获得相机访问权限',
-    this.permissionDeniedDescription = '实时扫码需要访问摄像头画面。请前往系统设置开启相机权限，或直接从相册选图识别。',
-    this.permissionRestrictedDescription = '当前设备的相机访问受到系统安全策略或家长控制限制，您仍可通过相册导入图片进行扫码。',
+    this.permissionDeniedDescription =
+        '实时扫码需要访问摄像头画面。请前往系统设置开启相机权限，或直接从相册选图识别。',
+    this.permissionRestrictedDescription =
+        '当前设备的相机访问受到系统安全策略或家长控制限制，您仍可通过相册导入图片进行扫码。',
     this.permissionGuideStep1 = '点击下方「前往系统设置」打开应用权限页',
     this.permissionGuideStep2 = '开启「相机 / 摄像头」访问权限开关',
     this.permissionGuideStep3 = '返回本页面将自动恢复实时扫码取景',

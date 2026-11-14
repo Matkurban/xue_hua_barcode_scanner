@@ -50,59 +50,52 @@ class _CustomStyledScannerDemoPageState
         return result.isValid && result.text.trim().isNotEmpty;
       },
       onDetect: _handleBarcodeDetected,
-      overlayBuilder: (
-        BuildContext context,
-        Rect scanWindow,
-        ScannerState state,
-      ) {
-        final Color activeColor =
-            state.hasValidationError ? errorColor : themeColor;
-        return XueHuaScannerOverlay(
-          scanWindow: scanWindow,
-          maskColor: const Color(0xAA050B14),
-          cornerColor: activeColor,
-          borderColor: activeColor.withValues(
-            alpha: state.hasValidationError ? 0.85 : 0.3,
-          ),
-          borderStrokeWidth: state.hasValidationError ? 2.2 : 1.2,
-          borderRadius: 24,
-          cornerLength: 32,
-          cornerStrokeWidth: 4.5,
-        );
-      },
-      scanLineBuilder: (
-        BuildContext context,
-        Animation<double> animation,
-        Rect scanWindow,
-      ) {
-        return ValueListenableBuilder<ScannerState>(
-          valueListenable: _controller,
-          builder: (BuildContext context, ScannerState state, Widget? _) {
-            return XueHuaScanLineAnimation(
-              animation: animation,
+      overlayBuilder:
+          (BuildContext context, Rect scanWindow, ScannerState state) {
+            final Color activeColor = state.hasValidationError
+                ? errorColor
+                : themeColor;
+            return XueHuaScannerOverlay(
               scanWindow: scanWindow,
-              lineColor: state.hasValidationError ? errorColor : themeColor,
-              glowHeight: 44,
+              maskColor: const Color(0xAA050B14),
+              cornerColor: activeColor,
+              borderColor: activeColor.withValues(
+                alpha: state.hasValidationError ? 0.85 : 0.3,
+              ),
+              borderStrokeWidth: state.hasValidationError ? 2.2 : 1.2,
+              borderRadius: 24,
+              cornerLength: 32,
+              cornerStrokeWidth: 4.5,
             );
           },
-        );
-      },
+      scanLineBuilder:
+          (BuildContext context, Animation<double> animation, Rect scanWindow) {
+            return ValueListenableBuilder<ScannerState>(
+              valueListenable: _controller,
+              builder: (BuildContext context, ScannerState state, Widget? _) {
+                return XueHuaScanLineAnimation(
+                  animation: animation,
+                  scanWindow: scanWindow,
+                  lineColor: state.hasValidationError ? errorColor : themeColor,
+                  glowHeight: 44,
+                );
+              },
+            );
+          },
       hintTextBuilder: (BuildContext context, ScannerState state) {
         final bool isError = state.hasValidationError;
         final Color activeColor = isError ? errorColor : themeColor;
         final String text = isError
             ? (state.lastGalleryScanStatus == GalleryScanStatus.noBarcodeFound
-                ? '所选图片未检测到有效二维码'
-                : '二维码校验未通过')
+                  ? '所选图片未检测到有效二维码'
+                  : '二维码校验未通过')
             : (state.isPaused ? '已暂停扫描' : '将二维码放入框内 · 自定义赛博主题');
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: activeColor.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: activeColor.withValues(alpha: 0.55),
-            ),
+            border: Border.all(color: activeColor.withValues(alpha: 0.55)),
           ),
           child: Text(
             text,
@@ -115,36 +108,35 @@ class _CustomStyledScannerDemoPageState
           ),
         );
       },
-      torchButtonBuilder: (
-        BuildContext context,
-        ScannerState state,
-        VoidCallback onToggleTorch,
-      ) {
-        return FilledButton.tonalIcon(
-          key: const ValueKey<String>('xh_scanner_torch_button'),
-          onPressed: onToggleTorch,
-          icon: Icon(
-            state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
-            color: state.isTorchOn ? Colors.amberAccent : themeColor,
-          ),
-          label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
-        );
-      },
-      galleryButtonBuilder: (
-        BuildContext context,
-        ScannerState state,
-        VoidCallback onPickGallery,
-      ) {
-        return FilledButton.tonalIcon(
-          key: const ValueKey<String>('xh_scanner_gallery_button'),
-          onPressed: onPickGallery,
-          icon: const Icon(
-            Icons.photo_library_outlined,
-            color: themeColor,
-          ),
-          label: const Text('相册导入'),
-        );
-      },
+      torchButtonBuilder:
+          (
+            BuildContext context,
+            ScannerState state,
+            VoidCallback onToggleTorch,
+          ) {
+            return FilledButton.tonalIcon(
+              key: const ValueKey<String>('xh_scanner_torch_button'),
+              onPressed: onToggleTorch,
+              icon: Icon(
+                state.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
+                color: state.isTorchOn ? Colors.amberAccent : themeColor,
+              ),
+              label: Text(state.isTorchOn ? '关闭闪光灯' : '开启闪光灯'),
+            );
+          },
+      galleryButtonBuilder:
+          (
+            BuildContext context,
+            ScannerState state,
+            VoidCallback onPickGallery,
+          ) {
+            return FilledButton.tonalIcon(
+              key: const ValueKey<String>('xh_scanner_gallery_button'),
+              onPressed: onPickGallery,
+              icon: const Icon(Icons.photo_library_outlined, color: themeColor),
+              label: const Text('相册导入'),
+            );
+          },
     );
   }
 

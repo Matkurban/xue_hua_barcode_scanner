@@ -3,10 +3,7 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
 /// 单条解码结果与定位角点信息展示组件。
 class BarcodeResultTile extends StatelessWidget {
-  const BarcodeResultTile({
-    super.key,
-    required this.result,
-  });
+  const BarcodeResultTile({super.key, required this.result});
 
   final BarcodeResult result;
 

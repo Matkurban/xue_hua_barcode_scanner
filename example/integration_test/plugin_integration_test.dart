@@ -43,11 +43,11 @@ void main() {
 
       List<BarcodeResult> results =
           await XueHuaBarcodeScanner.decodeImageMemory(
-        png,
-        tryHarder: true,
-        tryRotate: true,
-        tryInvert: true,
-      );
+            png,
+            tryHarder: true,
+            tryRotate: true,
+            tryInvert: true,
+          );
       // Some simulator/FFI builds encode PNG that needs a secondary generator
       // for stable decode; keep asserting encode non-empty and decode path.
       if (results.isEmpty) {
@@ -115,8 +115,8 @@ void main() {
     testWidgets('listCameras returns a list without throwing', (
       WidgetTester tester,
     ) async {
-      final List<CameraInputSource> cameras =
-          await XueHuaBarcodeScanner.engine.listCameras();
+      final List<CameraInputSource> cameras = await XueHuaBarcodeScanner.engine
+          .listCameras();
       expect(cameras, isA<List<CameraInputSource>>());
       for (final CameraInputSource camera in cameras) {
         expect(camera.id, isNotEmpty);
@@ -195,7 +195,10 @@ void main() {
       controller.value = controller.value.copyWith(
         lastGalleryScanStatus: GalleryScanStatus.cancelled,
       );
-      expect(controller.value.lastGalleryScanStatus, GalleryScanStatus.cancelled);
+      expect(
+        controller.value.lastGalleryScanStatus,
+        GalleryScanStatus.cancelled,
+      );
       expect(controller.value.latestResults, isEmpty);
     });
 
@@ -218,11 +221,11 @@ void main() {
       );
       final List<BarcodeResult> decoded =
           await XueHuaBarcodeScanner.decodeImageMemory(
-        png,
-        tryHarder: true,
-        tryRotate: true,
-        tryInvert: true,
-      );
+            png,
+            tryHarder: true,
+            tryRotate: true,
+            tryInvert: true,
+          );
       expect(decoded, isNotEmpty);
       expect(decoded.first.text, payload);
       // Mirror controller success bookkeeping without opening PHPicker.
@@ -272,7 +275,10 @@ void main() {
       app.main();
       await _pumpUi(tester, const Duration(seconds: 3));
 
-      expect(find.byKey(const ValueKey<String>('xh_home_page')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_home_page')),
+        findsOneWidget,
+      );
       final Finder engine = find.byKey(
         const ValueKey<String>('xh_engine_version'),
       );
@@ -290,8 +296,14 @@ void main() {
         reason: 'status=$status',
       );
       await _ensureVisible(tester, const ValueKey<String>('xh_qr_preview'));
-      expect(find.byKey(const ValueKey<String>('xh_qr_preview')), findsOneWidget);
-      expect(find.byKey(const ValueKey<String>('xh_empty_results')), findsNothing);
+      expect(
+        find.byKey(const ValueKey<String>('xh_qr_preview')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_empty_results')),
+        findsNothing,
+      );
     });
 
     testWidgets('generate button rejects empty input without wiping success', (
@@ -304,8 +316,13 @@ void main() {
       await _waitHomeIdle(tester);
       final String before = _homeStatusText(tester);
 
-      await _ensureVisible(tester, const ValueKey<String>('xh_barcode_input_clear'));
-      await tester.tap(find.byKey(const ValueKey<String>('xh_barcode_input_clear')));
+      await _ensureVisible(
+        tester,
+        const ValueKey<String>('xh_barcode_input_clear'),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('xh_barcode_input_clear')),
+      );
       await tester.pumpAndSettle();
 
       await _ensureVisible(
@@ -336,7 +353,9 @@ void main() {
         tester,
         const ValueKey<String>('xh_row_stride_decode'),
       );
-      await tester.tap(find.byKey(const ValueKey<String>('xh_row_stride_decode')));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('xh_row_stride_decode')),
+      );
       await _waitHomeStatus(
         tester,
         (String value) =>
@@ -347,9 +366,8 @@ void main() {
 
       final String status = _homeStatusText(tester);
       expect(status, contains('内存对齐解码成功'), reason: status);
-      final RegExpMatch? match = RegExp(
-        r'rowStride=(\d+), width=(\d+)',
-      ).firstMatch(status);
+      final RegExpMatch? match = RegExp(r'rowStride=(\d+), width=(\d+)')
+          .firstMatch(status);
       expect(match, isNotNull, reason: status);
       expect(
         int.parse(match!.group(1)!),
@@ -404,7 +422,10 @@ void main() {
         find.byKey(const ValueKey<String>('xh_input_source_demo_back')),
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey<String>('xh_home_page')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_home_page')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('default scanner page opens, shows controls, returns home', (
@@ -454,7 +475,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
       }
 
-      expect(find.byKey(const ValueKey<String>('xh_scanner_hint')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_hint')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey<String>('xh_scanner_torch_button')),
         findsOneWidget,
@@ -496,10 +520,16 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
         _drainLayoutOverflows(tester);
       }
-      expect(find.byKey(const ValueKey<String>('xh_home_page')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_home_page')),
+        findsOneWidget,
+      );
       // Route pop can leave the page element briefly; prefer home restored.
       expect(
-        find.byKey(const ValueKey<String>('xh_default_scanner_page')).evaluate().length,
+        find
+            .byKey(const ValueKey<String>('xh_default_scanner_page'))
+            .evaluate()
+            .length,
         lessThanOrEqualTo(1),
       );
     });
@@ -551,7 +581,10 @@ void main() {
         }
         await tester.pump(const Duration(milliseconds: 200));
       }
-      expect(find.byKey(const ValueKey<String>('xh_home_page')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_home_page')),
+        findsOneWidget,
+      );
     });
   });
 }
@@ -597,7 +630,10 @@ void _drainLayoutOverflows(WidgetTester tester) {
   }
 }
 
-Future<void> _pumpUi(WidgetTester tester, [Duration duration = Duration.zero]) async {
+Future<void> _pumpUi(
+  WidgetTester tester, [
+  Duration duration = Duration.zero,
+]) async {
   _ignoreBenignLayoutOverflows();
   if (duration == Duration.zero) {
     await tester.pump();
@@ -655,8 +691,7 @@ Future<void> _waitHomeIdle(WidgetTester tester) async {
         .evaluate()
         .isNotEmpty;
     final String status = _homeStatusText(tester);
-    if (!busy &&
-        (status.contains('phase=done') || status.contains('解码验证成功'))) {
+    if (!busy && (status.contains('phase=done') || status.contains('解码验证成功'))) {
       return;
     }
   }

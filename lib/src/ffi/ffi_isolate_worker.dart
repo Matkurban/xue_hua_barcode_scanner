@@ -221,18 +221,20 @@ class _PersistentZxingWorker {
     });
 
     Isolate.spawn<SendPort>(
-      _persistentWorkerEntryPoint,
-      receivePort.sendPort,
-      debugName: 'XueHuaZxingPersistentWorker',
-    ).then((Isolate spawned) {
-      _isolate = spawned;
-    }).catchError((Object _) {
-      receivePort.close();
-      _initializing = null;
-      if (!completer.isCompleted) {
-        completer.complete(false);
-      }
-    });
+          _persistentWorkerEntryPoint,
+          receivePort.sendPort,
+          debugName: 'XueHuaZxingPersistentWorker',
+        )
+        .then((Isolate spawned) {
+          _isolate = spawned;
+        })
+        .catchError((Object _) {
+          receivePort.close();
+          _initializing = null;
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+        });
 
     return completer.future;
   }
