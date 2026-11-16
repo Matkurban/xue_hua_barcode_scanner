@@ -7,7 +7,7 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 import '../widgets/scan_result_dialog.dart';
 
 /// 演示使用自定义 UI Builder、挖孔方框模式、自定义二维码位置组件 [barcodeMarkerBuilder]、
-/// 国际化 [XueHuaScannerTexts]、二维码校验 [validator] 与外部 [XueHuaScannerController] 构建的扫码页面。
+/// 国际化 [ScannerTexts]、二维码校验 [validator] 与外部 [ScannerController] 构建的扫码页面。
 class CustomStyledScannerDemoPage extends StatefulWidget {
   const CustomStyledScannerDemoPage({super.key});
 
@@ -18,13 +18,13 @@ class CustomStyledScannerDemoPage extends StatefulWidget {
 
 class _CustomStyledScannerDemoPageState
     extends State<CustomStyledScannerDemoPage> {
-  late final XueHuaScannerController _controller;
+  late final ScannerController _controller;
   bool _isShowingDialog = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = XueHuaScannerController(
+    _controller = ScannerController(
       initialFacing: CameraFacing.back,
       autoPauseOnDetect: true,
       enableMultiBarcodeSelection: true,
@@ -41,14 +41,14 @@ class _CustomStyledScannerDemoPageState
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          XueHuaBarcodeScannerPage(
+          BarcodeScannerPage(
             key: const ValueKey<String>('xh_custom_scanner_page'),
             controller: _controller,
             autoPopOnDetect: false,
             showCutoutOverlay: true,
             cutoutSize: 270,
             errorColor: errorColor,
-            texts: const XueHuaScannerTexts(
+            texts: const ScannerTexts(
               hintText: '将二维码放入框内 · 自定义赛博主题',
               multiBarcodeHintText: '点击任意赛博标签卡片，选择目标条码',
               cancelMultiSelectLabel: '返回重扫',
@@ -138,7 +138,7 @@ class _CustomStyledScannerDemoPageState
                   final Color activeColor = state.hasValidationError
                       ? errorColor
                       : themeColor;
-                  return XueHuaScannerOverlay(
+                  return ScannerOverlay(
                     scanWindow: scanWindow,
                     showCutout: true,
                     maskColor: const Color(0xAA050B14),
@@ -162,7 +162,7 @@ class _CustomStyledScannerDemoPageState
                     valueListenable: _controller,
                     builder:
                         (BuildContext context, ScannerState state, Widget? _) {
-                          return XueHuaScanLineAnimation(
+                          return ScanLineAnimation(
                             animation: animation,
                             scanWindow: scanWindow,
                             lineColor: state.hasValidationError

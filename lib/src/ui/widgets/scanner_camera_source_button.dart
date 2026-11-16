@@ -9,9 +9,9 @@ import 'circle_glass_icon_button.dart';
 ///
 /// A single input source builds nothing, so the scanner never shows or opens
 /// an empty menu. The menu opens only after the user taps the button.
-class XueHuaCameraSourceButton extends StatelessWidget {
+class CameraSourceButton extends StatelessWidget {
   /// Creates a camera input-source button.
-  const XueHuaCameraSourceButton({
+  const CameraSourceButton({
     super.key,
     required this.sources,
     required this.activeSourceId,

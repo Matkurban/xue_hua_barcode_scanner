@@ -17,16 +17,16 @@ import 'widgets/scanner_camera_preview.dart';
 import 'widgets/scanner_top_bar.dart';
 
 /// Embeddable, 100% customizable Barcode & QR Code camera scanner view with
-/// WeChat Scan-style UI and automatic multi-barcode freeze & tap selection.
-class XueHuaScannerView extends StatefulWidget {
-  /// Creates a [XueHuaScannerView].
-  const XueHuaScannerView({
+/// Custom Scan-style UI and automatic multi-barcode freeze & tap selection.
+class ScannerView extends StatefulWidget {
+  /// Creates a [ScannerView].
+  const ScannerView({
     super.key,
     this.controller,
     this.onDetect,
     this.onBarcodeSelected,
     this.validator,
-    this.texts = const XueHuaScannerTexts(),
+    this.texts = const ScannerTexts(),
     this.showCutoutOverlay = false,
     this.showScanCutout = false,
     this.cutoutSize,
@@ -55,9 +55,9 @@ class XueHuaScannerView extends StatefulWidget {
     this.cameraPreviewBuilder,
   });
 
-  /// Optional external [XueHuaScannerController]. If omitted, an internal
+  /// Optional external [ScannerController]. If omitted, an internal
   /// controller is created and disposed automatically.
-  final XueHuaScannerController? controller;
+  final ScannerController? controller;
 
   /// Callback invoked whenever one or more valid barcodes are recognized
   /// (or when the user taps a barcode marker in multi-barcode selection mode).
@@ -69,14 +69,14 @@ class XueHuaScannerView extends StatefulWidget {
 
   /// Optional validation predicate to check whether a decoded [BarcodeResult]
   /// is acceptable. Returning `false` turns the scanner overlay red
-  /// ([errorColor]) and displays [XueHuaScannerTexts.invalidBarcodeText].
-  final XueHuaBarcodeValidator? validator;
+  /// ([errorColor]) and displays [ScannerTexts.invalidBarcodeText].
+  final BarcodeValidator? validator;
 
   /// Localized text strings for all UI elements in the scanner view.
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
 
   /// Whether to display a central square cutout box with four corner brackets
-  /// (`true`) instead of WeChat's default full-screen open viewfinder (`false`).
+  /// (`true`) instead of Custom's default full-screen open viewfinder (`false`).
   final bool showCutoutOverlay;
 
   /// Alias for [showCutoutOverlay] to toggle the central square cutout box.
@@ -91,13 +91,13 @@ class XueHuaScannerView extends StatefulWidget {
   /// Color of the semi-transparent overlay outside the scan cutout.
   final Color maskColor;
 
-  /// Color of the target markers and corner brackets (defaults to WeChat green `#07C160`).
+  /// Color of the target markers and corner brackets (defaults to Custom green `#07C160`).
   final Color cornerColor;
 
   /// Highlight color used when a barcode fails validation (`state.hasValidationError == true`).
   final Color errorColor;
 
-  /// Color of the animated WeChat optical mesh scan line (defaults to `#07C160`).
+  /// Color of the animated Custom optical mesh scan line (defaults to `#07C160`).
   final Color scanLineColor;
 
   /// Duration of one top-to-bottom sweep of the scan line.
@@ -125,47 +125,47 @@ class XueHuaScannerView extends StatefulWidget {
   final bool hideTorchWhenUnavailable;
 
   /// Custom builder to replace the semi-transparent mask and scan box.
-  final XueHuaOverlayBuilder? overlayBuilder;
+  final OverlayBuilder? overlayBuilder;
 
   /// Custom builder to replace the animated laser scan line.
-  final XueHuaScanLineBuilder? scanLineBuilder;
+  final ScanLineBuilder? scanLineBuilder;
 
   /// Custom builder to replace the top bar (close/cancel button & camera switch).
-  final XueHuaTopBarBuilder? topBarBuilder;
+  final TopBarBuilder? topBarBuilder;
 
   /// Custom builder to replace the hint text widget.
-  final XueHuaHintTextBuilder? hintTextBuilder;
+  final HintTextBuilder? hintTextBuilder;
 
   /// Custom builder to replace the entire bottom bar (torch & gallery buttons).
-  final XueHuaBottomBarBuilder? bottomBarBuilder;
+  final BottomBarBuilder? bottomBarBuilder;
 
   /// Custom builder to replace the torch toggle button.
-  final XueHuaTorchButtonBuilder? torchButtonBuilder;
+  final TorchButtonBuilder? torchButtonBuilder;
 
   /// Custom builder to replace the gallery picker button.
-  final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
+  final GalleryButtonBuilder? galleryButtonBuilder;
 
   /// Custom builder to render any widget at each detected barcode's exact
   /// viewport position (`info.center`, `info.boundingBox`, `info.cornerPoints`).
-  final XueHuaBarcodeMarkerBuilder? barcodeMarkerBuilder;
+  final BarcodeMarkerBuilder? barcodeMarkerBuilder;
 
   /// Custom builder to replace the entire multi-barcode selection overlay.
-  final XueHuaMultiBarcodeOverlayBuilder? multiBarcodeOverlayBuilder;
+  final MultiBarcodeOverlayBuilder? multiBarcodeOverlayBuilder;
 
   /// Custom builder to replace the camera permission-denied recovery view.
-  final XueHuaPermissionDeniedBuilder? permissionDeniedBuilder;
+  final PermissionDeniedBuilder? permissionDeniedBuilder;
 
   /// Optional custom builder for overriding the underlying camera preview layer.
   final Widget Function(BuildContext context, ScannerState state)?
   cameraPreviewBuilder;
 
   @override
-  State<XueHuaScannerView> createState() => _XueHuaScannerViewState();
+  State<ScannerView> createState() => _ScannerViewState();
 }
 
-class _XueHuaScannerViewState extends State<XueHuaScannerView>
+class _ScannerViewState extends State<ScannerView>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late XueHuaScannerController _controller;
+  late ScannerController _controller;
   bool _ownsController = false;
   late final AnimationController _scanLineController;
   late final Animation<double> _scanLineAnimation;
@@ -195,7 +195,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
   }
 
   @override
-  void didUpdateWidget(covariant XueHuaScannerView oldWidget) {
+  void didUpdateWidget(covariant ScannerView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.scanLineDuration != widget.scanLineDuration) {
       _scanLineController.duration = widget.scanLineDuration;
@@ -325,7 +325,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                 if (widget.overlayBuilder != null)
                   widget.overlayBuilder!(context, scanWindow, state)
                 else if (showDefaultOverlay)
-                  XueHuaScannerOverlay(
+                  ScannerOverlay(
                     scanWindow: scanWindow,
                     showCutout: showCutout,
                     hasValidationError: isError,
@@ -345,7 +345,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
                       scanWindow,
                     )
                   else if (showDefaultOverlay && !state.isPaused)
-                    XueHuaScanLineAnimation(
+                    ScanLineAnimation(
                       animation: _scanLineAnimation,
                       scanWindow: scanWindow,
                       lineColor: activeScanLineColor,
@@ -416,7 +416,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     if (state.isSelectingMultiBarcode &&
         widget.multiBarcodeOverlayBuilder != null) {
       final List<BarcodeMarkerInfo> markers =
-          XueHuaCornerAnchorHighlight.computeMarkers(
+          CornerAnchorHighlight.computeMarkers(
             results: state.latestResults,
             viewportSize: viewportSize,
             sensorOrientation: state.sensorOrientation,
@@ -432,7 +432,7 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
       );
     }
 
-    return XueHuaCornerAnchorHighlight(
+    return CornerAnchorHighlight(
       results: state.latestResults,
       viewportSize: viewportSize,
       sensorOrientation: state.sensorOrientation,
@@ -446,12 +446,12 @@ class _XueHuaScannerViewState extends State<XueHuaScannerView>
     );
   }
 
-  void _attachController(XueHuaScannerController? externalController) {
+  void _attachController(ScannerController? externalController) {
     if (externalController != null) {
       _controller = externalController;
       _ownsController = false;
     } else {
-      _controller = XueHuaScannerController(
+      _controller = ScannerController(
         enableMultiBarcodeSelection: widget.enableMultiBarcodeSelection,
       );
       _ownsController = true;

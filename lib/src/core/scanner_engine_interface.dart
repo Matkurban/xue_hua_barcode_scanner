@@ -4,7 +4,7 @@ import '../models/barcode_models.dart';
 
 /// Platform-agnostic interface implemented by both the native `dart:ffi` engine
 /// (Android, iOS, macOS, Windows, Linux) and the Web `dart:js_interop` / Wasm engine.
-abstract class XueHuaScannerPlatformEngine {
+abstract class ScannerPlatformEngine {
   /// Returns the underlying engine version description.
   String get engineVersion;
 

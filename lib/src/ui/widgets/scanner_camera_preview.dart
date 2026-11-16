@@ -26,10 +26,10 @@ class ScannerCameraPreview extends StatelessWidget {
 
   final bool isWeb;
   final ScannerState state;
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
   final Rect? scanWindow;
   final Color accentColor;
-  final XueHuaPermissionDeniedBuilder? permissionDeniedBuilder;
+  final PermissionDeniedBuilder? permissionDeniedBuilder;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onRetryPermission;
   final VoidCallback? onPickGallery;
@@ -149,7 +149,7 @@ class _CameraPermissionDeniedSurface extends StatelessWidget {
   });
 
   final ScannerState state;
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
   final Color accentColor;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onRetryPermission;
@@ -554,7 +554,7 @@ class _CameraHardwareDiagnosticSurface extends StatelessWidget {
   });
 
   final ScannerState state;
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
   final Color accentColor;
   final VoidCallback? onRetryPermission;
   final VoidCallback? onPickGallery;

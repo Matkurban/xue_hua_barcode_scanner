@@ -1,7 +1,7 @@
 ## 1.3.0 - 2026-11-16
 
-* Upgrade the default scanner UI to a **WeChat Scan (`扫一扫`)** visual design while retaining 100% builder and parameter customization:
-  * Set the default accent, corner bracket, and scan-line color to WeChat green (`#07C160`).
+* Upgrade the default scanner UI to a **Custom Scan (`扫一扫`)** visual design while retaining 100% builder and parameter customization:
+  * Set the default accent, corner bracket, and scan-line color to Custom green (`#07C160`).
   * Default `XueHuaScannerView` and `XueHuaBarcodeScannerPage` to full-screen open viewfinder mode (`showCutoutOverlay = false` / `showScanCutout = false`) with soft top and bottom dark vignette gradients for HUD legibility, while preserving classic square cutout box mode when `showCutoutOverlay: true` or `cutoutSize` is specified.
   * Upgrade `XueHuaScanLineAnimation` to a unidirectional top-to-bottom optical mesh curtain featuring a trailing gradient light curtain, perspective grid & micro-dot matrix (`showGridMesh: true`), and a luminous leading edge (`fullWidth` in full-screen mode).
   * Redesign `ScannerTopBar` (circular frosted close button `×` on the left, multi-camera selector on the right, and a smooth transition to the `"取消"` pill button during multi-barcode selection) and `ScannerBottomBar` (centered prompt caption above floating circular Torch and Gallery buttons).
@@ -10,7 +10,7 @@
   * When 2 or more valid barcodes are detected in the same camera frame or gallery image (`enableMultiBarcodeSelection = true` by default), `XueHuaScannerController` automatically freezes the live camera stream (`setStreamPaused(true)`), displays a semi-transparent backdrop mask (`multiSelectMaskColor`), and waits for the user to tap a target barcode marker before emitting `onDetect([selectedResult])` and `onBarcodeSelected(selectedResult)`.
   * Implement true native preview frame freezing (`setStreamPaused` / `setFrameStreamPaused`) across Android (`CameraCaptureSession.stopRepeating`), iOS (`IOSCameraSessionController`), macOS (`MacOSCameraSessionController`), Windows (`WindowsCameraCapture`), and Web (`HTMLVideoElement.pause` / `play`), plus `ScannerState.frozenImageBytes` for rendering frozen multi-barcode gallery images in `ScannerCameraPreview`.
   * Add `BarcodeMarkerInfo` and viewport geometry helpers (`mapCenterToViewport`, `mapBoundingBoxToViewport`, `toMarkerInfo`) on `BarcodeResult` to expose each barcode's mapped `center`, `boundingBox`, `cornerPoints`, `index`, `totalCount`, and `isMultiSelectMode`.
-  * Upgrade `XueHuaCornerAnchorHighlight` (`XueHuaBarcodeMarkersLayer`) with the default WeChat-style pulsing green circle + white border + white right-arrow marker (`XueHuaWeChatBarcodeMarker`), and add `barcodeMarkerBuilder`, `multiBarcodeOverlayBuilder`, and `BarcodeMarkerAlignment` (`center` or `boundingBox`) so developers can render any custom widget at each detected barcode's exact viewport coordinates.
+  * Upgrade `XueHuaCornerAnchorHighlight` (`XueHuaBarcodeMarkersLayer`) with the default Custom-style pulsing green circle + white border + white right-arrow marker (`XueHuaWeChatBarcodeMarker`), and add `barcodeMarkerBuilder`, `multiBarcodeOverlayBuilder`, and `BarcodeMarkerAlignment` (`center` or `boundingBox`) so developers can render any custom widget at each detected barcode's exact viewport coordinates.
   * Add `selectBarcode`, `cancelMultiBarcodeSelection`, `simulateMultiBarcodeDetection`, and `onBarcodeSelected` to `XueHuaScannerController`.
 
 ## 1.2.0 - 2026-11-14

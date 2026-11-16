@@ -19,13 +19,13 @@ class DefaultScannerDemoPage extends StatefulWidget {
 }
 
 class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
-  late final XueHuaScannerController _controller;
+  late final ScannerController _controller;
   bool _isShowingDialog = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = XueHuaScannerController(
+    _controller = ScannerController(
       initialFacing: CameraFacing.back,
       autoPauseOnDetect: true,
       enableMultiBarcodeSelection: true,
@@ -39,11 +39,11 @@ class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          XueHuaBarcodeScannerPage(
+          BarcodeScannerPage(
             key: const ValueKey<String>('xh_default_scanner_page'),
             controller: _controller,
             autoPopOnDetect: false,
-            texts: const XueHuaScannerTexts(
+            texts: const ScannerTexts(
               hintText: '扫二维码 / 条码',
               multiBarcodeHintText: '轻触小绿点，选择要识别的码',
               cancelMultiSelectLabel: '取消',

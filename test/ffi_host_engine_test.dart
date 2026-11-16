@@ -37,7 +37,7 @@ void main() {
   test(
     'unbound FFI engine handles full lifecycle without platform channels',
     () async {
-      final XueHuaScannerPlatformEngine engine = XueHuaBarcodeScanner.engine;
+      final ScannerPlatformEngine engine = XueHuaBarcodeScanner.engine;
       expect(engine.isWeb, isFalse);
       expect(engine.engineVersion, isNotEmpty);
 
@@ -100,7 +100,7 @@ void main() {
 
       final Completer<List<BarcodeResult>> detected =
           Completer<List<BarcodeResult>>();
-      final XueHuaScannerController controller = XueHuaScannerController(
+      final ScannerController controller = ScannerController(
         scanInterval: Duration.zero,
         onDetect: (List<BarcodeResult> results) {
           if (!detected.isCompleted && results.isNotEmpty) {

@@ -10,7 +10,7 @@ import 'barcode_enums.dart';
 ///
 /// Returning `false` marks the scan state with `hasValidationError = true` and
 /// turns the scanner cutout border red.
-typedef XueHuaBarcodeValidator = bool Function(BarcodeResult result);
+typedef BarcodeValidator = bool Function(BarcodeResult result);
 
 /// Immutable result of decoding a single barcode / 2D code.
 class BarcodeResult {

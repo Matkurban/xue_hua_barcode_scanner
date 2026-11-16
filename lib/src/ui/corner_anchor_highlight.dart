@@ -5,17 +5,17 @@ import 'package:material_ui/material_ui.dart';
 import '../models/barcode_result.dart';
 import 'scanner_builders.dart';
 
-/// Interactive layer that renders positioned barcode anchor widgets (WeChat-style
+/// Interactive layer that renders positioned barcode anchor widgets (Custom-style
 /// pulsing green dots with white arrows by default, or custom widgets via
 /// [barcodeMarkerBuilder]) at each detected barcode's viewport coordinates.
-typedef XueHuaBarcodeMarkersLayer = XueHuaCornerAnchorHighlight;
+typedef BarcodeMarkersLayer = CornerAnchorHighlight;
 
-/// Renders interactive WeChat-style target anchor markers (or custom widgets
+/// Renders interactive Custom-style target anchor markers (or custom widgets
 /// provided via [barcodeMarkerBuilder]) at each detected barcode's exact
 /// viewport coordinates (`center`, `boundingBox`, `cornerPoints`).
-class XueHuaCornerAnchorHighlight extends StatelessWidget {
-  /// Creates a [XueHuaCornerAnchorHighlight].
-  const XueHuaCornerAnchorHighlight({
+class CornerAnchorHighlight extends StatelessWidget {
+  /// Creates a [CornerAnchorHighlight].
+  const CornerAnchorHighlight({
     super.key,
     required this.results,
     required this.viewportSize,
@@ -41,7 +41,7 @@ class XueHuaCornerAnchorHighlight extends StatelessWidget {
   /// Whether the active camera is front-facing (mirrored horizontally).
   final bool isFrontCamera;
 
-  /// Fill color of the default WeChat target anchor badge (`#07C160`).
+  /// Fill color of the default Custom target anchor badge (`#07C160`).
   final Color anchorColor;
 
   /// Whether the scanner has paused on multiple barcodes and is waiting for the
@@ -55,7 +55,7 @@ class XueHuaCornerAnchorHighlight extends StatelessWidget {
   final BarcodeMarkerAlignment markerAlignment;
 
   /// Optional custom builder to render any widget at each barcode's exact location.
-  final XueHuaBarcodeMarkerBuilder? barcodeMarkerBuilder;
+  final BarcodeMarkerBuilder? barcodeMarkerBuilder;
 
   /// Callback invoked when the user taps a barcode marker.
   final ValueChanged<BarcodeResult>? onSelectBarcode;
@@ -125,7 +125,7 @@ class XueHuaCornerAnchorHighlight extends StatelessWidget {
                             info,
                             () => onSelectBarcode?.call(info.result),
                           )
-                        : XueHuaWeChatBarcodeMarker(
+                        : BarcodeMarker(
                             info: info,
                             anchorColor: anchorColor,
                             onTap: onSelectBarcode != null
@@ -201,11 +201,11 @@ class _BarcodeMarkersLayoutDelegate extends MultiChildLayoutDelegate {
   }
 }
 
-/// Default WeChat-style pulsing green circular barcode marker with a white
+/// Default Custom-style pulsing green circular barcode marker with a white
 /// border, breathing halo ring, and white right-arrow icon (`→`) in multi-select mode.
-class XueHuaWeChatBarcodeMarker extends StatefulWidget {
-  /// Creates a [XueHuaWeChatBarcodeMarker].
-  const XueHuaWeChatBarcodeMarker({
+class BarcodeMarker extends StatefulWidget {
+  /// Creates a [BarcodeMarker].
+  const BarcodeMarker({
     super.key,
     required this.info,
     this.anchorColor = const Color(0xFF07C160),
@@ -216,7 +216,7 @@ class XueHuaWeChatBarcodeMarker extends StatefulWidget {
   /// Mapped geometry and barcode payload for this marker.
   final BarcodeMarkerInfo info;
 
-  /// Core fill color (defaults to WeChat green `#07C160`).
+  /// Core fill color (defaults to Custom green `#07C160`).
   final Color anchorColor;
 
   /// Diameter of the inner green circle in logical pixels.
@@ -226,11 +226,10 @@ class XueHuaWeChatBarcodeMarker extends StatefulWidget {
   final VoidCallback? onTap;
 
   @override
-  State<XueHuaWeChatBarcodeMarker> createState() =>
-      _XueHuaWeChatBarcodeMarkerState();
+  State<BarcodeMarker> createState() => _BarcodeMarkerState();
 }
 
-class _XueHuaWeChatBarcodeMarkerState extends State<XueHuaWeChatBarcodeMarker>
+class _BarcodeMarkerState extends State<BarcodeMarker>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulseController;
   bool _isPressed = false;

@@ -611,9 +611,9 @@ class _FfiHostDispatcher {
 }
 
 /// Native 5-platform (Android, iOS, macOS, Windows, Linux) implementation of
-/// [XueHuaScannerPlatformEngine] powered cleanly by `dart:ffi`, `zxing-cpp`,
+/// [ScannerPlatformEngine] powered cleanly by `dart:ffi`, `zxing-cpp`,
 /// `NativeCallable.listener`, and a persistent background worker `Isolate`.
-class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
+class XueHuaScannerFfiEngine implements ScannerPlatformEngine {
   /// Creates a native FFI scanner engine.
   XueHuaScannerFfiEngine();
 
@@ -1003,5 +1003,4 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
 }
 
 /// Factory function exported for conditional imports.
-XueHuaScannerPlatformEngine createPlatformScannerEngine() =>
-    XueHuaScannerFfiEngine();
+ScannerPlatformEngine createPlatformScannerEngine() => XueHuaScannerFfiEngine();

@@ -16,11 +16,10 @@ class XueHuaBarcodeScanner {
   /// Shared singleton instance.
   static final XueHuaBarcodeScanner instance = XueHuaBarcodeScanner._();
 
-  static final XueHuaScannerPlatformEngine _engine =
-      createPlatformScannerEngine();
+  static final ScannerPlatformEngine _engine = createPlatformScannerEngine();
 
   /// Underlying platform engine (FFI on 5 native platforms, JS/Wasm on Web).
-  static XueHuaScannerPlatformEngine get engine => _engine;
+  static ScannerPlatformEngine get engine => _engine;
 
   /// Returns the active engine version string (e.g. `"zxing-cpp 3.1.1 (C++20 FFI)"`).
   static String get engineVersion => _engine.engineVersion;

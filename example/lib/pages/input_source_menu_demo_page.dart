@@ -112,7 +112,7 @@ class _SourcePreviewBar extends StatelessWidget {
                 const Expanded(
                   child: Text('默认预览', style: TextStyle(color: Colors.white)),
                 ),
-                XueHuaCameraSourceButton(
+                CameraSourceButton(
                   sources: sources,
                   activeSourceId: selected.id,
                   tooltip: '选择输入源',

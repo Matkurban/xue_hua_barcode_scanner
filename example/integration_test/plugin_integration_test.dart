@@ -130,7 +130,7 @@ void main() {
     testWidgets('start settles to ready or recorded error, then stop', (
       WidgetTester tester,
     ) async {
-      final XueHuaScannerController controller = XueHuaScannerController();
+      final ScannerController controller = ScannerController();
       addTearDown(controller.dispose);
 
       await controller.start();
@@ -163,7 +163,7 @@ void main() {
     testWidgets('simulateBarcodeDetection drives validator error path', (
       WidgetTester tester,
     ) async {
-      final XueHuaScannerController controller = XueHuaScannerController(
+      final ScannerController controller = ScannerController(
         validator: (BarcodeResult result) => result.text.startsWith('https://'),
       );
       addTearDown(controller.dispose);
@@ -187,7 +187,7 @@ void main() {
     testWidgets('gallery cancelled status can be asserted without picker', (
       WidgetTester tester,
     ) async {
-      final XueHuaScannerController controller = XueHuaScannerController();
+      final ScannerController controller = ScannerController();
       addTearDown(controller.dispose);
 
       // Simulate cancelled outcome without invoking pickImageFromGallery.
@@ -205,7 +205,7 @@ void main() {
     testWidgets('gallery success path via decodeImageMemory without picker', (
       WidgetTester tester,
     ) async {
-      final XueHuaScannerController controller = XueHuaScannerController();
+      final ScannerController controller = ScannerController();
       addTearDown(controller.dispose);
 
       const String payload = 'gallery-fallback-roundtrip';
@@ -243,7 +243,7 @@ void main() {
     testWidgets('pause and resume after start do not throw', (
       WidgetTester tester,
     ) async {
-      final XueHuaScannerController controller = XueHuaScannerController();
+      final ScannerController controller = ScannerController();
       addTearDown(controller.dispose);
 
       await controller.start();

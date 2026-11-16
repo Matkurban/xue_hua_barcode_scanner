@@ -30,9 +30,9 @@ void main() {
   });
 
   testWidgets(
-    'WeChat default UI renders default texts, full-screen overlay, and action buttons',
+    'Custom default UI renders default texts, full-screen overlay, and action buttons',
     (WidgetTester tester) async {
-      final XueHuaScannerController controller = XueHuaScannerController(
+      final ScannerController controller = ScannerController(
         engine: _ScriptedCameraEngine(const <CameraInputSource>[
           CameraInputSource(
             id: 'back',
@@ -44,7 +44,7 @@ void main() {
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+        MaterialApp(home: BarcodeScannerPage(controller: controller)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -65,8 +65,8 @@ void main() {
         findsOneWidget,
       );
 
-      final XueHuaScannerOverlay overlay = tester.widget<XueHuaScannerOverlay>(
-        find.byType(XueHuaScannerOverlay),
+      final ScannerOverlay overlay = tester.widget<ScannerOverlay>(
+        find.byType(ScannerOverlay),
       );
       expect(overlay.showCutout, isFalse);
       expect(overlay.cornerColor, equals(const Color(0xFF07C160)));
@@ -74,7 +74,7 @@ void main() {
   );
 
   testWidgets(
-    'multi-barcode detection freezes preview, renders WeChat green markers, and supports manual selection or cancel',
+    'multi-barcode detection freezes preview, renders Custom green markers, and supports manual selection or cancel',
     (WidgetTester tester) async {
       final _ScriptedCameraEngine engine = _ScriptedCameraEngine(
         const <CameraInputSource>[
@@ -88,7 +88,7 @@ void main() {
       final List<List<BarcodeResult>> detectedBatches = <List<BarcodeResult>>[];
       final List<BarcodeResult> selectedBarcodes = <BarcodeResult>[];
 
-      final XueHuaScannerController controller = XueHuaScannerController(
+      final ScannerController controller = ScannerController(
         engine: engine,
         onDetect: detectedBatches.add,
         onBarcodeSelected: selectedBarcodes.add,
@@ -96,7 +96,7 @@ void main() {
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+        MaterialApp(home: BarcodeScannerPage(controller: controller)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -199,14 +199,12 @@ void main() {
       final List<BarcodeMarkerInfo> capturedMarkerInfos = <BarcodeMarkerInfo>[];
       BarcodeResult? selectedByCustomMarker;
 
-      final XueHuaScannerController controller = XueHuaScannerController(
-        engine: engine,
-      );
+      final ScannerController controller = ScannerController(engine: engine);
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
         MaterialApp(
-          home: XueHuaBarcodeScannerPage(
+          home: BarcodeScannerPage(
             controller: controller,
             onBarcodeSelected: (BarcodeResult result) {
               selectedByCustomMarker = result;
@@ -289,7 +287,7 @@ void main() {
   testWidgets(
     'XueHuaBarcodeScannerPage renders XueHuaScannerTexts and turns red on validation failure',
     (WidgetTester tester) async {
-      final XueHuaScannerController controller = XueHuaScannerController(
+      final ScannerController controller = ScannerController(
         validator: (BarcodeResult result) => result.text.startsWith('https://'),
         engine: _ScriptedCameraEngine(const <CameraInputSource>[
           CameraInputSource(
@@ -308,9 +306,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: XueHuaBarcodeScannerPage(
+          home: BarcodeScannerPage(
             controller: controller,
-            texts: const XueHuaScannerTexts(
+            texts: const ScannerTexts(
               hintText: 'Scan QR Code',
               invalidBarcodeText: 'Invalid QR Code',
               torchOffLabel: 'Flash',
@@ -353,13 +351,11 @@ void main() {
         CameraInputSource(id: 'only', label: '内置相机', facing: CameraFacing.back),
       ],
     );
-    final XueHuaScannerController controller = XueHuaScannerController(
-      engine: engine,
-    );
+    final ScannerController controller = ScannerController(engine: engine);
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+      MaterialApp(home: BarcodeScannerPage(controller: controller)),
     );
     await tester.pump();
 
@@ -387,14 +383,14 @@ void main() {
     final _ScriptedCameraEngine engine = _ScriptedCameraEngine(
       const <CameraInputSource>[backCamera, frontCamera],
     );
-    final XueHuaScannerController controller = XueHuaScannerController(
+    final ScannerController controller = ScannerController(
       initialFacing: CameraFacing.back,
       engine: engine,
     );
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(
-      MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+      MaterialApp(home: BarcodeScannerPage(controller: controller)),
     );
     await tester.pump();
 
@@ -432,13 +428,11 @@ void main() {
     (WidgetTester tester) async {
       final _PermissionToggleCameraEngine engine =
           _PermissionToggleCameraEngine(initiallyDenied: true);
-      final XueHuaScannerController controller = XueHuaScannerController(
-        engine: engine,
-      );
+      final ScannerController controller = ScannerController(engine: engine);
       addTearDown(controller.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+        MaterialApp(home: BarcodeScannerPage(controller: controller)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -522,7 +516,7 @@ class _PermissionToggleCameraEngine extends _ScriptedCameraEngine {
   }
 }
 
-class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
+class _ScriptedCameraEngine implements ScannerPlatformEngine {
   _ScriptedCameraEngine(this.cameras);
 
   final List<CameraInputSource> cameras;

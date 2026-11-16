@@ -19,9 +19,9 @@ export 'barcode_scanner.dart';
 /// front/back/external camera switching, frame throttling, barcode validation,
 /// permission recovery, and gallery recognition across Android, iOS, macOS,
 /// Windows, Linux, and Web.
-class XueHuaScannerController extends ValueNotifier<ScannerState> {
-  /// Creates a [XueHuaScannerController].
-  XueHuaScannerController({
+class ScannerController extends ValueNotifier<ScannerState> {
+  /// Creates a [ScannerController].
+  ScannerController({
     this.initialFacing = CameraFacing.back,
     this.scanInterval = const Duration(milliseconds: 120),
     this.tryHarder = true,
@@ -32,7 +32,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     this.validator,
     this.onDetect,
     this.onBarcodeSelected,
-    XueHuaScannerPlatformEngine? engine,
+    ScannerPlatformEngine? engine,
   }) : _engine = engine ?? XueHuaBarcodeScanner.engine,
        super(ScannerState(cameraFacing: initialFacing));
 
@@ -61,7 +61,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Optional validation predicate to check whether a decoded [BarcodeResult]
   /// meets business requirements. When a barcode fails validation,
   /// `ScannerState.hasValidationError` becomes `true` (turning the scan box red).
-  final XueHuaBarcodeValidator? validator;
+  final BarcodeValidator? validator;
 
   /// Optional callback invoked whenever one or more valid barcodes are recognized
   /// (or after the user taps a barcode in multi-barcode selection mode).
@@ -72,7 +72,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   final void Function(BarcodeResult result)? onBarcodeSelected;
 
   /// Optional view-level validator attached by `XueHuaScannerView`.
-  XueHuaBarcodeValidator? viewValidator;
+  BarcodeValidator? viewValidator;
 
   /// Optional view-level multi-barcode selection flag attached by `XueHuaScannerView`.
   bool? viewEnableMultiBarcodeSelection;
@@ -83,7 +83,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   bool get _effectiveMultiBarcodeSelection =>
       enableMultiBarcodeSelection && (viewEnableMultiBarcodeSelection ?? true);
 
-  final XueHuaScannerPlatformEngine _engine;
+  final ScannerPlatformEngine _engine;
   final StreamController<List<BarcodeResult>> _barcodesStreamController =
       StreamController<List<BarcodeResult>>.broadcast();
 
@@ -558,7 +558,7 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   }
 
   List<BarcodeResult> _filterValidResults(List<BarcodeResult> results) {
-    final XueHuaBarcodeValidator? activeValidator = validator ?? viewValidator;
+    final BarcodeValidator? activeValidator = validator ?? viewValidator;
     return results
         .where((BarcodeResult item) {
           if (!item.isValid || item.text.trim().isEmpty) {

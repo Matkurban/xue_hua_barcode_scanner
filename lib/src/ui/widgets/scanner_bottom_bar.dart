@@ -6,7 +6,7 @@ import '../../models/scanner_texts.dart';
 import '../scanner_builders.dart';
 import 'scanner_bottom_action_button.dart';
 
-/// WeChat Scan-style bottom section containing the centered prompt caption
+/// Custom Scan-style bottom section containing the centered prompt caption
 /// ("扫二维码 / 条码" or "轻触小绿点，选择要识别的码") and floating circular
 /// Torch & Gallery buttons.
 class ScannerBottomBar extends StatelessWidget {
@@ -27,15 +27,15 @@ class ScannerBottomBar extends StatelessWidget {
   });
 
   final ScannerState state;
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
   final Color cornerColor;
   final Color errorColor;
   final bool hideTorchWhenUnavailable;
   final bool hideBottomBarOnMultiSelect;
-  final XueHuaHintTextBuilder? hintTextBuilder;
-  final XueHuaBottomBarBuilder? bottomBarBuilder;
-  final XueHuaTorchButtonBuilder? torchButtonBuilder;
-  final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
+  final HintTextBuilder? hintTextBuilder;
+  final BottomBarBuilder? bottomBarBuilder;
+  final TorchButtonBuilder? torchButtonBuilder;
+  final GalleryButtonBuilder? galleryButtonBuilder;
   final VoidCallback onToggleTorch;
   final VoidCallback onPickGallery;
 

@@ -1,8 +1,8 @@
 /// Encapsulates all customizable UI text strings in `XueHuaBarcodeScannerPage`
 /// and `XueHuaScannerView` for internationalization (i18n) and localization.
-class XueHuaScannerTexts {
-  /// Creates a [XueHuaScannerTexts] configuration with localized strings.
-  const XueHuaScannerTexts({
+class ScannerTexts {
+  /// Creates a [ScannerTexts] configuration with localized strings.
+  const ScannerTexts({
     this.hintText = '扫二维码 / 条码',
     this.multiBarcodeHintText = '轻触小绿点，选择要识别的码',
     this.cancelMultiSelectLabel = '取消',
@@ -119,8 +119,8 @@ class XueHuaScannerTexts {
   /// Label shown while the camera session is starting up.
   final String cameraInitializingTitle;
 
-  /// Creates a copy of this [XueHuaScannerTexts] with selected fields replaced.
-  XueHuaScannerTexts copyWith({
+  /// Creates a copy of this [ScannerTexts] with selected fields replaced.
+  ScannerTexts copyWith({
     String? hintText,
     String? multiBarcodeHintText,
     String? cancelMultiSelectLabel,
@@ -150,7 +150,7 @@ class XueHuaScannerTexts {
     String? cameraErrorTitle,
     String? cameraInitializingTitle,
   }) {
-    return XueHuaScannerTexts(
+    return ScannerTexts(
       hintText: hintText ?? this.hintText,
       multiBarcodeHintText: multiBarcodeHintText ?? this.multiBarcodeHintText,
       cancelMultiSelectLabel:

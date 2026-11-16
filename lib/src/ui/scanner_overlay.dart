@@ -20,13 +20,13 @@ Rect calculateScanWindowRect(
 }
 
 /// Scanner viewfinder overlay supporting both:
-/// 1. **WeChat Full-Screen Immersive Mode (`showCutout: false`)**: Open full-screen
+/// 1. **Custom Full-Screen Immersive Mode (`showCutout: false`)**: Open full-screen
 ///    viewfinder with soft top & bottom dark vignette gradients for HUD legibility.
 /// 2. **Classic Cutout Box Mode (`showCutout: true`)**: Semi-transparent dark mask
 ///    with a rounded square cutout, optical reticle, and four glowing corner brackets.
-class XueHuaScannerOverlay extends StatelessWidget {
-  /// Creates a [XueHuaScannerOverlay].
-  const XueHuaScannerOverlay({
+class ScannerOverlay extends StatelessWidget {
+  /// Creates a [ScannerOverlay].
+  const ScannerOverlay({
     super.key,
     required this.scanWindow,
     this.showCutout = true,
@@ -45,7 +45,7 @@ class XueHuaScannerOverlay extends StatelessWidget {
   /// Centered square cutout rectangle in viewport coordinates.
   final Rect scanWindow;
 
-  /// Whether to render the central cutout box (`true`) or WeChat's full-screen
+  /// Whether to render the central cutout box (`true`) or Custom's full-screen
   /// open viewfinder with top/bottom vignette gradients (`false`).
   final bool showCutout;
 
@@ -61,7 +61,7 @@ class XueHuaScannerOverlay extends StatelessWidget {
   /// Thin frame outline color around [scanWindow].
   final Color borderColor;
 
-  /// Highlight color for the four L-shaped corner brackets (defaults to WeChat green `#07C160`).
+  /// Highlight color for the four L-shaped corner brackets (defaults to Custom green `#07C160`).
   final Color cornerColor;
 
   /// Corner radius of the cutout square.
@@ -85,7 +85,7 @@ class XueHuaScannerOverlay extends StatelessWidget {
       child: RepaintBoundary(
         child: CustomPaint(
           size: Size.infinite,
-          painter: _XueHuaScannerOverlayPainter(
+          painter: _ScannerOverlayPainter(
             scanWindow: scanWindow,
             showCutout: showCutout,
             hasValidationError: hasValidationError,
@@ -105,8 +105,8 @@ class XueHuaScannerOverlay extends StatelessWidget {
   }
 }
 
-class _XueHuaScannerOverlayPainter extends CustomPainter {
-  const _XueHuaScannerOverlayPainter({
+class _ScannerOverlayPainter extends CustomPainter {
+  const _ScannerOverlayPainter({
     required this.scanWindow,
     required this.showCutout,
     required this.hasValidationError,
@@ -326,7 +326,7 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _XueHuaScannerOverlayPainter oldDelegate) {
+  bool shouldRepaint(covariant _ScannerOverlayPainter oldDelegate) {
     return oldDelegate.scanWindow != scanWindow ||
         oldDelegate.showCutout != showCutout ||
         oldDelegate.hasValidationError != hasValidationError ||

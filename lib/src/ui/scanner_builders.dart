@@ -17,14 +17,14 @@ enum BarcodeMarkerAlignment {
 }
 
 /// Builder signature for customizing the semi-transparent mask and scan cutout box.
-typedef XueHuaOverlayBuilder = Widget Function(
+typedef OverlayBuilder = Widget Function(
   BuildContext context,
   Rect scanWindow,
   ScannerState state,
 );
 
 /// Builder signature for customizing the animated scan line inside [scanWindow].
-typedef XueHuaScanLineBuilder = Widget Function(
+typedef ScanLineBuilder = Widget Function(
   BuildContext context,
   Animation<double> animation,
   Rect scanWindow,
@@ -32,7 +32,7 @@ typedef XueHuaScanLineBuilder = Widget Function(
 
 /// Builder signature for customizing the top navigation bar (Back/Close button,
 /// optional cancel button in multi-barcode mode, and camera switch button).
-typedef XueHuaTopBarBuilder = Widget Function(
+typedef TopBarBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   VoidCallback onBack,
@@ -40,13 +40,13 @@ typedef XueHuaTopBarBuilder = Widget Function(
 );
 
 /// Builder signature for customizing the prompt text.
-typedef XueHuaHintTextBuilder = Widget Function(
+typedef HintTextBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
 );
 
 /// Builder signature for customizing the entire bottom action bar.
-typedef XueHuaBottomBarBuilder = Widget Function(
+typedef BottomBarBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   VoidCallback onToggleTorch,
@@ -54,21 +54,21 @@ typedef XueHuaBottomBarBuilder = Widget Function(
 );
 
 /// Builder signature for customizing the Torch / Flashlight toggle button.
-typedef XueHuaTorchButtonBuilder = Widget Function(
+typedef TorchButtonBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   VoidCallback onToggleTorch,
 );
 
 /// Builder signature for customizing the Gallery image picker button.
-typedef XueHuaGalleryButtonBuilder = Widget Function(
+typedef GalleryButtonBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   VoidCallback onPickGallery,
 );
 
 /// Builder signature for customizing the dedicated camera permission-denied view.
-typedef XueHuaPermissionDeniedBuilder = Widget Function(
+typedef PermissionDeniedBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   VoidCallback onOpenSettings,
@@ -80,7 +80,7 @@ typedef XueHuaPermissionDeniedBuilder = Widget Function(
 /// detected barcode's exact viewport position (`info.center` / `info.boundingBox`).
 ///
 /// Invoke [onSelect] when the user taps the custom widget to select `info.result`.
-typedef XueHuaBarcodeMarkerBuilder = Widget Function(
+typedef BarcodeMarkerBuilder = Widget Function(
   BuildContext context,
   BarcodeMarkerInfo info,
   VoidCallback onSelect,
@@ -88,7 +88,7 @@ typedef XueHuaBarcodeMarkerBuilder = Widget Function(
 
 /// Builder signature for customizing the entire overlay shown when multiple
 /// barcodes are detected and the camera preview is frozen for manual selection.
-typedef XueHuaMultiBarcodeOverlayBuilder = Widget Function(
+typedef MultiBarcodeOverlayBuilder = Widget Function(
   BuildContext context,
   ScannerState state,
   List<BarcodeMarkerInfo> markers,

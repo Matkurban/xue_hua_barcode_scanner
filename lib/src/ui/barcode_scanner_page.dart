@@ -10,20 +10,20 @@ import 'scanner_view.dart';
 export 'scanner_builders.dart';
 export 'scanner_view.dart';
 
-/// Full-screen ready-to-use WeChat-style Barcode & QR Code scanner route page
+/// Full-screen ready-to-use Custom-style Barcode & QR Code scanner route page
 /// (`Scaffold`) with 100% customizable UI builders, multi-barcode freeze &
 /// tap selection, custom positioned marker widgets ([barcodeMarkerBuilder]),
-/// localized [texts], [validator] support, and [XueHuaScannerController] integration.
-class XueHuaBarcodeScannerPage extends StatelessWidget {
-  /// Creates a [XueHuaBarcodeScannerPage].
-  const XueHuaBarcodeScannerPage({
+/// localized [texts], [validator] support, and [ScannerController] integration.
+class BarcodeScannerPage extends StatelessWidget {
+  /// Creates a [BarcodeScannerPage].
+  const BarcodeScannerPage({
     super.key,
     this.controller,
     this.onDetect,
     this.onBarcodeSelected,
     this.validator,
     this.autoPopOnDetect = false,
-    this.texts = const XueHuaScannerTexts(),
+    this.texts = const ScannerTexts(),
     this.showCutoutOverlay = false,
     this.showScanCutout = false,
     this.cutoutSize,
@@ -52,8 +52,8 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
     this.cameraPreviewBuilder,
   });
 
-  /// Optional external [XueHuaScannerController].
-  final XueHuaScannerController? controller;
+  /// Optional external [ScannerController].
+  final ScannerController? controller;
 
   /// Callback invoked when one or more valid barcodes are detected
   /// (or when the user taps a barcode marker in multi-barcode selection mode).
@@ -65,17 +65,17 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
 
   /// Optional validation predicate to check whether a decoded [BarcodeResult]
   /// is acceptable. When returning `false`, the overlay turns red
-  /// ([errorColor]) and [XueHuaScannerTexts.invalidBarcodeText] is shown.
-  final XueHuaBarcodeValidator? validator;
+  /// ([errorColor]) and [ScannerTexts.invalidBarcodeText] is shown.
+  final BarcodeValidator? validator;
 
   /// If `true`, automatically pops this route with `List<BarcodeResult>` on first valid detection
   /// (or after the user selects a barcode in multi-barcode mode).
   final bool autoPopOnDetect;
 
   /// Localized text strings for all UI elements in the scanner page.
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
 
-  /// Whether to render a central square cutout box (`true`) instead of WeChat's
+  /// Whether to render a central square cutout box (`true`) instead of Custom's
   /// default full-screen open viewfinder (`false`).
   final bool showCutoutOverlay;
 
@@ -91,13 +91,13 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
   /// Semi-transparent background mask color when cutout mode is enabled.
   final Color maskColor;
 
-  /// Highlight color of the target markers and corner brackets (defaults to WeChat green `#07C160`).
+  /// Highlight color of the target markers and corner brackets (defaults to Custom green `#07C160`).
   final Color cornerColor;
 
   /// Red highlight color used when a barcode fails validation.
   final Color errorColor;
 
-  /// Color of the animated WeChat optical mesh scan line (defaults to `#07C160`).
+  /// Color of the animated Custom optical mesh scan line (defaults to `#07C160`).
   final Color scanLineColor;
 
   /// Sweep duration of the scan line animation.
@@ -125,35 +125,35 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
   final bool hideTorchWhenUnavailable;
 
   /// Custom builder for the mask & scan box.
-  final XueHuaOverlayBuilder? overlayBuilder;
+  final OverlayBuilder? overlayBuilder;
 
   /// Custom builder for the scan line animation.
-  final XueHuaScanLineBuilder? scanLineBuilder;
+  final ScanLineBuilder? scanLineBuilder;
 
   /// Custom builder for the top bar.
-  final XueHuaTopBarBuilder? topBarBuilder;
+  final TopBarBuilder? topBarBuilder;
 
   /// Custom builder for the hint text.
-  final XueHuaHintTextBuilder? hintTextBuilder;
+  final HintTextBuilder? hintTextBuilder;
 
   /// Custom builder for the bottom bar.
-  final XueHuaBottomBarBuilder? bottomBarBuilder;
+  final BottomBarBuilder? bottomBarBuilder;
 
   /// Custom builder for the torch button.
-  final XueHuaTorchButtonBuilder? torchButtonBuilder;
+  final TorchButtonBuilder? torchButtonBuilder;
 
   /// Custom builder for the gallery button.
-  final XueHuaGalleryButtonBuilder? galleryButtonBuilder;
+  final GalleryButtonBuilder? galleryButtonBuilder;
 
   /// Custom builder to render any widget at each detected barcode's exact
   /// viewport position (`info.center`, `info.boundingBox`, `info.cornerPoints`).
-  final XueHuaBarcodeMarkerBuilder? barcodeMarkerBuilder;
+  final BarcodeMarkerBuilder? barcodeMarkerBuilder;
 
   /// Custom builder to replace the entire multi-barcode selection overlay.
-  final XueHuaMultiBarcodeOverlayBuilder? multiBarcodeOverlayBuilder;
+  final MultiBarcodeOverlayBuilder? multiBarcodeOverlayBuilder;
 
   /// Custom builder for the camera permission-denied recovery view.
-  final XueHuaPermissionDeniedBuilder? permissionDeniedBuilder;
+  final PermissionDeniedBuilder? permissionDeniedBuilder;
 
   /// Custom builder for overriding the camera preview widget.
   final Widget Function(BuildContext context, ScannerState state)?
@@ -164,7 +164,7 @@ class XueHuaBarcodeScannerPage extends StatelessWidget {
     bool hasPopped = false;
     return Scaffold(
       backgroundColor: Colors.black,
-      body: XueHuaScannerView(
+      body: ScannerView(
         controller: controller,
         validator: validator,
         texts: texts,

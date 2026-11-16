@@ -21,7 +21,7 @@ import 'web_js_interop.dart';
 
 /// Web implementation of `xue_hua_barcode_scanner` bridging `zxing-wasm`,
 /// the browser's native `BarcodeDetector` API, and `navigator.mediaDevices.getUserMedia`.
-class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
+class XueHuaBarcodeScannerWeb implements ScannerPlatformEngine {
   /// Creates a [XueHuaBarcodeScannerWeb] instance.
   XueHuaBarcodeScannerWeb();
 
@@ -649,5 +649,5 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 }
 
 /// Factory function exported for conditional imports on Web.
-XueHuaScannerPlatformEngine createPlatformScannerEngine() =>
+ScannerPlatformEngine createPlatformScannerEngine() =>
     XueHuaBarcodeScannerWeb();

@@ -2,18 +2,18 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-/// WeChat Scan-style unidirectional top-to-bottom optical mesh curtain scan line.
+/// Custom Scan-style unidirectional top-to-bottom optical mesh curtain scan line.
 ///
 /// Renders a three-layer optical effect:
 /// 1. **Trailing Gradient Curtain**: Soft upward-fading emerald light curtain.
-/// 2. **WeChat Optical Mesh Grid**: Perspective grid & micro-dot matrix inside the curtain.
+/// 2. **Custom Optical Mesh Grid**: Perspective grid & micro-dot matrix inside the curtain.
 /// 3. **Leading Bright Edge**: Tapered neon laser core with a luminous center highlight.
 ///
 /// Driven directly via `CustomPainter(repaint: animation)` inside a
 /// [RepaintBoundary], achieving 60/120 FPS animation with zero widget rebuilds.
-class XueHuaScanLineAnimation extends StatelessWidget {
-  /// Creates a [XueHuaScanLineAnimation].
-  const XueHuaScanLineAnimation({
+class ScanLineAnimation extends StatelessWidget {
+  /// Creates a [ScanLineAnimation].
+  const ScanLineAnimation({
     super.key,
     required this.animation,
     required this.scanWindow,
@@ -31,7 +31,7 @@ class XueHuaScanLineAnimation extends StatelessWidget {
   /// Bounds of the central scan region.
   final Rect scanWindow;
 
-  /// Primary scan line color (defaults to WeChat green `#07C160`).
+  /// Primary scan line color (defaults to Custom green `#07C160`).
   final Color lineColor;
 
   /// Core thickness of the leading bright edge.
@@ -44,10 +44,10 @@ class XueHuaScanLineAnimation extends StatelessWidget {
   final double horizontalPadding;
 
   /// When `true`, expands the scan line horizontally across the viewport
-  /// (WeChat full-screen style) instead of confining it strictly to [scanWindow.width].
+  /// (Custom full-screen style) instead of confining it strictly to [scanWindow.width].
   final bool fullWidth;
 
-  /// Whether to draw the WeChat-style optical grid & dot matrix inside the trailing curtain.
+  /// Whether to draw the Custom-style optical grid & dot matrix inside the trailing curtain.
   final bool showGridMesh;
 
   @override
@@ -56,7 +56,7 @@ class XueHuaScanLineAnimation extends StatelessWidget {
       child: RepaintBoundary(
         child: CustomPaint(
           size: Size.infinite,
-          painter: _XueHuaScanLinePainter(
+          painter: _ScanLinePainter(
             animation: animation,
             scanWindow: scanWindow,
             lineColor: lineColor,
@@ -72,8 +72,8 @@ class XueHuaScanLineAnimation extends StatelessWidget {
   }
 }
 
-class _XueHuaScanLinePainter extends CustomPainter {
-  _XueHuaScanLinePainter({
+class _ScanLinePainter extends CustomPainter {
+  _ScanLinePainter({
     required this.animation,
     required this.scanWindow,
     required this.lineColor,
@@ -167,7 +167,7 @@ class _XueHuaScanLinePainter extends CustomPainter {
     canvas.clipRRect(curtainRRect);
     canvas.drawRect(curtainRect, curtainPaint);
 
-    // 2. WeChat optical mesh grid & glowing micro-dots inside the curtain.
+    // 2. Custom optical mesh grid & glowing micro-dots inside the curtain.
     if (showGridMesh && lineWidth > 40 && activeTrailHeight > 16) {
       const double stepX = 16.0;
       const double stepY = 10.0;
@@ -298,7 +298,7 @@ class _XueHuaScanLinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _XueHuaScanLinePainter oldDelegate) {
+  bool shouldRepaint(covariant _ScanLinePainter oldDelegate) {
     return oldDelegate.scanWindow != scanWindow ||
         oldDelegate.lineColor != lineColor ||
         oldDelegate.lineHeight != lineHeight ||

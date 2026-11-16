@@ -7,7 +7,7 @@ import '../scanner_builders.dart';
 import 'circle_glass_icon_button.dart';
 import 'scanner_camera_source_button.dart';
 
-/// WeChat Scan-style top bar containing the circular close (`×`) button (or
+/// Custom Scan-style top bar containing the circular close (`×`) button (or
 /// "取消" button when paused in multi-barcode selection mode) and multi-camera
 /// source switch button.
 class ScannerTopBar extends StatelessWidget {
@@ -23,9 +23,9 @@ class ScannerTopBar extends StatelessWidget {
   });
 
   final ScannerState state;
-  final XueHuaScannerTexts texts;
+  final ScannerTexts texts;
   final Color errorColor;
-  final XueHuaTopBarBuilder? topBarBuilder;
+  final TopBarBuilder? topBarBuilder;
   final VoidCallback onSwitchCamera;
   final ValueChanged<CameraInputSource> onSelectCamera;
   final VoidCallback? onCancelMultiSelect;
@@ -64,7 +64,7 @@ class ScannerTopBar extends StatelessWidget {
                 onPressed: onBack,
               ),
             if (!isMultiSelect && state.cameras.length > 1)
-              XueHuaCameraSourceButton(
+              CameraSourceButton(
                 sources: state.cameras,
                 activeSourceId: state.activeCameraId,
                 tooltip: texts.selectInputSourceTooltip,
