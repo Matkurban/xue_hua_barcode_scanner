@@ -159,10 +159,7 @@ class _BarcodeMarkersLayoutDelegate extends MultiChildLayoutDelegate {
       if (alignment == BarcodeMarkerAlignment.boundingBox &&
           info.boundingBox.width > 0 &&
           info.boundingBox.height > 0) {
-        layoutChild(
-          info.index,
-          BoxConstraints.tight(info.boundingBox.size),
-        );
+        layoutChild(info.index, BoxConstraints.tight(info.boundingBox.size));
         positionChild(info.index, info.boundingBox.topLeft);
       } else {
         final Size childSize = layoutChild(

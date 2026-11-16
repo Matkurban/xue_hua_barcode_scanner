@@ -196,7 +196,10 @@ class BarcodeResult {
     Offset mappedCenter;
     Rect mappedBounds;
     if (mappedCorners.isEmpty) {
-      mappedCenter = Offset(viewportSize.width / 2.0, viewportSize.height / 2.0);
+      mappedCenter = Offset(
+        viewportSize.width / 2.0,
+        viewportSize.height / 2.0,
+      );
       mappedBounds = Rect.fromCenter(
         center: mappedCenter,
         width: 48.0,

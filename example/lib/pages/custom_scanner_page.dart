@@ -183,9 +183,7 @@ class _CustomStyledScannerDemoPageState
                         : '二维码校验未通过')
                   : (state.isSelectingMultiBarcode
                         ? '点击任意赛博标签卡片，选择目标条码'
-                        : (state.isPaused
-                              ? '已暂停扫描'
-                              : '将二维码放入框内 · 自定义赛博主题'));
+                        : (state.isPaused ? '已暂停扫描' : '将二维码放入框内 · 自定义赛博主题'));
               return Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,

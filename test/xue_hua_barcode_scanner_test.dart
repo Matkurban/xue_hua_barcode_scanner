@@ -85,8 +85,7 @@ void main() {
           ),
         ],
       );
-      final List<List<BarcodeResult>> detectedBatches =
-          <List<BarcodeResult>>[];
+      final List<List<BarcodeResult>> detectedBatches = <List<BarcodeResult>>[];
       final List<BarcodeResult> selectedBarcodes = <BarcodeResult>[];
 
       final XueHuaScannerController controller = XueHuaScannerController(

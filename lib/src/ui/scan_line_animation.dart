@@ -183,7 +183,11 @@ class _XueHuaScanLinePainter extends CustomPainter {
         meshLinePaint.color = lineColor.withValues(
           alpha: 0.18 * vFactor * envelopeAlpha,
         );
-        canvas.drawLine(Offset(left, y), Offset(left + lineWidth, y), meshLinePaint);
+        canvas.drawLine(
+          Offset(left, y),
+          Offset(left + lineWidth, y),
+          meshLinePaint,
+        );
       }
 
       // Vertical mesh lines & intersection micro-dots fading toward edges.
@@ -192,15 +196,22 @@ class _XueHuaScanLinePainter extends CustomPainter {
         final double x = left + dx;
         final double hDist = ((dx - halfW).abs() / halfW).clamp(0.0, 1.0);
         final double hFactor = 1.0 - (hDist * hDist * 0.75);
-        meshLinePaint.shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[
-            lineColor.withValues(alpha: 0.0),
-            lineColor.withValues(alpha: 0.22 * hFactor * envelopeAlpha),
-          ],
-        ).createShader(Rect.fromLTWH(x, curtainRect.top, 1.0, activeTrailHeight));
-        canvas.drawLine(Offset(x, curtainRect.top), Offset(x, centerY), meshLinePaint);
+        meshLinePaint.shader =
+            LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[
+                lineColor.withValues(alpha: 0.0),
+                lineColor.withValues(alpha: 0.22 * hFactor * envelopeAlpha),
+              ],
+            ).createShader(
+              Rect.fromLTWH(x, curtainRect.top, 1.0, activeTrailHeight),
+            );
+        canvas.drawLine(
+          Offset(x, curtainRect.top),
+          Offset(x, centerY),
+          meshLinePaint,
+        );
 
         for (double dy = stepY; dy < activeTrailHeight; dy += stepY) {
           final double y = centerY - dy;
@@ -208,11 +219,14 @@ class _XueHuaScanLinePainter extends CustomPainter {
             0.0,
             1.0,
           );
-          final double dotAlpha =
-              (0.42 * vFactor * hFactor * envelopeAlpha).clamp(0.0, 1.0);
+          final double dotAlpha = (0.42 * vFactor * hFactor * envelopeAlpha)
+              .clamp(0.0, 1.0);
           if (dotAlpha > 0.04) {
-            dotPaint.color = Color.lerp(lineColor, Colors.white, 0.35)!
-                .withValues(alpha: dotAlpha);
+            dotPaint.color = Color.lerp(
+              lineColor,
+              Colors.white,
+              0.35,
+            )!.withValues(alpha: dotAlpha);
             canvas.drawCircle(Offset(x, y), 1.15, dotPaint);
           }
         }
@@ -221,12 +235,7 @@ class _XueHuaScanLinePainter extends CustomPainter {
     canvas.restore();
 
     // 3. Soft ambient elliptical halo around the leading edge.
-    final Rect haloRect = Rect.fromLTWH(
-      left,
-      centerY - 8.0,
-      lineWidth,
-      16.0,
-    );
+    final Rect haloRect = Rect.fromLTWH(left, centerY - 8.0, lineWidth, 16.0);
     final Paint haloPaint = Paint()
       ..shader = RadialGradient(
         center: Alignment.center,
@@ -266,8 +275,11 @@ class _XueHuaScanLinePainter extends CustomPainter {
 
     // 5. Crisp tapered laser core with bright white-emerald center highlight.
     final Rect lineRect = Rect.fromLTWH(left, currentY, lineWidth, lineHeight);
-    final Color highlightColor = Color.lerp(lineColor, Colors.white, 0.62)!
-        .withValues(alpha: envelopeAlpha);
+    final Color highlightColor = Color.lerp(
+      lineColor,
+      Colors.white,
+      0.62,
+    )!.withValues(alpha: envelopeAlpha);
     final Paint corePaint = Paint()
       ..shader = LinearGradient(
         colors: <Color>[
