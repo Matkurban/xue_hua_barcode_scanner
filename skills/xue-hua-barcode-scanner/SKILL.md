@@ -33,8 +33,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  material_ui: ^1.8.0
-  xue_hua_barcode_scanner: ^1.0.0
+  material_ui: ^1.11.0
+  xue_hua_barcode_scanner: ^1.3.0
 ```
 
 ### 2. Android (`android/app/src/main/AndroidManifest.xml`)

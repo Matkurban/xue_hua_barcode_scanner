@@ -7,6 +7,7 @@ import '../../models/scanner_texts.dart';
 import '../scanner_builders.dart';
 
 /// Renders the live platform camera feed (`Texture` on native, `HtmlElementView` on Web),
+/// a frozen gallery image when multiple barcodes are detected in a gallery photo,
 /// or a specially designed camera permission / hardware diagnostic surface when
 /// the camera stream is unauthorized or unavailable.
 class ScannerCameraPreview extends StatelessWidget {
@@ -16,7 +17,7 @@ class ScannerCameraPreview extends StatelessWidget {
     required this.state,
     required this.texts,
     this.scanWindow,
-    this.accentColor = const Color(0xFF00E676),
+    this.accentColor = const Color(0xFF07C160),
     this.permissionDeniedBuilder,
     this.onOpenSettings,
     this.onRetryPermission,
@@ -35,6 +36,19 @@ class ScannerCameraPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (state.frozenImageBytes != null && state.frozenImageBytes!.isNotEmpty) {
+      return RepaintBoundary(
+        child: SizedBox.expand(
+          child: Image.memory(
+            state.frozenImageBytes!,
+            key: const ValueKey<String>('xh_scanner_frozen_gallery_image'),
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+          ),
+        ),
+      );
+    }
+
     if (isWeb && state.webViewType != null) {
       return RepaintBoundary(
         child: SizedBox.expand(
@@ -202,7 +216,6 @@ class _CameraPermissionDeniedSurface extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        // Hero layered camera & security shield badge
                         SizedBox(
                           width: 76,
                           height: 76,
@@ -744,7 +757,7 @@ class _CameraStandbyViewfinderSurface extends StatelessWidget {
         children: <Widget>[
           const CustomPaint(painter: _StaticViewfinderGridPainter()),
           Align(
-            alignment: const Alignment(0.0, 0.48),
+            alignment: const Alignment(0.0, 0.36),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Container(

@@ -4,7 +4,7 @@
 
 A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Flutter Barcode & QR Code recognition, generation, and real-time camera scanner plugin powered by **`zxing-cpp`** (`v3.1.1`, C++20 FFI) and **`zxing-wasm`** (`dart:js_interop`).
 
-- **Version**: `1.0.0`
+- **Version**: `1.3.0`
 - **Environment**: Dart `^3.13.0` | Flutter `>=3.47.0`
 - **Author**: Matkurban <3496354336@qq.com>
 - **Repository**: [https://github.com/Matkurban/xue_hua_barcode_scanner](https://github.com/Matkurban/xue_hua_barcode_scanner)
@@ -27,9 +27,9 @@ A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Fl
    - **Web Platform**: Isolates `dart:ffi` via conditional imports and uses modern `dart:js_interop` to bridge `zxing-wasm` and the browser's `BarcodeDetector` API with 100% identical Dart APIs.
 2. **Zero-Copy Y-Plane & `rowStride` Alignment**:
    - Directly decodes single-channel grayscale (`PixelFormat.lum` for Android `YUV_420_888` / `NV21` Y-plane), `PixelFormat.rgba8888`, `PixelFormat.bgra8888`, and `PixelFormat.rgb888` while normalizing hardware row alignment padding (`rowStride`) to prevent diagonal image skew.
-3. **Out-of-the-Box & 100% Customizable `XueHuaBarcodeScannerPage`**:
-   - Full-screen aspect-ratio-preserving camera preview (`Texture` / `HtmlElementView`), semi-transparent rounded-square cutout overlay with 4 glowing corner brackets, smooth looping green laser scan line, top bar with Back button, `"将二维码放入框内"` prompt, and Front/Back camera flip button, bottom symmetric **Torch** and **Gallery** buttons, and real-time green anchor highlights on detected `cornerPoints`.
-   - Every visual component can be overridden via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, and `galleryButtonBuilder`.
+3. **Out-of-the-Box WeChat Scan (`扫一扫`) UI, Multi-Barcode Freeze & Selection, and 100% Customization**:
+   - Full-screen aspect-ratio-preserving camera preview (`Texture` / `HtmlElementView`), WeChat green (`#07C160`) unidirectional optical mesh curtain scan line, optional rounded-square cutout mode (`showCutoutOverlay: true`), automatic multi-barcode preview freezing with pulsing green arrow markers (`XueHuaWeChatBarcodeMarker`), custom positioned barcode widgets via `barcodeMarkerBuilder`, and symmetric **Torch** and **Gallery** buttons.
+   - Every visual component can be overridden via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, `galleryButtonBuilder`, `barcodeMarkerBuilder`, and `multiBarcodeOverlayBuilder`.
 
 ---
 
@@ -53,8 +53,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  material_ui: ^1.8.0
-  xue_hua_barcode_scanner: ^1.0.0
+  material_ui: ^1.11.0
+  xue_hua_barcode_scanner: ^1.3.0
 ```
 
 ### Step 2: Configure Platform Permissions & Native Build Settings

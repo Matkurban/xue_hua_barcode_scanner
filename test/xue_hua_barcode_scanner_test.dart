@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +28,264 @@ void main() {
     expect(results.first.cornerPoints.length, equals(4));
     expect(results.first.isValid, isTrue);
   });
+
+  testWidgets(
+    'WeChat default UI renders default texts, full-screen overlay, and action buttons',
+    (WidgetTester tester) async {
+      final XueHuaScannerController controller = XueHuaScannerController(
+        engine: _ScriptedCameraEngine(const <CameraInputSource>[
+          CameraInputSource(
+            id: 'back',
+            label: '后置相机',
+            facing: CameraFacing.back,
+          ),
+        ]),
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('扫二维码 / 条码'), findsOneWidget);
+      expect(find.text('轻触照亮'), findsOneWidget);
+      expect(find.text('相册'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_back_button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_torch_button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_gallery_button')),
+        findsOneWidget,
+      );
+
+      final XueHuaScannerOverlay overlay = tester.widget<XueHuaScannerOverlay>(
+        find.byType(XueHuaScannerOverlay),
+      );
+      expect(overlay.showCutout, isFalse);
+      expect(overlay.cornerColor, equals(const Color(0xFF07C160)));
+    },
+  );
+
+  testWidgets(
+    'multi-barcode detection freezes preview, renders WeChat green markers, and supports manual selection or cancel',
+    (WidgetTester tester) async {
+      final _ScriptedCameraEngine engine = _ScriptedCameraEngine(
+        const <CameraInputSource>[
+          CameraInputSource(
+            id: 'back',
+            label: '后置相机',
+            facing: CameraFacing.back,
+          ),
+        ],
+      );
+      final List<List<BarcodeResult>> detectedBatches =
+          <List<BarcodeResult>>[];
+      final List<BarcodeResult> selectedBarcodes = <BarcodeResult>[];
+
+      final XueHuaScannerController controller = XueHuaScannerController(
+        engine: engine,
+        onDetect: detectedBatches.add,
+        onBarcodeSelected: selectedBarcodes.add,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(home: XueHuaBarcodeScannerPage(controller: controller)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      const Size frameSize = Size(800, 600);
+      final List<BarcodeResult> twoCodes = <BarcodeResult>[
+        BarcodeResult(
+          text: 'WECHAT-CODE-1',
+          rawBytes: Uint8List.fromList(utf8.encode('WECHAT-CODE-1')),
+          cornerPoints: const <Offset>[
+            Offset(120, 140),
+            Offset(220, 140),
+            Offset(220, 240),
+            Offset(120, 240),
+          ],
+          format: BarcodeFormat.qrCode,
+          frameSize: frameSize,
+        ),
+        BarcodeResult(
+          text: 'WECHAT-CODE-2',
+          rawBytes: Uint8List.fromList(utf8.encode('WECHAT-CODE-2')),
+          cornerPoints: const <Offset>[
+            Offset(520, 320),
+            Offset(620, 320),
+            Offset(620, 420),
+            Offset(520, 420),
+          ],
+          format: BarcodeFormat.qrCode,
+          frameSize: frameSize,
+        ),
+      ];
+
+      await controller.simulateMultiBarcodeDetection(twoCodes);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(controller.value.isPaused, isTrue);
+      expect(controller.value.isSelectingMultiBarcode, isTrue);
+      expect(engine.streamPaused, isTrue);
+      expect(detectedBatches, isEmpty);
+      expect(selectedBarcodes, isEmpty);
+
+      expect(find.text('轻触小绿点，选择要识别的码'), findsOneWidget);
+      expect(
+        find.byKey(
+          const ValueKey<String>('xh_scanner_cancel_multi_select_button'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_barcode_marker_0')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('xh_scanner_barcode_marker_1')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('xh_scanner_barcode_marker_1')),
+      );
+      await tester.pump();
+
+      expect(controller.value.isSelectingMultiBarcode, isFalse);
+      expect(detectedBatches.length, equals(1));
+      expect(detectedBatches.first.single.text, equals('WECHAT-CODE-2'));
+      expect(selectedBarcodes.length, equals(1));
+      expect(selectedBarcodes.first.text, equals('WECHAT-CODE-2'));
+
+      await controller.simulateMultiBarcodeDetection(twoCodes);
+      await tester.pump();
+      expect(controller.value.isSelectingMultiBarcode, isTrue);
+
+      await tester.tap(
+        find.byKey(
+          const ValueKey<String>('xh_scanner_cancel_multi_select_button'),
+        ),
+      );
+      await tester.pump();
+
+      expect(controller.value.isSelectingMultiBarcode, isFalse);
+      expect(controller.value.isPaused, isFalse);
+      expect(engine.streamPaused, isFalse);
+      expect(find.text('扫二维码 / 条码'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'barcodeMarkerBuilder renders custom widget at exact mapped barcode coordinates and triggers selection',
+    (WidgetTester tester) async {
+      final _ScriptedCameraEngine engine = _ScriptedCameraEngine(
+        const <CameraInputSource>[
+          CameraInputSource(
+            id: 'back',
+            label: '后置相机',
+            facing: CameraFacing.back,
+          ),
+        ],
+      );
+      final List<BarcodeMarkerInfo> capturedMarkerInfos = <BarcodeMarkerInfo>[];
+      BarcodeResult? selectedByCustomMarker;
+
+      final XueHuaScannerController controller = XueHuaScannerController(
+        engine: engine,
+      );
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: XueHuaBarcodeScannerPage(
+            controller: controller,
+            onBarcodeSelected: (BarcodeResult result) {
+              selectedByCustomMarker = result;
+            },
+            barcodeMarkerBuilder:
+                (
+                  BuildContext context,
+                  BarcodeMarkerInfo info,
+                  VoidCallback onSelect,
+                ) {
+                  capturedMarkerInfos.add(info);
+                  return GestureDetector(
+                    key: ValueKey<String>('custom_marker_btn_${info.index}'),
+                    onTap: onSelect,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      color: Colors.cyanAccent,
+                      child: Text('码#${info.index}:${info.result.text}'),
+                    ),
+                  );
+                },
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      const Size frameSize = Size(800, 600);
+      await controller.simulateMultiBarcodeDetection(<BarcodeResult>[
+        BarcodeResult(
+          text: 'CUSTOM-A',
+          rawBytes: Uint8List.fromList(utf8.encode('CUSTOM-A')),
+          cornerPoints: const <Offset>[
+            Offset(100, 100),
+            Offset(200, 100),
+            Offset(200, 200),
+            Offset(100, 200),
+          ],
+          format: BarcodeFormat.qrCode,
+          frameSize: frameSize,
+        ),
+        BarcodeResult(
+          text: 'CUSTOM-B',
+          rawBytes: Uint8List.fromList(utf8.encode('CUSTOM-B')),
+          cornerPoints: const <Offset>[
+            Offset(500, 300),
+            Offset(600, 300),
+            Offset(600, 400),
+            Offset(500, 400),
+          ],
+          format: BarcodeFormat.qrCode,
+          frameSize: frameSize,
+        ),
+      ]);
+      await tester.pump();
+
+      expect(capturedMarkerInfos.length, greaterThanOrEqualTo(2));
+      expect(capturedMarkerInfos[0].center, equals(const Offset(150, 150)));
+      expect(
+        capturedMarkerInfos[0].boundingBox,
+        equals(const Rect.fromLTRB(100, 100, 200, 200)),
+      );
+      expect(capturedMarkerInfos[1].center, equals(const Offset(550, 350)));
+      expect(capturedMarkerInfos[1].isMultiSelectMode, isTrue);
+
+      expect(find.text('码#0:CUSTOM-A'), findsOneWidget);
+      expect(find.text('码#1:CUSTOM-B'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('custom_marker_btn_0')),
+      );
+      await tester.pump();
+
+      expect(selectedByCustomMarker, isNotNull);
+      expect(selectedByCustomMarker!.text, equals('CUSTOM-A'));
+      expect(controller.value.isSelectingMultiBarcode, isFalse);
+    },
+  );
 
   testWidgets(
     'XueHuaBarcodeScannerPage renders XueHuaScannerTexts and turns red on validation failure',
@@ -269,6 +528,7 @@ class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
 
   final List<CameraInputSource> cameras;
   String? openedCameraId;
+  bool streamPaused = false;
 
   CameraInputSource _resolve(CameraFacing facing, String? cameraId) {
     if (cameraId != null) {
@@ -289,6 +549,7 @@ class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
   ScannerState _stateFor(CameraFacing facing, String? cameraId) {
     final CameraInputSource active = _resolve(facing, cameraId);
     openedCameraId = active.id;
+    streamPaused = false;
     return ScannerState(
       isInitialized: true,
       isRunning: true,
@@ -343,6 +604,11 @@ class _ScriptedCameraEngine implements XueHuaScannerPlatformEngine {
 
   @override
   Future<bool> openAppSettings() async => false;
+
+  @override
+  Future<void> setStreamPaused(bool paused) async {
+    streamPaused = paused;
+  }
 
   @override
   Future<void> dispose() async {}

@@ -4,7 +4,7 @@
 
 一款支持 **6 端全平台（Android, iOS, macOS, Windows, Linux, Web）** 的生产级 Flutter 条形码与二维码（Barcode & QR Code）识别、生成及实时相机扫描插件。底层核心统一采用 **`zxing-cpp`**（`v3.1.1`，C++20 FFI）与 **`zxing-wasm`**（`dart:js_interop`）。
 
-- **版本号 (Version)**：`1.0.0`
+- **版本号 (Version)**：`1.3.0`
 - **环境要求 (Environment)**：Dart `^3.13.0` | Flutter `>=3.47.0`
 - **作者 (Author)**：Matkurban <3496354336@qq.com>
 - **仓库地址 (Repository)**：[https://github.com/Matkurban/xue_hua_barcode_scanner](https://github.com/Matkurban/xue_hua_barcode_scanner)
@@ -27,9 +27,9 @@
    - **Web 端**：使用条件导入（Conditional Imports）彻底隔离 `dart:ffi`，基于现代 `dart:js_interop` 桥接 `zxing-wasm` 与浏览器原生 `BarcodeDetector`，对外提供 100% 一致的 Dart API。
 2. **零拷贝单通道 Y 平面与 `rowStride` 字节对齐处理**：
    - `decodeImageBytes` 原生支持直接传入 Android YUV420/NV21 的 `PixelFormat.lum`（Y 平面）或 iOS/macOS 的 `PixelFormat.bgra8888` / `PixelFormat.rgba8888`，自动处理硬件 `rowStride` 行对齐步长，彻底消除因图像行填充导致的斜纹与识别失败。
-3. **高颜值开箱即用且 100% 可定制的扫码组件 (`XueHuaBarcodeScannerPage` & `XueHuaScannerView`)**：
-   - 默认内置：全屏自适应相机取景 (`Texture` / `HtmlElementView`)、中央半透明镂空遮罩与带高亮边角的方形扫描框、带渐变光晕的绿色上下循环扫描线动画、顶部返回按钮 + **“将二维码放入框内”** 提示语 + 摄像头翻转按钮、底部左右对称分布的 **“手电筒”** 与 **“相册”** 按钮，以及识别成功时的 `cornerPoints` 绿色锚点高亮反馈。
-   - 所有组件均支持通过 `overlayBuilder`、`scanLineBuilder`、`topBarBuilder`、`hintTextBuilder`、`bottomBarBuilder`、`torchButtonBuilder`、`galleryButtonBuilder` 完全自定义替换。
+3. **微信扫一扫风格 UI、多码自动暂停点选与 100% 可定制架构 (`XueHuaBarcodeScannerPage` & `XueHuaScannerView`)**：
+   - 默认内置微信扫一扫同款体验：全屏无挖孔沉浸式取景 (`showCutoutOverlay: false`，也支持开启方形挖孔框模式)、微信绿 `#07C160` 自上而下渐变点阵网格光幕扫描线、多二维码自动冻结画面并渲染带呼吸光圈与白色箭头的小绿点 (`XueHuaWeChatBarcodeMarker`) 供用户手动点选，以及底部居中提示与悬浮「手电筒」「相册」圆形按钮。
+   - 所有组件及每个识别到的二维码坐标位置上的交互组件均支持通过 `barcodeMarkerBuilder`、`multiBarcodeOverlayBuilder`、`overlayBuilder`、`scanLineBuilder`、`topBarBuilder`、`hintTextBuilder`、`bottomBarBuilder`、`torchButtonBuilder`、`galleryButtonBuilder` 完全自定义替换。
 
 ---
 
@@ -53,8 +53,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  material_ui: ^1.8.0
-  xue_hua_barcode_scanner: ^1.0.0
+  material_ui: ^1.11.0
+  xue_hua_barcode_scanner: ^1.3.0
 ```
 
 ### 第二步：各平台权限与原生构建配置（必读）

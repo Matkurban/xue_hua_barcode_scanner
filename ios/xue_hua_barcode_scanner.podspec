@@ -5,7 +5,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'xue_hua_barcode_scanner'
-  s.version          = '1.0.0'
+  s.version          = '1.3.0'
   s.summary          = 'Cross-platform Flutter Barcode & QR Code scanner plugin powered by zxing-cpp FFI.'
   s.description      = <<-DESC
 A 6-platform Flutter Barcode and QR Code recognition, generation, and real-time camera scanner plugin powered by zxing-cpp C++20 FFI and WebAssembly.

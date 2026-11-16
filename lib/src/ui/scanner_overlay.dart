@@ -19,19 +19,22 @@ Rect calculateScanWindowRect(
   return Rect.fromLTWH(left, top, boxSize, boxSize);
 }
 
-/// Full-screen semi-transparent dark mask with a rounded square cutout,
-/// subtle optical viewfinder reticle, and four glowing corner brackets (`CustomPainter`).
-///
-/// Uses [PathFillType.evenOdd] inside a [RepaintBoundary] to avoid expensive
-/// `Path.combine` boolean geometry operations on the UI thread.
+/// Scanner viewfinder overlay supporting both:
+/// 1. **WeChat Full-Screen Immersive Mode (`showCutout: false`)**: Open full-screen
+///    viewfinder with soft top & bottom dark vignette gradients for HUD legibility.
+/// 2. **Classic Cutout Box Mode (`showCutout: true`)**: Semi-transparent dark mask
+///    with a rounded square cutout, optical reticle, and four glowing corner brackets.
 class XueHuaScannerOverlay extends StatelessWidget {
   /// Creates a [XueHuaScannerOverlay].
   const XueHuaScannerOverlay({
     super.key,
     required this.scanWindow,
+    this.showCutout = true,
+    this.hasValidationError = false,
+    this.errorColor = const Color(0xFFFF5252),
     this.maskColor = const Color(0x99000000),
     this.borderColor = const Color(0x38FFFFFF),
-    this.cornerColor = const Color(0xFF00E676),
+    this.cornerColor = const Color(0xFF07C160),
     this.borderRadius = 20.0,
     this.cornerLength = 28.0,
     this.cornerStrokeWidth = 4.0,
@@ -42,13 +45,23 @@ class XueHuaScannerOverlay extends StatelessWidget {
   /// Centered square cutout rectangle in viewport coordinates.
   final Rect scanWindow;
 
-  /// Semi-transparent background mask color outside [scanWindow].
+  /// Whether to render the central cutout box (`true`) or WeChat's full-screen
+  /// open viewfinder with top/bottom vignette gradients (`false`).
+  final bool showCutout;
+
+  /// Whether the most recently scanned barcode failed validation.
+  final bool hasValidationError;
+
+  /// Border/vignette highlight color when [hasValidationError] is `true`.
+  final Color errorColor;
+
+  /// Semi-transparent background mask color outside [scanWindow] when [showCutout] is `true`.
   final Color maskColor;
 
   /// Thin frame outline color around [scanWindow].
   final Color borderColor;
 
-  /// Highlight color for the four L-shaped corner brackets.
+  /// Highlight color for the four L-shaped corner brackets (defaults to WeChat green `#07C160`).
   final Color cornerColor;
 
   /// Corner radius of the cutout square.
@@ -74,6 +87,9 @@ class XueHuaScannerOverlay extends StatelessWidget {
           size: Size.infinite,
           painter: _XueHuaScannerOverlayPainter(
             scanWindow: scanWindow,
+            showCutout: showCutout,
+            hasValidationError: hasValidationError,
+            errorColor: errorColor,
             maskColor: maskColor,
             borderColor: borderColor,
             cornerColor: cornerColor,
@@ -92,6 +108,9 @@ class XueHuaScannerOverlay extends StatelessWidget {
 class _XueHuaScannerOverlayPainter extends CustomPainter {
   const _XueHuaScannerOverlayPainter({
     required this.scanWindow,
+    required this.showCutout,
+    required this.hasValidationError,
+    required this.errorColor,
     required this.maskColor,
     required this.borderColor,
     required this.cornerColor,
@@ -103,6 +122,9 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
   });
 
   final Rect scanWindow;
+  final bool showCutout;
+  final bool hasValidationError;
+  final Color errorColor;
   final Color maskColor;
   final Color borderColor;
   final Color cornerColor;
@@ -114,6 +136,11 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (!showCutout) {
+      _paintWeChatFullScreenVignette(canvas, size);
+      return;
+    }
+
     final RRect cutoutRRect = RRect.fromRectAndRadius(
       scanWindow,
       Radius.circular(borderRadius),
@@ -251,9 +278,59 @@ class _XueHuaScannerOverlayPainter extends CustomPainter {
     canvas.drawPath(cornersPath, cornerPaint);
   }
 
+  void _paintWeChatFullScreenVignette(Canvas canvas, Size size) {
+    final double topHeight = math.min(150.0, size.height * 0.22);
+    final Rect topRect = Rect.fromLTWH(0, 0, size.width, topHeight);
+    final Paint topPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: <Color>[
+          Color(0x88000000),
+          Color(0x38000000),
+          Color(0x00000000),
+        ],
+        stops: <double>[0.0, 0.55, 1.0],
+      ).createShader(topRect);
+    canvas.drawRect(topRect, topPaint);
+
+    final double bottomHeight = math.min(240.0, size.height * 0.32);
+    final Rect bottomRect = Rect.fromLTWH(
+      0,
+      size.height - bottomHeight,
+      size.width,
+      bottomHeight,
+    );
+    final Paint bottomPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: <Color>[
+          Color(0x99000000),
+          Color(0x48000000),
+          Color(0x00000000),
+        ],
+        stops: <double>[0.0, 0.58, 1.0],
+      ).createShader(bottomRect);
+    canvas.drawRect(bottomRect, bottomPaint);
+
+    if (hasValidationError) {
+      final Rect fullRect = Offset.zero & size;
+      final Paint errorRimPaint = Paint()
+        ..color = errorColor.withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
+      canvas.drawRect(fullRect.deflate(2.0), errorRimPaint);
+    }
+  }
+
   @override
   bool shouldRepaint(covariant _XueHuaScannerOverlayPainter oldDelegate) {
     return oldDelegate.scanWindow != scanWindow ||
+        oldDelegate.showCutout != showCutout ||
+        oldDelegate.hasValidationError != hasValidationError ||
+        oldDelegate.errorColor != errorColor ||
         oldDelegate.maskColor != maskColor ||
         oldDelegate.borderColor != borderColor ||
         oldDelegate.cornerColor != cornerColor ||

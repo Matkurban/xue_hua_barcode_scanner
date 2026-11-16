@@ -1,12 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
 import '../widgets/scan_result_dialog.dart';
 
-/// 标准默认扫码演示页面，识别到条码后弹出 [ScanResultDialog] 展示结果。
-///
-/// 进入页面后直接使用平台默认相机，不弹出输入源菜单。多个输入源时，顶栏按钮
-/// 由用户点击后通过 `chat_context_menu` 选择设备；只有一个输入源时不显示该按钮。
+/// 微信扫一扫风格默认扫码演示页面：
+/// - 默认采用全屏无挖孔沉浸式取景 + 微信绿渐变网格光幕扫描线；
+/// - 当画面识别到 2 个及以上二维码时，自动冻结画面并在各二维码位置展示带呼吸光圈与白色箭头的小绿点，
+///   由用户点击对应小绿点完成精准选择；
+/// - 顶部提供「模拟双码同屏点选」快捷演示按钮，方便在无双码实物时一键体验多码暂停点选交互。
 class DefaultScannerDemoPage extends StatefulWidget {
   const DefaultScannerDemoPage({super.key});
 
@@ -24,25 +28,106 @@ class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
     _controller = XueHuaScannerController(
       initialFacing: CameraFacing.back,
       autoPauseOnDetect: true,
+      enableMultiBarcodeSelection: true,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return XueHuaBarcodeScannerPage(
-      key: const ValueKey<String>('xh_default_scanner_page'),
-      controller: _controller,
-      autoPopOnDetect: false,
-      texts: const XueHuaScannerTexts(
-        hintText: '将二维码放入框内',
-        invalidBarcodeText: '二维码不符合要求',
-        noBarcodeInImageText: '未在所选图片中识别到二维码或条码',
-        torchOnLabel: '轻触关闭',
-        torchOffLabel: '手电筒',
-        galleryLabel: '相册',
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          XueHuaBarcodeScannerPage(
+            key: const ValueKey<String>('xh_default_scanner_page'),
+            controller: _controller,
+            autoPopOnDetect: false,
+            texts: const XueHuaScannerTexts(
+              hintText: '扫二维码 / 条码',
+              multiBarcodeHintText: '轻触小绿点，选择要识别的码',
+              cancelMultiSelectLabel: '取消',
+              invalidBarcodeText: '二维码不符合要求',
+              noBarcodeInImageText: '未在所选图片中识别到二维码或条码',
+              torchOnLabel: '轻触关闭',
+              torchOffLabel: '轻触照亮',
+              galleryLabel: '相册',
+            ),
+            onDetect: _handleBarcodeDetected,
+          ),
+          SafeArea(
+            child: ValueListenableBuilder<ScannerState>(
+              valueListenable: _controller,
+              builder: (BuildContext context, ScannerState state, Widget? _) {
+                if (state.isSelectingMultiBarcode) {
+                  return const SizedBox.shrink();
+                }
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey<String>(
+                        'xh_simulate_multi_barcode_button',
+                      ),
+                      onPressed: _simulateMultiBarcodes,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xCC07C160),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 17),
+                      label: const Text(
+                        '模拟双码同屏点选',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
-      onDetect: _handleBarcodeDetected,
     );
+  }
+
+  Future<void> _simulateMultiBarcodes() async {
+    const Size demoFrameSize = Size(390, 844);
+    final List<BarcodeResult> simulated = <BarcodeResult>[
+      BarcodeResult(
+        text: 'XH-WECHAT-QR-A1024',
+        rawBytes: Uint8List.fromList(utf8.encode('XH-WECHAT-QR-A1024')),
+        cornerPoints: const <Offset>[
+          Offset(65, 240),
+          Offset(165, 240),
+          Offset(165, 340),
+          Offset(65, 340),
+        ],
+        format: BarcodeFormat.qrCode,
+        frameSize: demoFrameSize,
+      ),
+      BarcodeResult(
+        text: 'XH-WECHAT-QR-B2048',
+        rawBytes: Uint8List.fromList(utf8.encode('XH-WECHAT-QR-B2048')),
+        cornerPoints: const <Offset>[
+          Offset(225, 420),
+          Offset(325, 420),
+          Offset(325, 520),
+          Offset(225, 520),
+        ],
+        format: BarcodeFormat.qrCode,
+        frameSize: demoFrameSize,
+      ),
+    ];
+    await _controller.simulateMultiBarcodeDetection(simulated);
   }
 
   /// 处理扫码识别结果并弹出详情对话框。
@@ -59,7 +144,7 @@ class _DefaultScannerDemoPageState extends State<DefaultScannerDemoPage> {
 
     final bool? shouldReturn = await ScanResultDialog.show(
       context,
-      title: '标准扫码页 · 识别结果',
+      title: '微信风格扫码页 · 识别结果',
       results: results,
     );
     _isShowingDialog = false;
