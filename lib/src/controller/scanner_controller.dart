@@ -28,8 +28,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     this.tryRotate = true,
     this.tryInvert = true,
     this.autoPauseOnDetect = false,
+    this.enableMultiBarcodeSelection = true,
     this.validator,
     this.onDetect,
+    this.onBarcodeSelected,
     XueHuaScannerPlatformEngine? engine,
   }) : _engine = engine ?? XueHuaBarcodeScanner.engine,
        super(ScannerState(cameraFacing: initialFacing));
@@ -52,16 +54,34 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   /// Whether to automatically pause scanning as soon as a valid barcode is detected.
   final bool autoPauseOnDetect;
 
+  /// Whether to automatically freeze the camera preview and let the user manually
+  /// tap a barcode marker when 2 or more valid barcodes are detected in the same frame.
+  final bool enableMultiBarcodeSelection;
+
   /// Optional validation predicate to check whether a decoded [BarcodeResult]
   /// meets business requirements. When a barcode fails validation,
   /// `ScannerState.hasValidationError` becomes `true` (turning the scan box red).
   final XueHuaBarcodeValidator? validator;
 
-  /// Optional callback invoked whenever one or more valid barcodes are recognized.
+  /// Optional callback invoked whenever one or more valid barcodes are recognized
+  /// (or after the user taps a barcode in multi-barcode selection mode).
   final void Function(List<BarcodeResult> results)? onDetect;
+
+  /// Optional callback invoked when a single barcode is selected (either by
+  /// tapping its marker in multi-barcode mode or upon single-barcode detection).
+  final void Function(BarcodeResult result)? onBarcodeSelected;
 
   /// Optional view-level validator attached by `XueHuaScannerView`.
   XueHuaBarcodeValidator? viewValidator;
+
+  /// Optional view-level multi-barcode selection flag attached by `XueHuaScannerView`.
+  bool? viewEnableMultiBarcodeSelection;
+
+  /// Optional view-level single barcode selection callback attached by `XueHuaScannerView`.
+  void Function(BarcodeResult result)? viewOnBarcodeSelected;
+
+  bool get _effectiveMultiBarcodeSelection =>
+      enableMultiBarcodeSelection && (viewEnableMultiBarcodeSelection ?? true);
 
   final XueHuaScannerPlatformEngine _engine;
   final StreamController<List<BarcodeResult>> _barcodesStreamController =
@@ -155,6 +175,8 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       value = value.copyWith(
         isRunning: false,
         isPaused: false,
+        isSelectingMultiBarcode: false,
+        clearFrozenImageBytes: true,
         hasValidationError: false,
         torchState: value.hasTorch ? TorchState.off : TorchState.unavailable,
       );
@@ -165,20 +187,62 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
   Future<void> pause() async {
     if (_isDisposed || !value.isRunning || value.isPaused) return;
     _validationResetTimer?.cancel();
-    value = value.copyWith(isPaused: true);
+    await _engine.setStreamPaused(true);
+    if (!_isDisposed) {
+      value = value.copyWith(isPaused: true);
+    }
   }
 
-  /// Resumes real-time frame decoding after [pause].
+  /// Resumes real-time frame decoding after [pause] or multi-barcode selection.
   Future<void> resume() async {
-    if (_isDisposed || !value.isRunning || !value.isPaused) return;
+    if (_isDisposed) return;
+    if (!value.isRunning && !value.isSelectingMultiBarcode) return;
+    if (!value.isPaused && !value.isSelectingMultiBarcode) return;
     _validationResetTimer?.cancel();
+    await _engine.setStreamPaused(false);
+    if (!_isDisposed) {
+      value = value.copyWith(
+        isPaused: false,
+        isSelectingMultiBarcode: false,
+        latestResults: const <BarcodeResult>[],
+        clearFrozenImageBytes: true,
+        hasValidationError: false,
+        clearGalleryScanStatus: true,
+        clearError: true,
+      );
+    }
+  }
+
+  /// Completes multi-barcode (or single-barcode) target selection for [result]
+  /// when the user taps a barcode marker on the screen.
+  void selectBarcode(BarcodeResult result) {
+    if (_isDisposed) return;
+    _validationResetTimer?.cancel();
+    final List<BarcodeResult> selectedList = <BarcodeResult>[result];
+    final bool shouldRemainPaused = autoPauseOnDetect;
+    if (!shouldRemainPaused) {
+      unawaited(_engine.setStreamPaused(false));
+    }
     value = value.copyWith(
-      isPaused: false,
-      latestResults: const <BarcodeResult>[],
+      isSelectingMultiBarcode: false,
+      isPaused: shouldRemainPaused,
+      latestResults: selectedList,
+      clearFrozenImageBytes: !shouldRemainPaused,
       hasValidationError: false,
-      clearGalleryScanStatus: true,
       clearError: true,
     );
+    if (!_barcodesStreamController.isClosed) {
+      _barcodesStreamController.add(selectedList);
+    }
+    onDetect?.call(selectedList);
+    onBarcodeSelected?.call(result);
+    viewOnBarcodeSelected?.call(result);
+  }
+
+  /// Cancels the multi-barcode selection state and resumes live camera scanning.
+  Future<void> cancelMultiBarcodeSelection() async {
+    if (_isDisposed) return;
+    await resume();
   }
 
   /// Toggles the hardware torch / flashlight on or off.
@@ -367,8 +431,27 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     }
 
     _validationResetTimer?.cancel();
+    if (validResults.length >= 2 && _effectiveMultiBarcodeSelection) {
+      unawaited(_engine.setStreamPaused(true));
+      value = value.copyWith(
+        latestResults: validResults,
+        isPaused: true,
+        isSelectingMultiBarcode: true,
+        frozenImageBytes: imageBytes,
+        hasValidationError: false,
+        lastGalleryScanStatus: GalleryScanStatus.success,
+        clearError: true,
+      );
+      return validResults;
+    }
+
+    if (autoPauseOnDetect) {
+      unawaited(_engine.setStreamPaused(true));
+    }
     value = value.copyWith(
       latestResults: validResults,
+      isSelectingMultiBarcode: false,
+      clearFrozenImageBytes: true,
       hasValidationError: false,
       lastGalleryScanStatus: GalleryScanStatus.success,
       isPaused: autoPauseOnDetect ? true : value.isPaused,
@@ -378,6 +461,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       _barcodesStreamController.add(validResults);
     }
     onDetect?.call(validResults);
+    if (validResults.length == 1) {
+      onBarcodeSelected?.call(validResults.first);
+      viewOnBarcodeSelected?.call(validResults.first);
+    }
     return validResults;
   }
 
@@ -440,6 +527,15 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     return _filterValidResults(decoded);
   }
 
+  /// Simulates detecting multiple barcodes in the same frame for testing or demos.
+  Future<List<BarcodeResult>> simulateMultiBarcodeDetection(
+    List<BarcodeResult> results,
+  ) async {
+    if (_isDisposed || results.isEmpty) return const <BarcodeResult>[];
+    _evaluateAndEmitResults(results);
+    return _filterValidResults(results);
+  }
+
   /// Manually clears any active barcode validation error state and restores
   /// the default scanner frame color.
   void clearValidationError() {
@@ -491,8 +587,26 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
     }
 
     _validationResetTimer?.cancel();
+    if (validResults.length >= 2 && _effectiveMultiBarcodeSelection) {
+      unawaited(_engine.setStreamPaused(true));
+      value = value.copyWith(
+        latestResults: validResults,
+        isPaused: true,
+        isSelectingMultiBarcode: true,
+        clearFrozenImageBytes: true,
+        hasValidationError: false,
+        clearError: true,
+      );
+      return;
+    }
+
+    if (autoPauseOnDetect) {
+      unawaited(_engine.setStreamPaused(true));
+    }
     value = value.copyWith(
       latestResults: validResults,
+      isSelectingMultiBarcode: false,
+      clearFrozenImageBytes: true,
       hasValidationError: false,
       isPaused: autoPauseOnDetect ? true : value.isPaused,
       clearError: true,
@@ -501,6 +615,10 @@ class XueHuaScannerController extends ValueNotifier<ScannerState> {
       _barcodesStreamController.add(validResults);
     }
     onDetect?.call(validResults);
+    if (validResults.length == 1) {
+      onBarcodeSelected?.call(validResults.first);
+      viewOnBarcodeSelected?.call(validResults.first);
+    }
   }
 
   void _scheduleValidationErrorReset() {

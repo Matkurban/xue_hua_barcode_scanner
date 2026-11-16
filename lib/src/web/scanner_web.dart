@@ -38,6 +38,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
   Timer? _framePollTimer;
   String? _currentViewType;
   bool _isDecodingWebFrame = false;
+  bool _streamPaused = false;
 
   @override
   bool get isWeb => true;
@@ -454,7 +455,7 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
     required void Function(CameraFramePacket frame) onFrame,
     required void Function(List<BarcodeResult> results) onWebBarcodes,
   }) async {
-    if (_isDecodingWebFrame) return;
+    if (_isDecodingWebFrame || _streamPaused) return;
     final JSObject? video = _videoElement;
     final JSObject? canvas = _canvasElement;
     final JSObject? ctx = _canvasContext2d;
@@ -628,6 +629,20 @@ class XueHuaBarcodeScannerWeb implements XueHuaScannerPlatformEngine {
 
   @override
   Future<bool> openAppSettings() async => false;
+
+  @override
+  Future<void> setStreamPaused(bool paused) async {
+    _streamPaused = paused;
+    final JSObject? video = _videoElement;
+    if (video == null) return;
+    try {
+      if (paused) {
+        video.callMethod<JSAny?>('pause'.toJS);
+      } else {
+        video.callMethod<JSAny?>('play'.toJS);
+      }
+    } catch (_) {}
+  }
 
   @override
   Future<void> dispose() async {}

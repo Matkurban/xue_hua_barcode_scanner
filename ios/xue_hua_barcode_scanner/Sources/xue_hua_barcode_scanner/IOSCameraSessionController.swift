@@ -320,26 +320,26 @@ final class IOSCameraSessionController: NSObject, AVCaptureVideoDataOutputSample
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            return
-        }
-
-        scannerTexture.update(pixelBuffer)
-
         frameStateLock.lock()
         let tid = cachedTextureId
         let generation = activeSessionGeneration
         let paused = frameStreamPaused
         frameStateLock.unlock()
 
+        if generation == 0 || paused {
+            return
+        }
+
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return
+        }
+
+        scannerTexture.update(pixelBuffer)
+
         if tid >= 0 {
             DispatchQueue.main.async { [weak self] in
                 self?.textureRegistry?.textureFrameAvailable(tid)
             }
-        }
-
-        if generation == 0 || paused {
-            return
         }
 
         let now = CACurrentMediaTime()

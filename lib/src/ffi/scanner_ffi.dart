@@ -638,6 +638,11 @@ class XueHuaScannerFfiEngine implements XueHuaScannerPlatformEngine {
   }
 
   @override
+  Future<void> setStreamPaused(bool paused) async {
+    setFrameStreamPaused(paused);
+  }
+
+  @override
   Future<bool> openAppSettings() => _dispatcher.openAppSettings();
 
   @override

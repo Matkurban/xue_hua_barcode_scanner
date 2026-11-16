@@ -85,6 +85,9 @@ abstract class XueHuaScannerPlatformEngine {
   /// Opens the operating system's application / camera privacy settings page.
   Future<bool> openAppSettings();
 
+  /// Pauses or resumes the live camera preview & frame emission (freezes current frame).
+  Future<void> setStreamPaused(bool paused) async {}
+
   /// Releases engine-level resources and active native listeners if any.
   Future<void> dispose() async {}
 }

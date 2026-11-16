@@ -75,6 +75,25 @@ final class CameraSessionManager {
 
   void setFrameStreamPaused(boolean paused) {
     this.frameStreamPaused = paused;
+    final Handler handler = this.backgroundHandler;
+    if (handler != null) {
+      handler.post(
+          () -> {
+            final CameraCaptureSession session = this.captureSession;
+            final CaptureRequest.Builder builder = this.previewRequestBuilder;
+            if (session == null || builder == null) {
+              return;
+            }
+            try {
+              if (paused) {
+                session.stopRepeating();
+              } else {
+                session.setRepeatingRequest(builder.build(), null, handler);
+              }
+            } catch (Exception ignored) {
+            }
+          });
+    }
   }
 
   void listCameras(long requestId) {

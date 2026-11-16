@@ -295,6 +295,16 @@ final class MacOSCameraSessionController: NSObject,
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
+        frameStateLock.lock()
+        let tid = cachedTextureId
+        let generation = activeSessionGeneration
+        let paused = frameStreamPaused
+        frameStateLock.unlock()
+
+        if generation == 0 || paused {
+            return
+        }
+
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
@@ -303,20 +313,10 @@ final class MacOSCameraSessionController: NSObject,
         latestPixelBuffer = pixelBuffer
         pixelBufferLock.unlock()
 
-        frameStateLock.lock()
-        let tid = cachedTextureId
-        let generation = activeSessionGeneration
-        let paused = frameStreamPaused
-        frameStateLock.unlock()
-
         if tid >= 0 {
             DispatchQueue.main.async { [weak self] in
                 self?.textureRegistry?.textureFrameAvailable(tid)
             }
-        }
-
-        if generation == 0 || paused {
-            return
         }
 
         let now = CACurrentMediaTime()

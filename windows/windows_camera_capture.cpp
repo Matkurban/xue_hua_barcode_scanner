@@ -401,7 +401,11 @@ void WindowsCameraCapture::CaptureLoop(
         if (SUCCEEDED(buffer->Lock(&data, &max_len, &cur_len)) &&
             data != nullptr) {
           const size_t pixel_count = static_cast<size_t>(width) * height;
-          if (cur_len >= pixel_count * 4) {
+          const uint64_t generation =
+              active_session_generation_.load(std::memory_order_acquire);
+          const bool is_paused =
+              frame_stream_paused_.load(std::memory_order_acquire);
+          if (cur_len >= pixel_count * 4 && generation != 0 && !is_paused) {
             {
               std::lock_guard<std::mutex> lock(frame_mutex_);
               front_rgba_.resize(pixel_count * 4);
@@ -419,32 +423,27 @@ void WindowsCameraCapture::CaptureLoop(
               texture_registrar_->MarkTextureFrameAvailable(texture_id_);
             }
 
-            const uint64_t generation =
-                active_session_generation_.load(std::memory_order_acquire);
-            if (generation != 0 &&
-                !frame_stream_paused_.load(std::memory_order_acquire)) {
-              const auto now = std::chrono::steady_clock::now();
-              if (std::chrono::duration_cast<std::chrono::milliseconds>(
-                      now - last_emit)
-                      .count() >= 150) {
-                last_emit = now;
-                std::vector<uint8_t> luma(pixel_count);
-                for (size_t i = 0; i < pixel_count; ++i) {
-                  const uint32_t b = data[i * 4 + 0];
-                  const uint32_t g = data[i * 4 + 1];
-                  const uint32_t r = data[i * 4 + 2];
-                  luma[i] = static_cast<uint8_t>((r * 77 + g * 150 + b * 29) >> 8);
-                }
-                xh_host_emit_camera_frame(
-                    generation,
-                    luma.data(),
-                    static_cast<int32_t>(luma.size()),
-                    static_cast<int32_t>(width),
-                    static_cast<int32_t>(height),
-                    static_cast<int32_t>(width),
-                    kPixelFormatLum,
-                    0);
+            const auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now - last_emit)
+                    .count() >= 150) {
+              last_emit = now;
+              std::vector<uint8_t> luma(pixel_count);
+              for (size_t i = 0; i < pixel_count; ++i) {
+                const uint32_t b = data[i * 4 + 0];
+                const uint32_t g = data[i * 4 + 1];
+                const uint32_t r = data[i * 4 + 2];
+                luma[i] = static_cast<uint8_t>((r * 77 + g * 150 + b * 29) >> 8);
               }
+              xh_host_emit_camera_frame(
+                  generation,
+                  luma.data(),
+                  static_cast<int32_t>(luma.size()),
+                  static_cast<int32_t>(width),
+                  static_cast<int32_t>(height),
+                  static_cast<int32_t>(width),
+                  kPixelFormatLum,
+                  0);
             }
           }
           buffer->Unlock();
