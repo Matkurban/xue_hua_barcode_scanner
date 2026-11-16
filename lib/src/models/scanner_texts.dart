@@ -3,13 +3,15 @@
 class XueHuaScannerTexts {
   /// Creates a [XueHuaScannerTexts] configuration with localized strings.
   const XueHuaScannerTexts({
-    this.hintText = '将二维码放入框内',
+    this.hintText = '扫二维码 / 条码',
+    this.multiBarcodeHintText = '轻触小绿点，选择要识别的码',
+    this.cancelMultiSelectLabel = '取消',
     this.invalidBarcodeText = '二维码不符合要求',
     this.noBarcodeInImageText = '未在所选图片中识别到二维码或条码',
     this.torchOnLabel = '轻触关闭',
-    this.torchOffLabel = '手电筒',
+    this.torchOffLabel = '轻触照亮',
     this.galleryLabel = '相册',
-    this.backButtonTooltip = '返回',
+    this.backButtonTooltip = '关闭',
     this.switchCameraTooltip = '切换前后摄像头',
     this.selectInputSourceTooltip = '选择输入源',
     this.torchUnsupportedMessage = '当前摄像头或桌面设备不支持手电筒闪光灯',
@@ -33,8 +35,14 @@ class XueHuaScannerTexts {
     this.cameraInitializingTitle = '正在启动相机取景...',
   });
 
-  /// Prompt displayed in the top region during normal scanning.
+  /// Prompt displayed during normal scanning.
   final String hintText;
+
+  /// Prompt displayed when multiple barcodes are detected and the user must tap one.
+  final String multiBarcodeHintText;
+
+  /// Label for the top-left cancel button shown during multi-barcode selection.
+  final String cancelMultiSelectLabel;
 
   /// Prompt and error feedback displayed when a scanned barcode fails validation.
   final String invalidBarcodeText;
@@ -114,6 +122,8 @@ class XueHuaScannerTexts {
   /// Creates a copy of this [XueHuaScannerTexts] with selected fields replaced.
   XueHuaScannerTexts copyWith({
     String? hintText,
+    String? multiBarcodeHintText,
+    String? cancelMultiSelectLabel,
     String? invalidBarcodeText,
     String? noBarcodeInImageText,
     String? torchOnLabel,
@@ -142,6 +152,9 @@ class XueHuaScannerTexts {
   }) {
     return XueHuaScannerTexts(
       hintText: hintText ?? this.hintText,
+      multiBarcodeHintText: multiBarcodeHintText ?? this.multiBarcodeHintText,
+      cancelMultiSelectLabel:
+          cancelMultiSelectLabel ?? this.cancelMultiSelectLabel,
       invalidBarcodeText: invalidBarcodeText ?? this.invalidBarcodeText,
       noBarcodeInImageText: noBarcodeInImageText ?? this.noBarcodeInImageText,
       torchOnLabel: torchOnLabel ?? this.torchOnLabel,

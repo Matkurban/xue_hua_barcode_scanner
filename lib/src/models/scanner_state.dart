@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart' show listEquals;
@@ -13,6 +14,7 @@ class ScannerState {
     this.isInitialized = false,
     this.isRunning = false,
     this.isPaused = false,
+    this.isSelectingMultiBarcode = false,
     this.torchState = TorchState.unavailable,
     this.cameraFacing = CameraFacing.back,
     this.availableCameraCount = 1,
@@ -23,6 +25,7 @@ class ScannerState {
     this.textureId,
     this.webViewType,
     this.latestResults = const <BarcodeResult>[],
+    this.frozenImageBytes,
     this.hasValidationError = false,
     this.lastGalleryScanStatus,
     this.permissionStatus = CameraPermissionStatus.unknown,
@@ -38,6 +41,10 @@ class ScannerState {
 
   /// Whether scanning is temporarily paused by the user or lifecycle.
   final bool isPaused;
+
+  /// `true` when 2 or more valid barcodes were detected in the same frame and
+  /// the scanner has frozen the preview waiting for the user to tap one.
+  final bool isSelectingMultiBarcode;
 
   /// Current torch/flashlight state (`off`, `on`, or `unavailable`).
   final TorchState torchState;
@@ -71,6 +78,10 @@ class ScannerState {
 
   /// Most recently recognized barcodes in the current frame.
   final List<BarcodeResult> latestResults;
+
+  /// Optional encoded image bytes displayed when a gallery image with multiple
+  /// barcodes is frozen for interactive selection.
+  final Uint8List? frozenImageBytes;
 
   /// `true` when the most recently scanned barcode or selected image failed
   /// validation, causing the scanner overlay border to turn red.
@@ -174,6 +185,7 @@ class ScannerState {
     bool? isInitialized,
     bool? isRunning,
     bool? isPaused,
+    bool? isSelectingMultiBarcode,
     TorchState? torchState,
     CameraFacing? cameraFacing,
     int? availableCameraCount,
@@ -184,6 +196,8 @@ class ScannerState {
     int? textureId,
     String? webViewType,
     List<BarcodeResult>? latestResults,
+    Uint8List? frozenImageBytes,
+    bool clearFrozenImageBytes = false,
     bool? hasValidationError,
     GalleryScanStatus? lastGalleryScanStatus,
     bool clearGalleryScanStatus = false,
@@ -196,6 +210,8 @@ class ScannerState {
       isInitialized: isInitialized ?? this.isInitialized,
       isRunning: isRunning ?? this.isRunning,
       isPaused: isPaused ?? this.isPaused,
+      isSelectingMultiBarcode:
+          isSelectingMultiBarcode ?? this.isSelectingMultiBarcode,
       torchState: torchState ?? this.torchState,
       cameraFacing: cameraFacing ?? this.cameraFacing,
       availableCameraCount: availableCameraCount ?? this.availableCameraCount,
@@ -206,6 +222,9 @@ class ScannerState {
       textureId: textureId ?? this.textureId,
       webViewType: webViewType ?? this.webViewType,
       latestResults: latestResults ?? this.latestResults,
+      frozenImageBytes: clearFrozenImageBytes
+          ? null
+          : (frozenImageBytes ?? this.frozenImageBytes),
       hasValidationError: hasValidationError ?? this.hasValidationError,
       lastGalleryScanStatus: clearGalleryScanStatus
           ? null
@@ -228,6 +247,7 @@ class ScannerState {
         other.isInitialized == isInitialized &&
         other.isRunning == isRunning &&
         other.isPaused == isPaused &&
+        other.isSelectingMultiBarcode == isSelectingMultiBarcode &&
         other.torchState == torchState &&
         other.cameraFacing == cameraFacing &&
         other.availableCameraCount == availableCameraCount &&
@@ -238,6 +258,7 @@ class ScannerState {
         other.textureId == textureId &&
         other.webViewType == webViewType &&
         listEquals(other.latestResults, latestResults) &&
+        listEquals(other.frozenImageBytes, frozenImageBytes) &&
         other.hasValidationError == hasValidationError &&
         other.lastGalleryScanStatus == lastGalleryScanStatus &&
         other.permissionStatus == permissionStatus &&
@@ -250,6 +271,7 @@ class ScannerState {
     isInitialized,
     isRunning,
     isPaused,
+    isSelectingMultiBarcode,
     torchState,
     cameraFacing,
     availableCameraCount,
@@ -260,6 +282,7 @@ class ScannerState {
     textureId,
     webViewType,
     Object.hashAll(latestResults),
+    frozenImageBytes == null ? null : Object.hashAll(frozenImageBytes!),
     hasValidationError,
     lastGalleryScanStatus,
     permissionStatus,
