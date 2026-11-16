@@ -1,10 +1,10 @@
 ---
 name: xue-hua-barcode-scanner
-description: Use when integrating or working with xue_hua_barcode_scanner APIs to configure platform permissions, scan barcodes or QR codes in real time, customize XueHuaBarcodeScannerPage or XueHuaScannerView UI builders, control camera torch/facing via XueHuaScannerController, or decode/encode barcodes using zxing-cpp 3.1.1 FFI and WebAssembly across Android, iOS, macOS, Windows, Linux, and Web.
+description: Use when integrating or working with xue_hua_barcode_scanner APIs to configure platform permissions, scan barcodes or QR codes in real time, customize BarcodeScannerPage or ScannerView UI builders and barcodeMarkerBuilder, control camera torch/facing/multi-barcode selection via ScannerController, or decode/encode barcodes using zxing-cpp 3.1.1 FFI and WebAssembly across Android, iOS, macOS, Windows, Linux, and Web.
 ---
 # xue-hua-barcode-scanner
 
-Provide complete 6-platform integration tutorials, permission configurations, UI customization builders, controller lifecycle management, and `zxing-cpp 3.1.1` FFI/Wasm usage patterns for the `xue_hua_barcode_scanner` Flutter plugin (`https://github.com/Matkurban/xue_hua_barcode_scanner`).
+Provide complete 6-platform integration tutorials, permission configurations, UI customization builders, multi-barcode freeze & tap selection, controller lifecycle management, and `zxing-cpp 3.1.1` FFI/Wasm usage patterns for the `xue_hua_barcode_scanner` Flutter plugin (`https://github.com/Matkurban/xue_hua_barcode_scanner`).
 
 ## Environment & UI Package Conventions
 
@@ -14,15 +14,16 @@ Provide complete 6-platform integration tutorials, permission configurations, UI
 ## When to Use
 
 - Integrating `xue_hua_barcode_scanner` into a Flutter project and configuring camera/gallery permissions across Android, iOS, macOS, Windows, Linux, and Web
-- Opening a ready-to-use full-screen barcode scanner page (`XueHuaBarcodeScannerPage`) or embedding a camera scanner view (`XueHuaScannerView`)
-- Customizing any scanner UI element (`overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, `galleryButtonBuilder`)
-- Programmatically controlling the flashlight/torch (`toggleTorch`), cycling cameras (`switchCamera`), selecting a specific enumerated device (`selectCamera` / `listCameras` / `CameraInputSource`), pausing/resuming streams (`pause`, `resume`), or picking an image from the photo gallery (`analyzeImageFromGallery`) via `XueHuaScannerController`. `XueHuaBarcodeScannerPage` starts the platform default camera. It shows a `chat_context_menu` input picker on the existing top-bar camera button only when more than one source exists, and only after the user taps that button.
-- Decoding barcodes / QR codes directly from raw camera planes (`decodeImageBytes` with `PixelFormat.lum` / `rgba8888` / `bgra8888` and `rowStride`), local image files (`decodeImageFile`), or compressed PNG/JPEG bytes (`decodeImageMemory`)
-- Generating barcode PNG images (`encodeBarcode`) with configurable dimensions, margin, and `BarcodeEccLevel`
+- Opening a ready-to-use full-screen barcode scanner page (`BarcodeScannerPage`) or embedding a camera scanner view (`ScannerView`)
+- Customizing any scanner UI element (`overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, `galleryButtonBuilder`, `barcodeMarkerBuilder`, `multiBarcodeOverlayBuilder`, `permissionDeniedBuilder`)
+- Handling multiple barcodes in a single frame (`enableMultiBarcodeSelection = true` freezes the camera preview and displays pulsing green arrow markers `BarcodeMarker` or custom `barcodeMarkerBuilder` widgets at each barcode's exact viewport coordinates `BarcodeMarkerInfo`)
+- Programmatically controlling the flashlight/torch (`toggleTorch`), cycling cameras (`switchCamera`), selecting a specific enumerated device (`selectCamera` / `listCameras` / `CameraInputSource`), pausing/resuming streams (`pause`, `resume`), selecting or cancelling multi-barcode targets (`selectBarcode`, `cancelMultiBarcodeSelection`), or picking an image from the photo gallery (`analyzeImageFromGallery`) via `ScannerController`. `BarcodeScannerPage` starts the platform default camera and shows a `chat_context_menu` input picker on the top-bar camera button (`CameraSourceButton`) only when more than one source exists, and only after the user taps that button.
+- Decoding barcodes / QR codes directly from raw camera planes (`XueHuaBarcodeScanner.decodeImageBytes` with `PixelFormat.lum` / `rgba8888` / `bgra8888` and `rowStride`), local image files (`XueHuaBarcodeScanner.decodeImageFile`), or compressed PNG/JPEG bytes (`XueHuaBarcodeScanner.decodeImageMemory`)
+- Generating barcode PNG images (`XueHuaBarcodeScanner.encodeBarcode`) with configurable dimensions, margin, and `BarcodeEccLevel`
 
 ## Step-by-Step Integration & Permissions Checklist
 
-Always verify and configure the required platform permissions before launching `XueHuaBarcodeScannerPage` or calling `controller.start()`:
+Always verify and configure the required platform permissions before launching `BarcodeScannerPage` or calling `controller.start()`:
 
 ### 1. `pubspec.yaml` Setup
 ```yaml
@@ -91,7 +92,7 @@ dependencies:
 
 ## Code Usage Patterns
 
-### 1. Launch Default `XueHuaBarcodeScannerPage`
+### 1. Launch Default `BarcodeScannerPage`
 
 ```dart
 import 'package:material_ui/material_ui.dart';
@@ -100,10 +101,11 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 Future<void> openDefaultScanner(BuildContext context) async {
   final List<BarcodeResult>? results = await Navigator.of(context).push(
     MaterialPageRoute<List<BarcodeResult>>(
-      builder: (_) => XueHuaBarcodeScannerPage(
+      builder: (_) => BarcodeScannerPage(
         autoPopOnDetect: true,
-        texts: const XueHuaScannerTexts(
-          hintText: '将二维码放入框内',
+        texts: const ScannerTexts(
+          hintText: '扫二维码 / 条码',
+          multiBarcodeHintText: '轻触小绿点，选择要识别的码',
           invalidBarcodeText: '二维码不符合要求',
         ),
         validator: (result) => result.text.isNotEmpty,
@@ -116,20 +118,21 @@ Future<void> openDefaultScanner(BuildContext context) async {
 }
 ```
 
-### 2. Control Torch, Camera Facing & Gallery via `XueHuaScannerController`
+### 2. Control Torch, Camera Facing, Multi-Barcode Selection & Gallery via `ScannerController`
 
-1. Instantiate `XueHuaScannerController` inside `State.initState()` and pass it to `XueHuaBarcodeScannerPage` or `XueHuaScannerView`.
-2. Listen to `controller` (`ValueListenable<ScannerState>`) via `ValueListenableBuilder<ScannerState>` to inspect `state.isTorchOn`, `state.hasTorch`, `state.cameraFacing`, and `state.latestResults`.
-3. Call `controller.toggleTorch()`, `controller.switchCamera()`, `controller.pause()`, `controller.resume()`, or `controller.analyzeImageFromGallery()`.
+1. Instantiate `ScannerController` inside `State.initState()` and pass it to `BarcodeScannerPage` or `ScannerView`.
+2. Listen to `controller` (`ValueListenable<ScannerState>`) via `ValueListenableBuilder<ScannerState>` to inspect `state.isTorchOn`, `state.hasTorch`, `state.cameraFacing`, `state.isSelectingMultiBarcode`, and `state.latestResults`.
+3. Call `controller.toggleTorch()`, `controller.switchCamera()`, `controller.pause()`, `controller.resume()`, `controller.selectBarcode(result)`, `controller.cancelMultiBarcodeSelection()`, or `controller.analyzeImageFromGallery()`.
 4. Always dispose externally created controllers in `State.dispose()` (placed as the last method of the `State` class).
 
-### 3. Customize UI with Builders
+### 3. Customize UI & Positioned Barcode Markers with Builders
 
 ```dart
-XueHuaBarcodeScannerPage(
+BarcodeScannerPage(
   controller: controller,
+  showCutoutOverlay: true,
   overlayBuilder: (context, scanWindow, state) {
-    return XueHuaScannerOverlay(
+    return ScannerOverlay(
       scanWindow: scanWindow,
       cornerColor: Colors.cyanAccent,
       borderRadius: 24,
@@ -137,10 +140,18 @@ XueHuaBarcodeScannerPage(
     );
   },
   scanLineBuilder: (context, animation, scanWindow) {
-    return XueHuaScanLineAnimation(
+    return ScanLineAnimation(
       animation: animation,
       scanWindow: scanWindow,
       lineColor: Colors.cyanAccent,
+    );
+  },
+  barcodeMarkerBuilder: (context, info, onSelect) {
+    return GestureDetector(
+      onTap: onSelect,
+      child: Chip(
+        label: Text('#${info.index + 1}: ${info.result.text}'),
+      ),
     );
   },
   hintTextBuilder: (context, state) => const Text(

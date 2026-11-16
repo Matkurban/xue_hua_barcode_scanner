@@ -27,8 +27,8 @@
    - **Web 端**：使用条件导入（Conditional Imports）彻底隔离 `dart:ffi`，基于现代 `dart:js_interop` 桥接 `zxing-wasm` 与浏览器原生 `BarcodeDetector`，对外提供 100% 一致的 Dart API。
 2. **零拷贝单通道 Y 平面与 `rowStride` 字节对齐处理**：
    - `decodeImageBytes` 原生支持直接传入 Android YUV420/NV21 的 `PixelFormat.lum`（Y 平面）或 iOS/macOS 的 `PixelFormat.bgra8888` / `PixelFormat.rgba8888`，自动处理硬件 `rowStride` 行对齐步长，彻底消除因图像行填充导致的斜纹与识别失败。
-3. **微信扫一扫风格 UI、多码自动暂停点选与 100% 可定制架构 (`XueHuaBarcodeScannerPage` & `XueHuaScannerView`)**：
-   - 默认内置微信扫一扫同款体验：全屏无挖孔沉浸式取景 (`showCutoutOverlay: false`，也支持开启方形挖孔框模式)、微信绿 `#07C160` 自上而下渐变点阵网格光幕扫描线、多二维码自动冻结画面并渲染带呼吸光圈与白色箭头的小绿点 (`XueHuaWeChatBarcodeMarker`) 供用户手动点选，以及底部居中提示与悬浮「手电筒」「相册」圆形按钮。
+3. **全屏沉浸式扫一扫 UI、多码自动暂停点选与 100% 可定制架构 (`BarcodeScannerPage` & `ScannerView`)**：
+   - 默认内置全屏无挖孔沉浸式取景 (`showCutoutOverlay: false`，也支持开启方形挖孔框模式)、`#07C160` 自上而下渐变点阵网格光幕扫描线、多二维码自动冻结画面并渲染带呼吸光圈与白色箭头的小绿点 (`BarcodeMarker`) 供用户手动点选，以及底部居中提示与轻量化「手电筒」「相册」圆形按钮。
    - 所有组件及每个识别到的二维码坐标位置上的交互组件均支持通过 `barcodeMarkerBuilder`、`multiBarcodeOverlayBuilder`、`overlayBuilder`、`scanLineBuilder`、`topBarBuilder`、`hintTextBuilder`、`bottomBarBuilder`、`torchButtonBuilder`、`galleryButtonBuilder` 完全自定义替换。
 
 ---
@@ -62,7 +62,7 @@ dependencies:
 #### 1. Android 端集成与权限配置 (`android/app/src/main/AndroidManifest.xml`)
 
 - **所需权限明细**：
-  - `android.permission.CAMERA`：**必须配置**。用于开启实时相机预览、视频帧条码识别及闪光灯控制。插件内部已集成动态权限请求逻辑，调用 `startCamera` 或打开 `XueHuaBarcodeScannerPage` 时会自动弹出系统相机授权框。
+  - `android.permission.CAMERA`：**必须配置**。用于开启实时相机预览、视频帧条码识别及闪光灯控制。插件内部已集成动态权限请求逻辑，调用 `startCamera` 或打开 `BarcodeScannerPage` 时会自动弹出系统相机授权框。
   - `android.hardware.camera` 与 `android.hardware.camera.autofocus`：建议声明并设置 `android:required="false"`，以便无后置摄像头的设备也能安装应用并使用相册/静态图片解码功能。
   - **相册选图权限说明**：插件通过系统 `Intent.ACTION_GET_CONTENT` (`image/*`) 选择图片，**无需**申请 `READ_EXTERNAL_STORAGE` 或 `READ_MEDIA_IMAGES` 存储权限。
 
@@ -159,10 +159,10 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 Future<void> startScan(BuildContext context) async {
   final List<BarcodeResult>? results = await Navigator.of(context).push(
     MaterialPageRoute<List<BarcodeResult>>(
-      builder: (_) => XueHuaBarcodeScannerPage(
+      builder: (_) => BarcodeScannerPage(
         autoPopOnDetect: true,
-        texts: const XueHuaScannerTexts(
-          hintText: '将二维码放入框内',
+        texts: const ScannerTexts(
+          hintText: '扫二维码 / 条码',
           invalidBarcodeText: '二维码不符合要求',
         ),
         validator: (result) => result.text.isNotEmpty,
@@ -177,27 +177,32 @@ Future<void> startScan(BuildContext context) async {
 }
 ```
 
-### 2. 使用自定义 Builder 替换扫描页面任意组件
+### 2. 使用自定义 Builder 替换扫描页面任意组件与二维码位置组件
 
 ```dart
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
-final controller = XueHuaScannerController(
+final controller = ScannerController(
   initialFacing: CameraFacing.back,
 );
 
-XueHuaBarcodeScannerPage(
+BarcodeScannerPage(
   controller: controller,
-  overlayBuilder: (context, scanWindow, state) => XueHuaScannerOverlay(
+  showCutoutOverlay: true,
+  overlayBuilder: (context, scanWindow, state) => ScannerOverlay(
     scanWindow: scanWindow,
     cornerColor: Colors.cyanAccent,
     borderRadius: 24,
   ),
-  scanLineBuilder: (context, animation, scanWindow) => XueHuaScanLineAnimation(
+  scanLineBuilder: (context, animation, scanWindow) => ScanLineAnimation(
     animation: animation,
     scanWindow: scanWindow,
     lineColor: Colors.cyanAccent,
+  ),
+  barcodeMarkerBuilder: (context, info, onSelect) => GestureDetector(
+    onTap: onSelect,
+    child: Chip(label: Text(info.result.text)),
   ),
   hintTextBuilder: (context, state) => const Text(
     '将二维码放入框内',
@@ -246,13 +251,15 @@ final List<BarcodeResult> fromPixels =
 );
 ```
 
-## `XueHuaScannerController` 核心 API 列表
+## `ScannerController` 核心 API 列表
 
 | 方法 / 属性 | 说明 |
 | :--- | :--- |
-| `ValueListenable<ScannerState> stateListenable` | 监听相机初始化状态、手电筒状态 (`torchState`)、当前镜头方向 (`cameraFacing`) 及最新识别结果 (`latestResults`)。 |
+| `ValueListenable<ScannerState> stateListenable` | 监听相机初始化状态、多码点选状态 (`isSelectingMultiBarcode`)、手电筒状态 (`torchState`)、当前镜头方向 (`cameraFacing`) 及最新识别结果 (`latestResults`)。 |
 | `Future<void> start()` / `stop()` | 启动或停止相机取景流。 |
-| `Future<void> pause()` / `resume()` | 暂停或恢复实时帧解码与扫描线动画。 |
+| `Future<void> pause()` / `resume()` | 暂停或恢复实时帧解码并冻结/恢复底层相机画面。 |
+| `void selectBarcode(BarcodeResult result)` | 在多码暂停点选状态下选中指定条码并触发 `onDetect([result])` 与 `onBarcodeSelected(result)`。 |
+| `Future<void> cancelMultiBarcodeSelection()` | 退出多码待选状态并恢复实时相机扫描。 |
 | `Future<bool> toggleTorch()` | 开启/关闭手电筒；在无闪光灯的桌面端自动安全降级并返回 `false`。 |
 | `Future<void> switchCamera()` | 切换前/后置摄像头（或桌面端多个外接 USB 摄像头）。 |
 | `Future<List<BarcodeResult>> analyzeImageFromGallery()` | 从本地相册选图并调用 `zxing-cpp` 识别其中的条码/二维码。 |

@@ -126,7 +126,7 @@ void main() {
     });
   });
 
-  group('XueHuaScannerController camera / error paths', () {
+  group('ScannerController camera / error paths', () {
     testWidgets('start settles to ready or recorded error, then stop', (
       WidgetTester tester,
     ) async {
@@ -491,8 +491,8 @@ void main() {
         find.byKey(const ValueKey<String>('xh_scanner_back_button')),
         findsOneWidget,
       );
-      expect(find.textContaining('将二维码放入框内'), findsWidgets);
-      expect(find.textContaining('手电筒'), findsWidgets);
+      expect(find.textContaining('扫二维码'), findsWidgets);
+      expect(find.textContaining('轻触'), findsWidgets);
       expect(find.textContaining('相册'), findsWidgets);
 
       // Torch: label change or unsupported snackbar — either is fine.

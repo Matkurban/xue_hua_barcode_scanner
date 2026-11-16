@@ -71,13 +71,13 @@ class ScannerController extends ValueNotifier<ScannerState> {
   /// tapping its marker in multi-barcode mode or upon single-barcode detection).
   final void Function(BarcodeResult result)? onBarcodeSelected;
 
-  /// Optional view-level validator attached by `XueHuaScannerView`.
+  /// Optional view-level validator attached by [ScannerView].
   BarcodeValidator? viewValidator;
 
-  /// Optional view-level multi-barcode selection flag attached by `XueHuaScannerView`.
+  /// Optional view-level multi-barcode selection flag attached by [ScannerView].
   bool? viewEnableMultiBarcodeSelection;
 
-  /// Optional view-level single barcode selection callback attached by `XueHuaScannerView`.
+  /// Optional view-level single barcode selection callback attached by [ScannerView].
   void Function(BarcodeResult result)? viewOnBarcodeSelected;
 
   bool get _effectiveMultiBarcodeSelection =>

@@ -27,8 +27,8 @@ A production-grade, 6-platform (**Android, iOS, macOS, Windows, Linux, Web**) Fl
    - **Web Platform**: Isolates `dart:ffi` via conditional imports and uses modern `dart:js_interop` to bridge `zxing-wasm` and the browser's `BarcodeDetector` API with 100% identical Dart APIs.
 2. **Zero-Copy Y-Plane & `rowStride` Alignment**:
    - Directly decodes single-channel grayscale (`PixelFormat.lum` for Android `YUV_420_888` / `NV21` Y-plane), `PixelFormat.rgba8888`, `PixelFormat.bgra8888`, and `PixelFormat.rgb888` while normalizing hardware row alignment padding (`rowStride`) to prevent diagonal image skew.
-3. **Out-of-the-Box Custom Scan (`扫一扫`) UI, Multi-Barcode Freeze & Selection, and 100% Customization**:
-   - Full-screen aspect-ratio-preserving camera preview (`Texture` / `HtmlElementView`), Custom green (`#07C160`) unidirectional optical mesh curtain scan line, optional rounded-square cutout mode (`showCutoutOverlay: true`), automatic multi-barcode preview freezing with pulsing green arrow markers (`XueHuaWeChatBarcodeMarker`), custom positioned barcode widgets via `barcodeMarkerBuilder`, and symmetric **Torch** and **Gallery** buttons.
+3. **Out-of-the-Box Full-Screen Scanner UI (`BarcodeScannerPage` & `ScannerView`), Multi-Barcode Freeze & Selection, and 100% Customization**:
+   - Full-screen aspect-ratio-preserving camera preview (`Texture` / `HtmlElementView`), emerald green (`#07C160`) unidirectional optical mesh curtain scan line, optional rounded-square cutout mode (`showCutoutOverlay: true`), automatic multi-barcode preview freezing with pulsing green arrow markers (`BarcodeMarker`), custom positioned barcode widgets via `barcodeMarkerBuilder`, and symmetric **Torch** and **Gallery** buttons.
    - Every visual component can be overridden via `overlayBuilder`, `scanLineBuilder`, `topBarBuilder`, `hintTextBuilder`, `bottomBarBuilder`, `torchButtonBuilder`, `galleryButtonBuilder`, `barcodeMarkerBuilder`, and `multiBarcodeOverlayBuilder`.
 
 ---
@@ -62,7 +62,7 @@ dependencies:
 #### 1. Android (`android/app/src/main/AndroidManifest.xml`)
 
 - **Required Permissions**:
-  - `android.permission.CAMERA`: **Required** for real-time camera preview, barcode scanning, and flashlight control. The plugin automatically triggers the system runtime permission dialog when `start()` / `XueHuaBarcodeScannerPage` is opened.
+  - `android.permission.CAMERA`: **Required** for real-time camera preview, barcode scanning, and flashlight control. The plugin automatically triggers the system runtime permission dialog when `start()` / `BarcodeScannerPage` is opened.
   - `android.hardware.camera` & `android.hardware.camera.autofocus`: Declared with `android:required="false"` so devices without rear cameras or autofocus can still install the app and use gallery/static image decoding.
   - **Gallery Image Picking**: Uses the system document picker (`Intent.ACTION_GET_CONTENT` with `image/*`), which **does not** require `READ_EXTERNAL_STORAGE` or `READ_MEDIA_IMAGES` permissions.
 
@@ -160,10 +160,10 @@ import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 Future<void> scanBarcode(BuildContext context) async {
   final List<BarcodeResult>? results = await Navigator.of(context).push(
     MaterialPageRoute<List<BarcodeResult>>(
-      builder: (_) => XueHuaBarcodeScannerPage(
+      builder: (_) => BarcodeScannerPage(
         autoPopOnDetect: true,
-        texts: const XueHuaScannerTexts(
-          hintText: '将二维码放入框内',
+        texts: const ScannerTexts(
+          hintText: '扫二维码 / 条码',
           invalidBarcodeText: '二维码不符合要求',
         ),
         validator: (result) => result.text.isNotEmpty,
@@ -178,27 +178,32 @@ Future<void> scanBarcode(BuildContext context) async {
 }
 ```
 
-### 2. Full UI Customization with Builders & `XueHuaScannerController`
+### 2. Full UI Customization with Builders & `ScannerController`
 
 ```dart
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_barcode_scanner/xue_hua_barcode_scanner.dart';
 
-final controller = XueHuaScannerController(
+final controller = ScannerController(
   initialFacing: CameraFacing.back,
 );
 
-XueHuaBarcodeScannerPage(
+BarcodeScannerPage(
   controller: controller,
-  overlayBuilder: (context, scanWindow, state) => XueHuaScannerOverlay(
+  showCutoutOverlay: true,
+  overlayBuilder: (context, scanWindow, state) => ScannerOverlay(
     scanWindow: scanWindow,
     cornerColor: Colors.cyanAccent,
     borderRadius: 24,
   ),
-  scanLineBuilder: (context, animation, scanWindow) => XueHuaScanLineAnimation(
+  scanLineBuilder: (context, animation, scanWindow) => ScanLineAnimation(
     animation: animation,
     scanWindow: scanWindow,
     lineColor: Colors.cyanAccent,
+  ),
+  barcodeMarkerBuilder: (context, info, onSelect) => GestureDetector(
+    onTap: onSelect,
+    child: Chip(label: Text(info.result.text)),
   ),
   hintTextBuilder: (context, state) => const Text(
     '将二维码放入框内',
@@ -247,13 +252,15 @@ final List<BarcodeResult> decodedFromBytes =
 );
 ```
 
-## `XueHuaScannerController` API Overview
+## `ScannerController` API Overview
 
 | Method / Property | Description |
 | :--- | :--- |
-| `ValueListenable<ScannerState> stateListenable` | Listens to `isInitialized`, `isRunning`, `isPaused`, `torchState`, `cameraFacing`, and `latestResults`. |
+| `ValueListenable<ScannerState> stateListenable` | Listens to `isInitialized`, `isRunning`, `isPaused`, `isSelectingMultiBarcode`, `torchState`, `cameraFacing`, and `latestResults`. |
 | `Future<void> start()` / `stop()` | Starts or stops the platform camera stream. |
-| `Future<void> pause()` / `resume()` | Pauses or resumes real-time frame decoding and scan line animation. |
+| `Future<void> pause()` / `resume()` | Pauses or resumes real-time frame decoding and freezes/unfreezes live camera preview. |
+| `void selectBarcode(BarcodeResult result)` | Selects a specific barcode in multi-barcode mode and emits `onDetect([result])` & `onBarcodeSelected(result)`. |
+| `Future<void> cancelMultiBarcodeSelection()` | Exits multi-barcode selection state and resumes live camera scanning. |
 | `Future<bool> toggleTorch()` | Toggles hardware flashlight on Android, iOS, and mobile Web; returns `false` on unsupported desktop cameras. |
 | `Future<void> switchCamera()` | Switches between rear (`CameraFacing.back`) and front (`CameraFacing.front`) cameras (or external USB cameras on desktop). |
 | `Future<List<BarcodeResult>> analyzeImageFromGallery()` | Picks an image from the local gallery/filesystem and decodes barcodes. |

@@ -1,5 +1,5 @@
-/// Encapsulates all customizable UI text strings in `XueHuaBarcodeScannerPage`
-/// and `XueHuaScannerView` for internationalization (i18n) and localization.
+/// Encapsulates all customizable UI text strings in [BarcodeScannerPage]
+/// and [ScannerView] for internationalization (i18n) and localization.
 class ScannerTexts {
   /// Creates a [ScannerTexts] configuration with localized strings.
   const ScannerTexts({

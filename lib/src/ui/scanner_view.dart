@@ -17,7 +17,7 @@ import 'widgets/scanner_camera_preview.dart';
 import 'widgets/scanner_top_bar.dart';
 
 /// Embeddable, 100% customizable Barcode & QR Code camera scanner view with
-/// Custom Scan-style UI and automatic multi-barcode freeze & tap selection.
+/// full-screen or cutout viewfinder and automatic multi-barcode freeze & tap selection.
 class ScannerView extends StatefulWidget {
   /// Creates a [ScannerView].
   const ScannerView({
@@ -76,7 +76,7 @@ class ScannerView extends StatefulWidget {
   final ScannerTexts texts;
 
   /// Whether to display a central square cutout box with four corner brackets
-  /// (`true`) instead of Custom's default full-screen open viewfinder (`false`).
+  /// (`true`) instead of the default full-screen open viewfinder (`false`).
   final bool showCutoutOverlay;
 
   /// Alias for [showCutoutOverlay] to toggle the central square cutout box.
@@ -91,13 +91,13 @@ class ScannerView extends StatefulWidget {
   /// Color of the semi-transparent overlay outside the scan cutout.
   final Color maskColor;
 
-  /// Color of the target markers and corner brackets (defaults to Custom green `#07C160`).
+  /// Color of the target markers and corner brackets (defaults to `#07C160`).
   final Color cornerColor;
 
   /// Highlight color used when a barcode fails validation (`state.hasValidationError == true`).
   final Color errorColor;
 
-  /// Color of the animated Custom optical mesh scan line (defaults to `#07C160`).
+  /// Color of the animated optical mesh scan line (defaults to `#07C160`).
   final Color scanLineColor;
 
   /// Duration of one top-to-bottom sweep of the scan line.

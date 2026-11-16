@@ -10,10 +10,10 @@ import 'scanner_view.dart';
 export 'scanner_builders.dart';
 export 'scanner_view.dart';
 
-/// Full-screen ready-to-use Custom-style Barcode & QR Code scanner route page
-/// (`Scaffold`) with 100% customizable UI builders, multi-barcode freeze &
-/// tap selection, custom positioned marker widgets ([barcodeMarkerBuilder]),
-/// localized [texts], [validator] support, and [ScannerController] integration.
+/// Full-screen ready-to-use Barcode & QR Code scanner route page (`Scaffold`)
+/// with 100% customizable UI builders, multi-barcode freeze & tap selection,
+/// custom positioned marker widgets ([barcodeMarkerBuilder]), localized [texts],
+/// [validator] support, and [ScannerController] integration.
 class BarcodeScannerPage extends StatelessWidget {
   /// Creates a [BarcodeScannerPage].
   const BarcodeScannerPage({
@@ -75,7 +75,7 @@ class BarcodeScannerPage extends StatelessWidget {
   /// Localized text strings for all UI elements in the scanner page.
   final ScannerTexts texts;
 
-  /// Whether to render a central square cutout box (`true`) instead of Custom's
+  /// Whether to render a central square cutout box (`true`) instead of the
   /// default full-screen open viewfinder (`false`).
   final bool showCutoutOverlay;
 
@@ -91,13 +91,13 @@ class BarcodeScannerPage extends StatelessWidget {
   /// Semi-transparent background mask color when cutout mode is enabled.
   final Color maskColor;
 
-  /// Highlight color of the target markers and corner brackets (defaults to Custom green `#07C160`).
+  /// Highlight color of the target markers and corner brackets (defaults to `#07C160`).
   final Color cornerColor;
 
   /// Red highlight color used when a barcode fails validation.
   final Color errorColor;
 
-  /// Color of the animated Custom optical mesh scan line (defaults to `#07C160`).
+  /// Color of the animated optical mesh scan line (defaults to `#07C160`).
   final Color scanLineColor;
 
   /// Sweep duration of the scan line animation.

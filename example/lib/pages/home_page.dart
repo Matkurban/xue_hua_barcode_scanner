@@ -48,7 +48,7 @@ class _ExampleHomePageState extends State<ExampleHomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Text('XueHua Barcode Scanner (v1.0.0)'),
+            const Text('XueHua Barcode Scanner (v1.3.0)'),
             Text(
               'Engine: ${XueHuaBarcodeScanner.engineVersion}',
               key: const ValueKey<String>('xh_engine_version'),

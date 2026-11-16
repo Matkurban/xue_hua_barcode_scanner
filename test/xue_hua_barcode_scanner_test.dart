@@ -285,7 +285,7 @@ void main() {
   );
 
   testWidgets(
-    'XueHuaBarcodeScannerPage renders XueHuaScannerTexts and turns red on validation failure',
+    'BarcodeScannerPage renders ScannerTexts and turns red on validation failure',
     (WidgetTester tester) async {
       final ScannerController controller = ScannerController(
         validator: (BarcodeResult result) => result.text.startsWith('https://'),

@@ -20,7 +20,7 @@ Rect calculateScanWindowRect(
 }
 
 /// Scanner viewfinder overlay supporting both:
-/// 1. **Custom Full-Screen Immersive Mode (`showCutout: false`)**: Open full-screen
+/// 1. **Full-Screen Immersive Mode (`showCutout: false`)**: Open full-screen
 ///    viewfinder with soft top & bottom dark vignette gradients for HUD legibility.
 /// 2. **Classic Cutout Box Mode (`showCutout: true`)**: Semi-transparent dark mask
 ///    with a rounded square cutout, optical reticle, and four glowing corner brackets.
@@ -45,7 +45,7 @@ class ScannerOverlay extends StatelessWidget {
   /// Centered square cutout rectangle in viewport coordinates.
   final Rect scanWindow;
 
-  /// Whether to render the central cutout box (`true`) or Custom's full-screen
+  /// Whether to render the central cutout box (`true`) or the full-screen
   /// open viewfinder with top/bottom vignette gradients (`false`).
   final bool showCutout;
 
@@ -61,7 +61,7 @@ class ScannerOverlay extends StatelessWidget {
   /// Thin frame outline color around [scanWindow].
   final Color borderColor;
 
-  /// Highlight color for the four L-shaped corner brackets (defaults to Custom green `#07C160`).
+  /// Highlight color for the four L-shaped corner brackets (defaults to `#07C160`).
   final Color cornerColor;
 
   /// Corner radius of the cutout square.

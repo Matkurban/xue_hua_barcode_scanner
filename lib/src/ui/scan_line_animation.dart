@@ -2,11 +2,11 @@ import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 
-/// Custom Scan-style unidirectional top-to-bottom optical mesh curtain scan line.
+/// Unidirectional top-to-bottom optical mesh curtain scan line.
 ///
 /// Renders a three-layer optical effect:
 /// 1. **Trailing Gradient Curtain**: Soft upward-fading emerald light curtain.
-/// 2. **Custom Optical Mesh Grid**: Perspective grid & micro-dot matrix inside the curtain.
+/// 2. **Optical Mesh Grid**: Perspective grid & micro-dot matrix inside the curtain.
 /// 3. **Leading Bright Edge**: Tapered neon laser core with a luminous center highlight.
 ///
 /// Driven directly via `CustomPainter(repaint: animation)` inside a
@@ -31,7 +31,7 @@ class ScanLineAnimation extends StatelessWidget {
   /// Bounds of the central scan region.
   final Rect scanWindow;
 
-  /// Primary scan line color (defaults to Custom green `#07C160`).
+  /// Primary scan line color (defaults to `#07C160`).
   final Color lineColor;
 
   /// Core thickness of the leading bright edge.
@@ -44,10 +44,10 @@ class ScanLineAnimation extends StatelessWidget {
   final double horizontalPadding;
 
   /// When `true`, expands the scan line horizontally across the viewport
-  /// (Custom full-screen style) instead of confining it strictly to [scanWindow.width].
+  /// instead of confining it strictly to [scanWindow.width].
   final bool fullWidth;
 
-  /// Whether to draw the Custom-style optical grid & dot matrix inside the trailing curtain.
+  /// Whether to draw the optical grid & dot matrix inside the trailing curtain.
   final bool showGridMesh;
 
   @override

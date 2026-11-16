@@ -6,7 +6,7 @@ import '../../models/scanner_texts.dart';
 import '../scanner_builders.dart';
 import 'scanner_bottom_action_button.dart';
 
-/// Custom Scan-style bottom section containing the centered prompt caption
+/// Bottom section of the scanner view containing the centered prompt caption
 /// ("扫二维码 / 条码" or "轻触小绿点，选择要识别的码") and floating circular
 /// Torch & Gallery buttons.
 class ScannerBottomBar extends StatelessWidget {

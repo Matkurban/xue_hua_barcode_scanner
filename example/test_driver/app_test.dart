@@ -149,8 +149,8 @@ void main() {
         await exerciseScanner(
           driver,
           pageKey: 'xh_default_scanner_page',
-          hintFragment: '将二维码放入框内',
-          torchFragment: '手电筒',
+          hintFragment: '扫二维码',
+          torchFragment: '轻触',
           galleryFragment: '相册',
         );
       },

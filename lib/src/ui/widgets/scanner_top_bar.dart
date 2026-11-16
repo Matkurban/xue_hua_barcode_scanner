@@ -7,9 +7,9 @@ import '../scanner_builders.dart';
 import 'circle_glass_icon_button.dart';
 import 'scanner_camera_source_button.dart';
 
-/// Custom Scan-style top bar containing the circular close (`×`) button (or
-/// "取消" button when paused in multi-barcode selection mode) and multi-camera
-/// source switch button.
+/// Top bar of the scanner view containing the circular close (`×`) button
+/// (or "取消" button when paused in multi-barcode selection mode) and
+/// multi-camera source switch button.
 class ScannerTopBar extends StatelessWidget {
   const ScannerTopBar({
     super.key,
@@ -49,12 +49,32 @@ class ScannerTopBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
             if (isMultiSelect)
-              _WeChatCancelMultiSelectButton(
+              TextButton(
                 key: const ValueKey<String>(
                   'xh_scanner_cancel_multi_select_button',
                 ),
-                label: texts.cancelMultiSelectLabel,
                 onPressed: onCancelMultiSelect ?? onBack,
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.48),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: const StadiumBorder(),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+                ),
+                child: Text(
+                  texts.cancelMultiSelectLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.3,
+                  ),
+                ),
               )
             else
               CircleGlassIconButton(
@@ -71,60 +91,8 @@ class ScannerTopBar extends StatelessWidget {
                 onSelected: onSelectCamera,
               )
             else
-              const SizedBox(width: 44, height: 44),
+              const SizedBox(width: 42, height: 42),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _WeChatCancelMultiSelectButton extends StatefulWidget {
-  const _WeChatCancelMultiSelectButton({
-    super.key,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  State<_WeChatCancelMultiSelectButton> createState() =>
-      _WeChatCancelMultiSelectButtonState();
-}
-
-class _WeChatCancelMultiSelectButtonState
-    extends State<_WeChatCancelMultiSelectButton> {
-  bool _isPressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _isPressed = true),
-      onTapUp: (_) => setState(() => _isPressed = false),
-      onTapCancel: () => setState(() => _isPressed = false),
-      onTap: widget.onPressed,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 100),
-        opacity: _isPressed ? 0.65 : 1.0,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0x66000000),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-          ),
-          child: Text(
-            widget.label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.3,
-            ),
-          ),
         ),
       ),
     );

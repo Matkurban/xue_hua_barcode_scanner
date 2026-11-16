@@ -7,7 +7,7 @@ import 'barcode_enums.dart';
 import 'barcode_result.dart';
 import 'camera_input_source.dart';
 
-/// Immutable state snapshot exposed by `XueHuaScannerController`.
+/// Immutable state snapshot exposed by [ScannerController].
 class ScannerState {
   /// Creates a [ScannerState].
   const ScannerState({

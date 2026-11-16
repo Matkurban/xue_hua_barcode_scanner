@@ -5,14 +5,14 @@ import 'package:material_ui/material_ui.dart';
 import '../models/barcode_result.dart';
 import 'scanner_builders.dart';
 
-/// Interactive layer that renders positioned barcode anchor widgets (Custom-style
-/// pulsing green dots with white arrows by default, or custom widgets via
+/// Interactive layer that renders positioned barcode anchor widgets (pulsing
+/// green dots with white arrows by default, or custom widgets via
 /// [barcodeMarkerBuilder]) at each detected barcode's viewport coordinates.
 typedef BarcodeMarkersLayer = CornerAnchorHighlight;
 
-/// Renders interactive Custom-style target anchor markers (or custom widgets
-/// provided via [barcodeMarkerBuilder]) at each detected barcode's exact
-/// viewport coordinates (`center`, `boundingBox`, `cornerPoints`).
+/// Renders interactive target anchor markers (or custom widgets provided via
+/// [barcodeMarkerBuilder]) at each detected barcode's exact viewport
+/// coordinates (`center`, `boundingBox`, `cornerPoints`).
 class CornerAnchorHighlight extends StatelessWidget {
   /// Creates a [CornerAnchorHighlight].
   const CornerAnchorHighlight({
@@ -41,7 +41,7 @@ class CornerAnchorHighlight extends StatelessWidget {
   /// Whether the active camera is front-facing (mirrored horizontally).
   final bool isFrontCamera;
 
-  /// Fill color of the default Custom target anchor badge (`#07C160`).
+  /// Fill color of the default target anchor badge (`#07C160`).
   final Color anchorColor;
 
   /// Whether the scanner has paused on multiple barcodes and is waiting for the
@@ -201,8 +201,8 @@ class _BarcodeMarkersLayoutDelegate extends MultiChildLayoutDelegate {
   }
 }
 
-/// Default Custom-style pulsing green circular barcode marker with a white
-/// border, breathing halo ring, and white right-arrow icon (`→`) in multi-select mode.
+/// Default pulsing green circular barcode marker with a white border,
+/// breathing halo ring, and white right-arrow icon (`→`) in multi-select mode.
 class BarcodeMarker extends StatefulWidget {
   /// Creates a [BarcodeMarker].
   const BarcodeMarker({
@@ -216,7 +216,7 @@ class BarcodeMarker extends StatefulWidget {
   /// Mapped geometry and barcode payload for this marker.
   final BarcodeMarkerInfo info;
 
-  /// Core fill color (defaults to Custom green `#07C160`).
+  /// Core fill color (defaults to `#07C160`).
   final Color anchorColor;
 
   /// Diameter of the inner green circle in logical pixels.
