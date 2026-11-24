@@ -22,7 +22,7 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   ffi: ^2.2.0
-  material_ui: ^1.11.0
+  material_ui: ^1.11.1
   chat_context_menu: ^4.2.0
 
 dev_dependencies:
